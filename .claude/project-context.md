@@ -10,57 +10,95 @@ Quick reference for Claude Code sessions.
 - **Organization**: JustInternetAI
 
 ## Tech Stack
-- **Godot 4**: C++ GDExtension module for simulation
+- **Godot 4.5**: C++ GDExtension module for simulation
 - **Python 3.11+**: Agent runtime, LLM backends, tools
+- **Visual Studio 2022**: C++ compilation (MSVC)
+- **CMake 3.20+**: Build system
 - **License**: Apache 2.0
 
 ## Project Structure
 ```
 c:\Projects\Agent Arena\
-├── godot/              # C++ GDExtension module
-│   ├── src/           # Core simulation classes
-│   └── include/       # Headers
-├── python/            # Python agent runtime
-│   ├── agent_runtime/ # Agent logic
-│   ├── backends/      # LLM adapters (llama.cpp, vLLM, etc)
-│   ├── tools/         # Agent tools (movement, inventory, etc)
-│   ├── memory/        # Memory systems (RAG, episodes)
-│   └── evals/         # Evaluation harness
-├── configs/           # Hydra configs
-├── scenes/            # Godot benchmark scenes
-├── tests/             # Python unit tests
-└── docs/              # Documentation
+├── agent_arena.gdextension  # GDExtension configuration
+├── project.godot            # Godot project file
+├── godot/                   # C++ GDExtension module
+│   ├── src/                 # Core simulation classes (agent_arena.cpp, register_types.cpp)
+│   ├── include/             # Headers (agent_arena.h, register_types.h)
+│   └── build/               # CMake build directory
+├── bin/                     # Compiled libraries
+│   └── windows/             # Windows DLLs
+├── external/                # Third-party dependencies
+│   └── godot-cpp/           # Godot C++ bindings (4.5-stable)
+├── python/                  # Python agent runtime
+│   ├── agent_runtime/       # Agent logic
+│   ├── backends/            # LLM adapters (llama.cpp, vLLM, etc)
+│   ├── tools/               # Agent tools (movement, inventory, etc)
+│   ├── memory/              # Memory systems (RAG, episodes)
+│   └── evals/               # Evaluation harness
+├── configs/                 # Hydra configs
+├── scenes/                  # Godot benchmark scenes
+│   └── test_arena.tscn      # Test scene with SimulationManager & Agent
+├── tests/                   # Python unit tests
+└── docs/                    # Documentation
 ```
 
 ## Key Files
 - Architecture: `docs/architecture.md`
 - Setup guide: `docs/quickstart.md`
+- Testing guide: `TESTING.md`
 - GitHub setup: `GITHUB_SETUP.md`
 - Main config: `configs/config.yaml`
+- Project context: `.claude/project-context.md` (this file)
 
 ## Current Status
 - ✅ Initial framework complete
 - ✅ Pushed to GitHub
-- ⏳ Next: Build godot-cpp and compile C++ module
+- ✅ godot-cpp cloned and built (4.5-stable branch)
+- ✅ C++ GDExtension module compiled successfully
+- ✅ Extension tested and working in Godot 4.5.1
+- ✅ Test scene created with working controls
+- ✅ Core classes verified: SimulationManager, Agent, EventBus, ToolRegistry
 - ⏳ Next: Implement IPC between Godot and Python
-- ⏳ Next: Create first benchmark scene
+- ⏳ Next: Create actual benchmark scenes (foraging, crafting_chain, team_capture)
+- ⏳ Next: Set up Python environment and agent runtime
 
 ## Development Commands
+
+### Build C++ Module (Windows)
 ```bash
-# Build C++ module
+# Clean build (if needed)
+rm -rf godot/build
+mkdir godot/build
+
+# Configure with CMake
 cd godot/build
-cmake ..
-cmake --build .
+"C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" ..
 
-# Run Python tests
-cd tests
-pytest -v
+# Build
+"C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" --build . --config Debug
 
+# Copy DLLs to bin folder (CMake does this automatically)
+```
+
+### Run Godot
+```bash
+# Open project in Godot 4.5+
+godot --path "c:\Projects\Agent Arena"
+
+# Or drag project.godot onto Godot executable
+```
+
+### Python Setup
+```bash
 # Setup Python env
 cd python
 python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
+
+# Run Python tests
+cd tests
+pytest -v
 ```
 
 ## Common Tasks
@@ -80,12 +118,39 @@ pip install -r requirements.txt
 ### Adding to C++ Module
 1. Update `godot/include/agent_arena.h`
 2. Implement in `godot/src/agent_arena.cpp`
-3. Rebuild with CMake
+3. If adding new classes, register in `godot/src/register_types.cpp`
+4. Rebuild with CMake (see Development Commands)
+5. Restart Godot to load new version
+
+## Built C++ Classes
+
+### SimulationManager (Node)
+- Deterministic tick-based simulation controller
+- Methods: `start_simulation()`, `stop_simulation()`, `step_simulation()`, `reset_simulation()`
+- Properties: `current_tick`, `tick_rate`, `is_running`
+- Signals: `simulation_started`, `simulation_stopped`, `tick_advanced(tick)`
+
+### Agent (Node)
+- Base agent class with perception, memory, and actions
+- Methods: `perceive()`, `decide_action()`, `execute_action()`, `call_tool()`
+- Memory: `store_memory()`, `retrieve_memory()`, `clear_short_term_memory()`
+- Properties: `agent_id`
+- Signals: `action_decided`, `perception_received`
+
+### EventBus (RefCounted)
+- Event recording and replay system
+- Methods: `emit_event()`, `get_events_for_tick()`, `clear_events()`
+- Recording: `start_recording()`, `stop_recording()`, `export_recording()`, `load_recording()`
+
+### ToolRegistry (RefCounted)
+- Tool management system for agent actions
+- Methods: `register_tool()`, `unregister_tool()`, `get_tool_schema()`, `execute_tool()`
 
 ## Known Issues
-- Need to clone godot-cpp before building
-- IPC layer not yet implemented
-- No Godot scenes created yet
+- IPC layer not yet implemented (Godot ↔ Python communication)
+- Benchmark scenes are empty placeholders
+- Python environment not yet set up
+- Tool execution currently returns stub responses
 
 ## References
 - Godot docs: https://docs.godotengine.org/
