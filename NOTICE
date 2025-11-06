@@ -1,0 +1,22 @@
+Agent Arena
+Copyright 2025 Andrew Madison and Justin Madison
+Copyright 2025 Agent Arena Contributors
+
+This product includes software developed by Andrew Madison and Justin Madison,
+and the Agent Arena project (https://github.com/JustInternetAI/AgentArena).
+
+Founded by Andrew Madison and Justin Madison in 2025.
+Maintained by JustInternetAI (https://github.com/JustInternetAI).
+
+This software is built on top of:
+
+- Godot Engine (MIT License)
+  Copyright (c) 2014-present Godot Engine contributors
+  https://godotengine.org/
+
+- godot-cpp (MIT License)
+  Copyright (c) 2017-present Godot Engine contributors
+  https://github.com/godotengine/godot-cpp
+
+Third-party Python libraries and their licenses are listed in python/requirements.txt
+and are subject to their respective licenses.

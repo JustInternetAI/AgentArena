@@ -1,0 +1,26 @@
+# vLLM backend configuration
+
+backend:
+  type: vllm
+  model: "meta-llama/Llama-2-7b-chat-hf"
+
+  # Server settings
+  host: "localhost"
+  port: 8000
+  api_base: "http://localhost:8000/v1"
+
+  # Model parameters
+  tensor_parallel_size: 1  # Number of GPUs
+  dtype: "auto"  # auto, half, float16, bfloat16, float32
+  max_model_len: 4096
+  gpu_memory_utilization: 0.9
+
+  # Generation
+  temperature: 0.7
+  top_p: 0.9
+  max_tokens: 512
+
+  # Function calling
+  function_calling:
+    enabled: true
+    format: "json"

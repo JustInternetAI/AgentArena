@@ -1,0 +1,29 @@
+# llama.cpp backend configuration
+
+backend:
+  type: llama_cpp
+  model_path: "models/llama-2-7b-chat.Q4_K_M.gguf"
+
+  # Generation parameters
+  n_ctx: 4096  # Context window size
+  n_batch: 512  # Batch size for prompt processing
+  n_threads: 8  # CPU threads
+  n_gpu_layers: 0  # Number of layers to offload to GPU (0 = CPU only)
+
+  # Sampling parameters
+  temperature: 0.7
+  top_p: 0.9
+  top_k: 40
+  repeat_penalty: 1.1
+  max_tokens: 512
+
+  # Performance
+  use_mmap: true
+  use_mlock: false
+  low_vram: false
+
+  # Function calling
+  function_calling:
+    enabled: true
+    format: "json"  # json or llama-native
+    max_retries: 3

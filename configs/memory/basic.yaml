@@ -1,0 +1,23 @@
+# Basic memory configuration
+
+memory:
+  type: basic
+
+  # Short-term memory (scratchpad)
+  short_term:
+    capacity: 10  # Number of recent observations to keep
+    strategy: "fifo"  # fifo, priority, or recency
+
+  # Long-term memory (vector store)
+  long_term:
+    enabled: false  # Enable for RAG-based memory
+    backend: "faiss"  # faiss, chroma, or milvus
+    embedding_model: "sentence-transformers/all-MiniLM-L6-v2"
+    dimension: 384
+    index_type: "IVFFlat"  # Flat, IVFFlat, HNSW
+
+  # Episode memory
+  episodes:
+    enabled: true
+    max_episodes: 100
+    summarize: false  # Auto-summarize old episodes

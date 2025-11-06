@@ -1,0 +1,56 @@
+# Agent Arena Configuration
+# Hydra configuration for agents, backends, and simulation
+
+defaults:
+  - backend: llama_cpp
+  - memory: basic
+  - _self_
+
+# Simulation settings
+simulation:
+  tick_rate: 60  # Ticks per second
+  deterministic: true
+  seed: 42
+  max_ticks: 10000
+
+# Agent runtime settings
+agent_runtime:
+  max_workers: 4  # Concurrent agent workers
+  timeout_seconds: 30  # Agent decision timeout
+
+# Logging configuration
+logging:
+  level: INFO  # DEBUG, INFO, WARNING, ERROR
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/agent_arena.log"
+
+# Replay and evaluation
+replay:
+  enabled: true
+  output_dir: "replays"
+  format: "msgpack"  # msgpack or json
+
+evaluation:
+  metrics_dir: "metrics"
+  export_format: "json"
+
+# Scene configuration
+scenes:
+  foraging:
+    name: "Foraging Scene"
+    max_agents: 5
+    resources: 20
+    time_limit: 600  # seconds
+
+  crafting_chain:
+    name: "Crafting Chain Scene"
+    max_agents: 3
+    recipes: 10
+    time_limit: 900
+
+  team_capture:
+    name: "Team Capture Scene"
+    max_agents: 8
+    teams: 2
+    capture_points: 3
+    time_limit: 1200

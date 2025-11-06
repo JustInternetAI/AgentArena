@@ -1,0 +1,65 @@
+# Build artifacts
+build/
+*.o
+*.so
+*.dll
+*.dylib
+*.a
+*.lib
+*.exe
+
+# Godot
+.godot/
+*.import
+export_presets.cfg
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+dist/
+build/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs and databases
+*.log
+*.db
+*.sqlite
+*.msgpack
+logs/
+replays/
+
+# Model files
+*.gguf
+*.bin
+*.safetensors
+*.pt
+*.pth
+models/
+
+# Configs (keep templates, ignore local overrides)
+configs/local/
+*.local.yaml
+
+# System
+.cache/
+tmp/

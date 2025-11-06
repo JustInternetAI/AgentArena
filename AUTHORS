@@ -1,0 +1,48 @@
+# Agent Arena Authors and Contributors
+
+## Organization
+
+Agent Arena is maintained by **JustInternetAI** (https://github.com/JustInternetAI)
+
+## Founders
+
+Agent Arena was founded in 2025 by:
+
+- **Andrew Madison** - Co-Founder (https://github.com/andrewmadison)
+- **Justin Madison** - Co-Founder (https://github.com/justinmadison)
+
+## Core Contributors
+
+(Contributors will be listed here as they make significant contributions)
+
+## All Contributors
+
+A full list of contributors can be found in the git commit history:
+https://github.com/JustInternetAI/AgentArena/graphs/contributors
+
+## How to be Listed
+
+Significant contributions to the project may earn you a place in the Core Contributors section.
+This includes:
+
+- Major feature implementations
+- Significant architectural improvements
+- Extensive documentation contributions
+- Long-term maintenance and support
+
+All contributors, regardless of contribution size, are valued and credited in the git history.
+
+## Acknowledgments
+
+We would like to thank:
+
+- The Godot Engine community for the excellent game engine and GDExtension system
+- The open source AI/ML community for tools like llama.cpp, vLLM, and FAISS
+- All users and contributors who help make Agent Arena better
+
+---
+
+Copyright 2025 Andrew Madison and Justin Madison
+Copyright 2025 Agent Arena Contributors
+
+Licensed under the Apache License, Version 2.0
