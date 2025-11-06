@@ -7,6 +7,10 @@ build/
 *.a
 *.lib
 *.exe
+*.tmp
+*.pdb
+
+bin/
 
 # Godot
 .godot/

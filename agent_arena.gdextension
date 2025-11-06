@@ -1,6 +1,6 @@
 [configuration]
 entry_symbol = "agent_arena_library_init"
-compatibility_minimum = "4.2"
+compatibility_minimum = "4.5"
 
 [libraries]
 windows.debug.x86_64 = "res://bin/windows/libagent_arena.windows.template_debug.x86_64.dll"

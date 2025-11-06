@@ -1,0 +1,19 @@
+[gd_scene load_steps=2 format=3 uid="uid://test_arena_001"]
+
+[ext_resource type="Script" path="res://scenes/test_arena.gd" id="1_test"]
+
+[node name="TestArena" type="Node"]
+script = ExtResource("1_test")
+
+[node name="SimulationManager" type="SimulationManager" parent="."]
+
+[node name="Agent" type="Agent" parent="."]
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="Label" type="Label" parent="UI"]
+offset_right = 400.0
+offset_bottom = 100.0
+text = "Agent Arena Test Scene
+Press SPACE to start simulation
+Press R to reset"
