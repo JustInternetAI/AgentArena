@@ -24,7 +24,16 @@
       "Bash(if [ -d .vscode ])",
       "Bash(then echo \"exists\")",
       "Bash(else echo \"not exists\")",
-      "Bash(fi)"
+      "Bash(fi)",
+      "Bash(py --list:*)",
+      "Bash(if exist \"c:\\Projects\\Agent Arena\\.godot\" echo \".godot folder exists\" else echo \".godot folder not found\")",
+      "Bash(test:*)",
+      "Bash(\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\CMake\\bin\\cmake.exe\" --build . --config Debug --target agent_arena)",
+      "Bash(\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\CMake\\bin\\cmake.exe\" --build . --config Debug --clean-first)",
+      "Bash(del /F /Q agent_arena.*)",
+      "Bash(del /F /Q CMakeFilesagent_arena.dir* 2)",
+      "Bash(nul)",
+      "Bash(ls -la \"C:\\Projects\\Agent Arena\\bin\\windows\"\" 2>nul || echo \"Directory does not exist \")"
     ],
     "deny": [],
     "ask": []

@@ -282,3 +282,160 @@ Dictionary ToolRegistry::execute_tool(const String& name, const Dictionary& para
 
     return result;
 }
+
+// ============================================================================
+// IPCClient Implementation
+// ============================================================================
+
+IPCClient::IPCClient()
+    : server_url("http://127.0.0.1:5000"),
+      http_request(nullptr),
+      is_connected(false),
+      current_tick(0),
+      response_received(false) {
+}
+
+IPCClient::~IPCClient() {
+    if (http_request != nullptr) {
+        http_request->queue_free();
+    }
+}
+
+void IPCClient::_bind_methods() {
+    ClassDB::bind_method(D_METHOD("connect_to_server", "url"), &IPCClient::connect_to_server);
+    ClassDB::bind_method(D_METHOD("disconnect_from_server"), &IPCClient::disconnect_from_server);
+    ClassDB::bind_method(D_METHOD("is_server_connected"), &IPCClient::is_server_connected);
+
+    ClassDB::bind_method(D_METHOD("send_tick_request", "tick", "perceptions"), &IPCClient::send_tick_request);
+    ClassDB::bind_method(D_METHOD("get_tick_response"), &IPCClient::get_tick_response);
+    ClassDB::bind_method(D_METHOD("has_response"), &IPCClient::has_response);
+
+    ClassDB::bind_method(D_METHOD("get_server_url"), &IPCClient::get_server_url);
+    ClassDB::bind_method(D_METHOD("set_server_url", "url"), &IPCClient::set_server_url);
+
+    ClassDB::bind_method(D_METHOD("_on_request_completed", "result", "response_code", "headers", "body"),
+                         &IPCClient::_on_request_completed);
+
+    ADD_PROPERTY(PropertyInfo(Variant::STRING, "server_url"), "set_server_url", "get_server_url");
+
+    ADD_SIGNAL(MethodInfo("response_received", PropertyInfo(Variant::DICTIONARY, "response")));
+    ADD_SIGNAL(MethodInfo("connection_failed", PropertyInfo(Variant::STRING, "error")));
+}
+
+void IPCClient::_ready() {
+    // Create HTTPRequest node
+    http_request = memnew(HTTPRequest);
+    add_child(http_request);
+
+    // Connect signal
+    http_request->connect("request_completed",
+                         Callable(this, "_on_request_completed"));
+
+    UtilityFunctions::print("IPCClient initialized with server URL: ", server_url);
+}
+
+void IPCClient::_process(double delta) {
+    // Process method for any per-frame updates
+}
+
+void IPCClient::connect_to_server(const String& url) {
+    server_url = url;
+
+    // Test connection with health check
+    String health_url = server_url + "/health";
+    Error err = http_request->request(health_url);
+
+    if (err != OK) {
+        UtilityFunctions::print("Failed to connect to server: ", server_url);
+        emit_signal("connection_failed", "HTTP request failed");
+        is_connected = false;
+    } else {
+        UtilityFunctions::print("Connecting to IPC server: ", server_url);
+    }
+}
+
+void IPCClient::disconnect_from_server() {
+    is_connected = false;
+    http_request->cancel_request();
+    UtilityFunctions::print("Disconnected from IPC server");
+}
+
+void IPCClient::set_server_url(const String& url) {
+    server_url = url;
+}
+
+void IPCClient::send_tick_request(uint64_t tick, const Array& perceptions) {
+    if (!is_connected) {
+        UtilityFunctions::print("Warning: Sending request while not connected");
+    }
+
+    current_tick = tick;
+    response_received = false;
+
+    // Build request JSON
+    Dictionary request_dict;
+    request_dict["tick"] = tick;
+    request_dict["perceptions"] = perceptions;
+    request_dict["simulation_state"] = Dictionary();
+
+    String json = JSON::stringify(request_dict);
+
+    // Send POST request
+    String url = server_url + "/tick";
+    PackedStringArray headers;
+    headers.append("Content-Type: application/json");
+
+    Error err = http_request->request(url, headers, HTTPClient::METHOD_POST, json);
+
+    if (err != OK) {
+        UtilityFunctions::print("Error sending tick request: ", err);
+    }
+}
+
+Dictionary IPCClient::get_tick_response() {
+    if (response_received) {
+        response_received = false;
+        return pending_response;
+    }
+    return Dictionary();
+}
+
+void IPCClient::_on_request_completed(int result, int response_code,
+                                      const PackedStringArray& headers,
+                                      const PackedByteArray& body) {
+    if (result != HTTPRequest::RESULT_SUCCESS) {
+        UtilityFunctions::print("HTTP Request failed with result: ", result);
+        emit_signal("connection_failed", "Request failed");
+        is_connected = false;
+        return;
+    }
+
+    if (response_code == 200) {
+        // Parse JSON response
+        String body_string = body.get_string_from_utf8();
+
+        // Parse JSON
+        JSON json;
+        Error err = json.parse(body_string);
+
+        if (err == OK) {
+            Variant data = json.get_data();
+            if (data.get_type() == Variant::DICTIONARY) {
+                pending_response = data;
+                response_received = true;
+                is_connected = true;
+
+                emit_signal("response_received", pending_response);
+
+                UtilityFunctions::print("Received tick response for tick ", current_tick);
+            } else {
+                UtilityFunctions::print("Invalid JSON response format");
+            }
+        } else {
+            UtilityFunctions::print("Failed to parse JSON response");
+        }
+    } else {
+        UtilityFunctions::print("HTTP request returned error code: ", response_code);
+        is_connected = false;
+    }
+}

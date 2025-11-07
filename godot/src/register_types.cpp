@@ -18,6 +18,7 @@ void initialize_agent_arena_module(ModuleInitializationLevel p_level) {
     ClassDB::register_class<EventBus>();
     ClassDB::register_class<Agent>();
     ClassDB::register_class<ToolRegistry>();
+    ClassDB::register_class<IPCClient>();
 }
 
 void uninitialize_agent_arena_module(ModuleInitializationLevel p_level) {
