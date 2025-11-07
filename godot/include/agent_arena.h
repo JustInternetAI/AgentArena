@@ -223,6 +223,47 @@ public:
     void set_server_url(const godot::String& url);
 };
 
+/**
+ * IPC Client for communicating with Python agent runtime
+ */
+class IPCClient : public godot::Node {
+    GDCLASS(IPCClient, godot::Node)
+
+private:
+    godot::String server_url;
+    godot::HTTPRequest* http_request;
+    bool is_connected;
+    uint64_t current_tick;
+    godot::Dictionary pending_response;
+    bool response_received;
+
+    void _on_request_completed(int result, int response_code, const godot::PackedStringArray& headers, const godot::PackedByteArray& body);
+
+protected:
+    static void _bind_methods();
+
+public:
+    IPCClient();
+    ~IPCClient();
+
+    void _ready() override;
+    void _process(double delta) override;
+
+    // Connection management
+    void connect_to_server(const godot::String& url);
+    void disconnect_from_server();
+    bool is_server_connected() const { return is_connected; }
+
+    // Communication
+    void send_tick_request(uint64_t tick, const godot::Array& perceptions);
+    godot::Dictionary get_tick_response();
+    bool has_response() const { return response_received; }
+
+    // Getters/Setters
+    godot::String get_server_url() const { return server_url; }
+    void set_server_url(const godot::String& url);
+};
+
 } // namespace agent_arena
 
 #endif // AGENT_ARENA_H

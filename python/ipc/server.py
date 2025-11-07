@@ -326,7 +326,7 @@ class IPCServer:
                 )
 
                 logger.debug(
-                    f"Tool '{tool_request.tool_name}' executed: " f"success={response.success}"
+                    f"Tool '{tool_request.tool_name}' executed: success={response.success}"
                 )
 
                 return response.to_dict()
