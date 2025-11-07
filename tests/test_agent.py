@@ -3,7 +3,7 @@ Tests for Agent class.
 """
 
 import pytest
-from agent_runtime.agent import Agent, Observation, Action, AgentState
+from agent_runtime.agent import Agent, AgentState
 
 
 def test_agent_initialization():

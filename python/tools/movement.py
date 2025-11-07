@@ -2,13 +2,13 @@
 Movement and navigation tools.
 """
 
-from typing import Any, Dict, List
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-def move_to(target_position: List[float], speed: float = 1.0) -> Dict[str, Any]:
+def move_to(target_position: list[float], speed: float = 1.0) -> dict[str, Any]:
     """
     Move agent to target position.
 
@@ -29,7 +29,7 @@ def move_to(target_position: List[float], speed: float = 1.0) -> Dict[str, Any]:
     }
 
 
-def navigate_to(target_position: List[float]) -> Dict[str, Any]:
+def navigate_to(target_position: list[float]) -> dict[str, Any]:
     """
     Navigate to target using pathfinding.
 
@@ -49,7 +49,7 @@ def navigate_to(target_position: List[float]) -> Dict[str, Any]:
     }
 
 
-def stop_movement() -> Dict[str, bool]:
+def stop_movement() -> dict[str, bool]:
     """
     Stop all current movement.
 
@@ -61,7 +61,7 @@ def stop_movement() -> Dict[str, bool]:
     return {"success": True}
 
 
-def rotate_to_face(target_position: List[float]) -> Dict[str, Any]:
+def rotate_to_face(target_position: list[float]) -> dict[str, Any]:
     """
     Rotate agent to face target position.
 

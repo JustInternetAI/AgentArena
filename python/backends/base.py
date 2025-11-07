@@ -3,8 +3,8 @@ Base backend interface for LLM backends.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass
@@ -25,7 +25,7 @@ class GenerationResult:
     text: str
     tokens_used: int
     finish_reason: str  # "stop", "length", "error"
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
 
 
 class BaseBackend(ABC):
@@ -48,8 +48,8 @@ class BaseBackend(ABC):
     def generate(
         self,
         prompt: str,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
     ) -> GenerationResult:
         """
         Generate text from prompt.
@@ -68,8 +68,8 @@ class BaseBackend(ABC):
     def generate_with_tools(
         self,
         prompt: str,
-        tools: List[Dict[str, Any]],
-        temperature: Optional[float] = None,
+        tools: list[dict[str, Any]],
+        temperature: float | None = None,
     ) -> GenerationResult:
         """
         Generate with function/tool calling support.

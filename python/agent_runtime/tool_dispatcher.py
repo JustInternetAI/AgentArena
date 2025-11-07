@@ -2,10 +2,11 @@
 Tool Dispatcher - manages tool registration and execution for agents.
 """
 
-from typing import Any, Callable, Dict, Optional
-from dataclasses import dataclass
 import json
 import logging
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -16,8 +17,8 @@ class ToolSchema:
 
     name: str
     description: str
-    parameters: Dict[str, Any]  # JSON schema for parameters
-    returns: Dict[str, Any]  # JSON schema for return value
+    parameters: dict[str, Any]  # JSON schema for parameters
+    returns: dict[str, Any]  # JSON schema for return value
 
 
 class ToolDispatcher:
@@ -30,8 +31,8 @@ class ToolDispatcher:
 
     def __init__(self):
         """Initialize the tool dispatcher."""
-        self.tools: Dict[str, Callable] = {}
-        self.schemas: Dict[str, ToolSchema] = {}
+        self.tools: dict[str, Callable] = {}
+        self.schemas: dict[str, ToolSchema] = {}
 
         logger.info("Initialized ToolDispatcher")
 
@@ -40,8 +41,8 @@ class ToolDispatcher:
         name: str,
         function: Callable,
         description: str,
-        parameters: Dict[str, Any],
-        returns: Dict[str, Any],
+        parameters: dict[str, Any],
+        returns: dict[str, Any],
     ) -> None:
         """
         Register a tool with the dispatcher.
@@ -72,7 +73,7 @@ class ToolDispatcher:
             del self.schemas[name]
             logger.info(f"Unregistered tool: {name}")
 
-    def execute_tool(self, name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
+    def execute_tool(self, name: str, parameters: dict[str, Any]) -> dict[str, Any]:
         """
         Execute a tool with given parameters.
 
@@ -114,7 +115,7 @@ class ToolDispatcher:
                 "error": str(e),
             }
 
-    def _validate_parameters(self, tool_name: str, parameters: Dict[str, Any]) -> bool:
+    def _validate_parameters(self, tool_name: str, parameters: dict[str, Any]) -> bool:
         """
         Validate parameters against tool schema.
 
@@ -138,11 +139,11 @@ class ToolDispatcher:
         # TODO: More thorough JSON schema validation
         return True
 
-    def get_tool_schema(self, name: str) -> Optional[ToolSchema]:
+    def get_tool_schema(self, name: str) -> ToolSchema | None:
         """Get the schema for a tool."""
         return self.schemas.get(name)
 
-    def get_all_schemas(self) -> Dict[str, ToolSchema]:
+    def get_all_schemas(self) -> dict[str, ToolSchema]:
         """Get all tool schemas."""
         return self.schemas.copy()
 

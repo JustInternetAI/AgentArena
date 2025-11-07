@@ -2,13 +2,13 @@
 Inventory and item interaction tools.
 """
 
-from typing import Any, Dict, List, Optional
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-def pickup_item(item_id: str) -> Dict[str, Any]:
+def pickup_item(item_id: str) -> dict[str, Any]:
     """
     Pick up an item from the world.
 
@@ -26,7 +26,7 @@ def pickup_item(item_id: str) -> Dict[str, Any]:
     }
 
 
-def drop_item(item_id: str) -> Dict[str, bool]:
+def drop_item(item_id: str) -> dict[str, bool]:
     """
     Drop an item from inventory.
 
@@ -41,7 +41,7 @@ def drop_item(item_id: str) -> Dict[str, bool]:
     return {"success": True}
 
 
-def use_item(item_id: str, target: Optional[str] = None) -> Dict[str, Any]:
+def use_item(item_id: str, target: str | None = None) -> dict[str, Any]:
     """
     Use an item from inventory.
 
@@ -60,7 +60,7 @@ def use_item(item_id: str, target: Optional[str] = None) -> Dict[str, Any]:
     }
 
 
-def get_inventory() -> List[Dict[str, Any]]:
+def get_inventory() -> list[dict[str, Any]]:
     """
     Get current inventory contents.
 
@@ -72,7 +72,7 @@ def get_inventory() -> List[Dict[str, Any]]:
     return []
 
 
-def craft_item(recipe: str, ingredients: List[str]) -> Dict[str, Any]:
+def craft_item(recipe: str, ingredients: list[str]) -> dict[str, Any]:
     """
     Craft an item using ingredients.
 

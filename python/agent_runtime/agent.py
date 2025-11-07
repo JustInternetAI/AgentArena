@@ -2,10 +2,10 @@
 Core Agent implementation with perception, reasoning, and action capabilities.
 """
 
-from typing import Any, Dict, List, Optional
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
-import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +15,7 @@ class Observation:
     """Represents an agent's observation of the world."""
 
     timestamp: datetime
-    data: Dict[str, Any]
+    data: dict[str, Any]
     source: str = "world"
 
 
@@ -24,8 +24,8 @@ class Action:
     """Represents an action the agent wants to take."""
 
     tool_name: str
-    parameters: Dict[str, Any]
-    reasoning: Optional[str] = None
+    parameters: dict[str, Any]
+    reasoning: str | None = None
 
 
 @dataclass
@@ -33,10 +33,10 @@ class AgentState:
     """Internal state of an agent."""
 
     agent_id: str
-    goals: List[str] = field(default_factory=list)
-    observations: List[Observation] = field(default_factory=list)
-    action_history: List[Action] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    goals: list[str] = field(default_factory=list)
+    observations: list[Observation] = field(default_factory=list)
+    action_history: list[Action] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class Agent:
@@ -50,9 +50,9 @@ class Agent:
     def __init__(
         self,
         agent_id: str,
-        backend: Optional[Any] = None,  # LLM backend instance
-        tools: Optional[List[str]] = None,
-        goals: Optional[List[str]] = None,
+        backend: Any | None = None,  # LLM backend instance
+        tools: list[str] | None = None,
+        goals: list[str] | None = None,
     ):
         """
         Initialize an agent.
@@ -73,7 +73,7 @@ class Agent:
 
         logger.info(f"Initialized agent {agent_id} with {len(self.available_tools)} tools")
 
-    def perceive(self, observation: Dict[str, Any], source: str = "world") -> None:
+    def perceive(self, observation: dict[str, Any], source: str = "world") -> None:
         """
         Process a new observation from the environment.
 
@@ -94,7 +94,7 @@ class Agent:
 
         logger.debug(f"Agent {self.state.agent_id} received observation from {source}")
 
-    def decide_action(self) -> Optional[Action]:
+    def decide_action(self) -> Action | None:
         """
         Use the LLM backend to decide the next action based on current state.
 
@@ -162,7 +162,7 @@ class Agent:
         # TODO: Implement actual LLM querying based on backend type
         return '{"tool": "idle", "params": {}}'
 
-    def _parse_action(self, response: str) -> Optional[Action]:
+    def _parse_action(self, response: str) -> Action | None:
         """
         Parse the LLM response into an Action object.
 

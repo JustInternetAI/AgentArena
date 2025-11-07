@@ -2,12 +2,12 @@
 Agent Runtime - orchestrates multiple agents and their interactions with the environment.
 """
 
-from typing import Any, Dict, List, Optional
 import asyncio
 import logging
 from concurrent.futures import ThreadPoolExecutor
+from typing import Any
 
-from .agent import Agent, Action
+from .agent import Action, Agent
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ class AgentRuntime:
     def __init__(
         self,
         max_workers: int = 4,
-        backend_config: Optional[Dict[str, Any]] = None,
+        backend_config: dict[str, Any] | None = None,
     ):
         """
         Initialize the agent runtime.
@@ -31,7 +31,7 @@ class AgentRuntime:
             max_workers: Maximum number of concurrent agent workers
             backend_config: Configuration for LLM backend
         """
-        self.agents: Dict[str, Agent] = {}
+        self.agents: dict[str, Agent] = {}
         self.executor = ThreadPoolExecutor(max_workers=max_workers)
         self.backend_config = backend_config or {}
         self.running = False
@@ -63,7 +63,7 @@ class AgentRuntime:
             del self.agents[agent_id]
             logger.info(f"Unregistered agent {agent_id}")
 
-    async def process_tick(self, tick: int, observations: Dict[str, Any]) -> Dict[str, Action]:
+    async def process_tick(self, tick: int, observations: dict[str, Any]) -> dict[str, Action]:
         """
         Process a single simulation tick for all agents.
 
@@ -99,7 +99,7 @@ class AgentRuntime:
 
         return actions
 
-    async def _agent_decide(self, agent: Agent) -> Optional[Action]:
+    async def _agent_decide(self, agent: Agent) -> Action | None:
         """
         Execute agent decision-making asynchronously.
 
@@ -123,11 +123,11 @@ class AgentRuntime:
         self.executor.shutdown(wait=True)
         logger.info("AgentRuntime stopped")
 
-    def get_agent(self, agent_id: str) -> Optional[Agent]:
+    def get_agent(self, agent_id: str) -> Agent | None:
         """Get an agent by ID."""
         return self.agents.get(agent_id)
 
-    def get_all_agents(self) -> List[Agent]:
+    def get_all_agents(self) -> list[Agent]:
         """Get all registered agents."""
         return list(self.agents.values())
 

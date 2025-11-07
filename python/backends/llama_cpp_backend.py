@@ -2,11 +2,11 @@
 llama.cpp backend adapter.
 """
 
-from typing import Any, Dict, List, Optional
-import logging
 import json
+import logging
+from typing import Any
 
-from .base import BaseBackend, BackendConfig, GenerationResult
+from .base import BackendConfig, BaseBackend, GenerationResult
 
 logger = logging.getLogger(__name__)
 
@@ -48,8 +48,8 @@ class LlamaCppBackend(BaseBackend):
     def generate(
         self,
         prompt: str,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
     ) -> GenerationResult:
         """Generate text from prompt."""
         if not self.llm:
@@ -90,8 +90,8 @@ class LlamaCppBackend(BaseBackend):
     def generate_with_tools(
         self,
         prompt: str,
-        tools: List[Dict[str, Any]],
-        temperature: Optional[float] = None,
+        tools: list[dict[str, Any]],
+        temperature: float | None = None,
     ) -> GenerationResult:
         """Generate with function calling support."""
         if not self.llm:
