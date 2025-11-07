@@ -10,6 +10,7 @@ from dataclasses import dataclass
 @dataclass
 class BackendConfig:
     """Configuration for LLM backend."""
+
     model_path: str
     temperature: float = 0.7
     max_tokens: int = 512
@@ -20,6 +21,7 @@ class BackendConfig:
 @dataclass
 class GenerationResult:
     """Result from LLM generation."""
+
     text: str
     tokens_used: int
     finish_reason: str  # "stop", "length", "error"
