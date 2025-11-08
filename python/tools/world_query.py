@@ -2,17 +2,17 @@
 World query tools - vision rays, entity detection, distance calculations.
 """
 
-from typing import Any, Dict, List, Optional
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
 def raycast(
-    origin: List[float],
-    direction: List[float],
+    origin: list[float],
+    direction: list[float],
     max_distance: float = 100.0,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Cast a ray from origin in direction to detect objects.
 
@@ -37,10 +37,10 @@ def raycast(
 
 
 def get_nearby_entities(
-    position: List[float],
+    position: list[float],
     radius: float,
-    entity_type: Optional[str] = None,
-) -> List[Dict[str, Any]]:
+    entity_type: str | None = None,
+) -> list[dict[str, Any]]:
     """
     Get all entities within radius of position.
 
@@ -59,11 +59,11 @@ def get_nearby_entities(
 
 
 def get_visible_entities(
-    agent_position: List[float],
-    agent_forward: List[float],
+    agent_position: list[float],
+    agent_forward: list[float],
     fov_degrees: float = 90.0,
     max_distance: float = 50.0,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     Get entities visible to the agent based on FOV cone.
 
@@ -83,8 +83,8 @@ def get_visible_entities(
 
 
 def measure_distance(
-    point_a: List[float],
-    point_b: List[float],
+    point_a: list[float],
+    point_b: list[float],
 ) -> float:
     """
     Calculate Euclidean distance between two points.

@@ -11,7 +11,7 @@ Quick reference for Claude Code sessions.
 
 ## Tech Stack
 - **Godot 4.5**: C++ GDExtension module for simulation
-- **Python 3.11+**: Agent runtime, LLM backends, tools
+- **Python 3.11**: Agent runtime, LLM backends, tools (3.11 required - many ML packages don't support 3.14 yet)
 - **Visual Studio 2022**: C++ compilation (MSVC)
 - **CMake 3.20+**: Build system
 - **License**: Apache 2.0
@@ -36,8 +36,10 @@ c:\Projects\Agent Arena\
 │   ├── memory/              # Memory systems (RAG, episodes)
 │   └── evals/               # Evaluation harness
 ├── configs/                 # Hydra configs
-├── scenes/                  # Godot benchmark scenes
-│   └── test_arena.tscn      # Test scene with SimulationManager & Agent
+├── scenes/                  # Godot benchmark scenes (.tscn files)
+├── scripts/                 # GDScript files
+│   ├── tests/               # Test scripts (test_extension.gd, ipc_test.gd)
+│   └── test_arena.gd        # Main test arena script
 ├── tests/                   # Python unit tests
 └── docs/                    # Documentation
 ```
@@ -58,9 +60,10 @@ c:\Projects\Agent Arena\
 - ✅ Extension tested and working in Godot 4.5.1
 - ✅ Test scene created with working controls
 - ✅ Core classes verified: SimulationManager, Agent, EventBus, ToolRegistry
-- ⏳ Next: Implement IPC between Godot and Python
+- ✅ IPC system implemented (Godot ↔ Python via HTTP/FastAPI)
 - ⏳ Next: Create actual benchmark scenes (foraging, crafting_chain, team_capture)
 - ⏳ Next: Set up Python environment and agent runtime
+- ⏳ Next: Integrate LLM backends with agent decision-making
 
 ## Development Commands
 
@@ -99,6 +102,20 @@ pip install -r requirements.txt
 # Run Python tests
 cd tests
 pytest -v
+```
+
+### Run IPC Server (Godot ↔ Python Communication)
+```bash
+# Start Python IPC server
+cd python
+venv\Scripts\activate
+python run_ipc_server.py
+
+# With custom options
+python run_ipc_server.py --host 127.0.0.1 --port 5000 --workers 4 --debug
+
+# Test IPC in Godot
+# Open scenes/ipc_test.gd in Godot editor and run it
 ```
 
 ## Common Tasks
@@ -146,11 +163,17 @@ pytest -v
 - Tool management system for agent actions
 - Methods: `register_tool()`, `unregister_tool()`, `get_tool_schema()`, `execute_tool()`
 
+### IPCClient (Node)
+- HTTP client for Godot ↔ Python communication
+- Methods: `connect_to_server()`, `send_tick_request()`, `get_tick_response()`, `has_response()`
+- Properties: `server_url`
+- Signals: `response_received`, `connection_failed`
+
 ## Known Issues
-- IPC layer not yet implemented (Godot ↔ Python communication)
-- Benchmark scenes are empty placeholders
-- Python environment not yet set up
-- Tool execution currently returns stub responses
+- Benchmark scenes are empty placeholders (need to create actual game worlds)
+- Python environment needs initial setup (venv + pip install)
+- LLM backends not yet connected to agent decision-making
+- Tool execution in Godot currently returns stub responses
 
 ## References
 - Godot docs: https://docs.godotengine.org/

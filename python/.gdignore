@@ -1,0 +1,2 @@
+// This file tells Godot to ignore the entire python/ directory
+// The Python code is run separately via IPC, not imported by Godot

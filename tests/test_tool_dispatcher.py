@@ -3,7 +3,7 @@ Tests for ToolDispatcher.
 """
 
 import pytest
-from agent_runtime.tool_dispatcher import ToolDispatcher, ToolSchema
+from agent_runtime.tool_dispatcher import ToolDispatcher
 
 
 def dummy_tool(x: int, y: int) -> int:
