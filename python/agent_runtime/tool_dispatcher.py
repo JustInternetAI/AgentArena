@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ToolSchema:
     """Schema definition for a tool."""
+
     name: str
     description: str
     parameters: Dict[str, Any]  # JSON schema for parameters
@@ -154,11 +155,13 @@ class ToolDispatcher:
         """
         schemas = []
         for schema in self.schemas.values():
-            schemas.append({
-                "name": schema.name,
-                "description": schema.description,
-                "parameters": schema.parameters,
-                "returns": schema.returns,
-            })
+            schemas.append(
+                {
+                    "name": schema.name,
+                    "description": schema.description,
+                    "parameters": schema.parameters,
+                    "returns": schema.returns,
+                }
+            )
 
         return json.dumps(schemas, indent=2)

@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class Observation:
     """Represents an agent's observation of the world."""
+
     timestamp: datetime
     data: Dict[str, Any]
     source: str = "world"
@@ -21,6 +22,7 @@ class Observation:
 @dataclass
 class Action:
     """Represents an action the agent wants to take."""
+
     tool_name: str
     parameters: Dict[str, Any]
     reasoning: Optional[str] = None
@@ -29,6 +31,7 @@ class Action:
 @dataclass
 class AgentState:
     """Internal state of an agent."""
+
     agent_id: str
     goals: List[str] = field(default_factory=list)
     observations: List[Observation] = field(default_factory=list)
@@ -87,7 +90,7 @@ class Agent:
 
         # Keep only recent observations to manage memory
         if len(self.state.observations) > self.memory_capacity:
-            self.state.observations = self.state.observations[-self.memory_capacity:]
+            self.state.observations = self.state.observations[-self.memory_capacity :]
 
         logger.debug(f"Agent {self.state.agent_id} received observation from {source}")
 
@@ -113,9 +116,7 @@ class Agent:
 
             if action:
                 self.state.action_history.append(action)
-                logger.info(
-                    f"Agent {self.state.agent_id} decided action: {action.tool_name}"
-                )
+                logger.info(f"Agent {self.state.agent_id} decided action: {action.tool_name}")
 
             return action
 

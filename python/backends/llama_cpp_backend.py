@@ -37,7 +37,9 @@ class LlamaCppBackend(BaseBackend):
             logger.info("Model loaded successfully")
 
         except ImportError:
-            logger.error("llama-cpp-python not installed. Install with: pip install llama-cpp-python")
+            logger.error(
+                "llama-cpp-python not installed. Install with: pip install llama-cpp-python"
+            )
             raise
         except Exception as e:
             logger.error(f"Failed to load model: {e}")
