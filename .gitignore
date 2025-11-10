@@ -71,3 +71,7 @@ tmp/
 # Claude Code (keep project-context.md but ignore local settings)
 .claude/settings.local.json
 .claude/*.local.*
+
+# GitHub automation scripts (used for setup, not needed in repo)
+scripts/create_github_*.bat
+scripts/create_github_*.sh
