@@ -1,0 +1,94 @@
+[gd_scene load_steps=3 format=3 uid="uid://team_capture_scene"]
+
+[ext_resource type="Script" path="res://scripts/team_capture.gd" id="1_team_capture"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_ground"]
+size = Vector3(60, 0.5, 60)
+
+[node name="TeamCaptureScene" type="Node3D"]
+script = ExtResource("1_team_capture")
+
+[node name="SimulationManager" type="SimulationManager" parent="."]
+
+[node name="EventBus" type="EventBus" parent="."]
+
+[node name="ToolRegistry" type="ToolRegistry" parent="."]
+
+[node name="Environment" type="Node3D" parent="."]
+
+[node name="Ground" type="MeshInstance3D" parent="Environment"]
+mesh = SubResource("BoxMesh_ground")
+skeleton = NodePath("../..")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="Environment"]
+transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 15, 15)
+shadow_enabled = true
+
+[node name="CapturePoints" type="Node3D" parent="."]
+
+[node name="CapturePointA" type="Area3D" parent="CapturePoints"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -15, 0.5, -15)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="CapturePoints/CapturePointA"]
+mesh = SubResource("BoxMesh_ground")
+
+[node name="CapturePointB" type="Area3D" parent="CapturePoints"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 0.5, -15)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="CapturePoints/CapturePointB"]
+mesh = SubResource("BoxMesh_ground")
+
+[node name="CapturePointC" type="Area3D" parent="CapturePoints"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="CapturePoints/CapturePointC"]
+mesh = SubResource("BoxMesh_ground")
+
+[node name="CapturePointD" type="Area3D" parent="CapturePoints"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -15, 0.5, 15)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="CapturePoints/CapturePointD"]
+mesh = SubResource("BoxMesh_ground")
+
+[node name="CapturePointE" type="Area3D" parent="CapturePoints"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 0.5, 15)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="CapturePoints/CapturePointE"]
+mesh = SubResource("BoxMesh_ground")
+
+[node name="TeamBlue" type="Node3D" parent="."]
+
+[node name="BlueAgent1" type="Agent" parent="TeamBlue"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 1, -20)
+
+[node name="BlueAgent2" type="Agent" parent="TeamBlue"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -22, 1, -18)
+
+[node name="BlueAgent3" type="Agent" parent="TeamBlue"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -18, 1, -22)
+
+[node name="TeamRed" type="Node3D" parent="."]
+
+[node name="RedAgent1" type="Agent" parent="TeamRed"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 1, 20)
+
+[node name="RedAgent2" type="Agent" parent="TeamRed"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 22, 1, 18)
+
+[node name="RedAgent3" type="Agent" parent="TeamRed"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 18, 1, 22)
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 30, 30)
+current = true
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="MetricsLabel" type="Label" parent="UI"]
+offset_right = 500.0
+offset_bottom = 250.0
+text = "Team Capture Benchmark
+Objectives Captured: 0/5
+Team Blue Score: 0
+Team Red Score: 0
+Time Elapsed: 0s"

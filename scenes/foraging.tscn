@@ -1,0 +1,119 @@
+[gd_scene load_steps=3 format=3 uid="uid://foraging_scene"]
+
+[ext_resource type="Script" path="res://scripts/foraging.gd" id="1_foraging"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_ground"]
+size = Vector3(50, 0.5, 50)
+
+[node name="ForagingScene" type="Node3D"]
+script = ExtResource("1_foraging")
+
+[node name="SimulationManager" type="SimulationManager" parent="."]
+
+[node name="EventBus" type="EventBus" parent="."]
+
+[node name="ToolRegistry" type="ToolRegistry" parent="."]
+
+[node name="Environment" type="Node3D" parent="."]
+
+[node name="Ground" type="MeshInstance3D" parent="Environment"]
+mesh = SubResource("BoxMesh_ground")
+skeleton = NodePath("../..")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="Environment"]
+transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 10, 10)
+shadow_enabled = true
+
+[node name="Resources" type="Node3D" parent="."]
+
+[node name="Berry1" type="Area3D" parent="Resources"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0.5, 5)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Resources/Berry1"]
+mesh = SubResource("BoxMesh_ground")
+skeleton = NodePath("../../..")
+
+[node name="Berry2" type="Area3D" parent="Resources"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0.5, 3)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Resources/Berry2"]
+mesh = SubResource("BoxMesh_ground")
+skeleton = NodePath("../../..")
+
+[node name="Berry3" type="Area3D" parent="Resources"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0.5, -7)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Resources/Berry3"]
+mesh = SubResource("BoxMesh_ground")
+skeleton = NodePath("../../..")
+
+[node name="Wood1" type="Area3D" parent="Resources"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0.5, -5)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Resources/Wood1"]
+mesh = SubResource("BoxMesh_ground")
+skeleton = NodePath("../../..")
+
+[node name="Wood2" type="Area3D" parent="Resources"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0.5, 8)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Resources/Wood2"]
+mesh = SubResource("BoxMesh_ground")
+skeleton = NodePath("../../..")
+
+[node name="Stone1" type="Area3D" parent="Resources"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 10)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Resources/Stone1"]
+mesh = SubResource("BoxMesh_ground")
+skeleton = NodePath("../../..")
+
+[node name="Stone2" type="Area3D" parent="Resources"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 0.5, -8)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Resources/Stone2"]
+mesh = SubResource("BoxMesh_ground")
+skeleton = NodePath("../../..")
+
+[node name="Hazards" type="Node3D" parent="."]
+
+[node name="Fire1" type="Area3D" parent="Hazards"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7, 0.5, -3)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Hazards/Fire1"]
+mesh = SubResource("BoxMesh_ground")
+skeleton = NodePath("../../..")
+
+[node name="Fire2" type="Area3D" parent="Hazards"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0.5, 7)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Hazards/Fire2"]
+mesh = SubResource("BoxMesh_ground")
+skeleton = NodePath("../../..")
+
+[node name="Pit1" type="Area3D" parent="Hazards"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -12)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Hazards/Pit1"]
+mesh = SubResource("BoxMesh_ground")
+skeleton = NodePath("../../..")
+
+[node name="Agents" type="Node3D" parent="."]
+
+[node name="Agent1" type="Agent" parent="Agents"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 20, 20)
+current = true
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="MetricsLabel" type="Label" parent="UI"]
+offset_right = 400.0
+offset_bottom = 150.0
+text = "Foraging Benchmark
+Resources Collected: 0
+Damage Taken: 0
+Distance Traveled: 0
+Time Elapsed: 0s"

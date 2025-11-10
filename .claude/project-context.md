@@ -61,7 +61,7 @@ c:\Projects\Agent Arena\
 - ✅ Test scene created with working controls
 - ✅ Core classes verified: SimulationManager, Agent, EventBus, ToolRegistry
 - ✅ IPC system implemented (Godot ↔ Python via HTTP/FastAPI)
-- ⏳ Next: Create actual benchmark scenes (foraging, crafting_chain, team_capture)
+- ✅ Benchmark scenes created (foraging, crafting_chain, team_capture)
 - ⏳ Next: Set up Python environment and agent runtime
 - ⏳ Next: Integrate LLM backends with agent decision-making
 
