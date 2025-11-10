@@ -105,9 +105,7 @@ class IPCServer:
                 tick_request = TickRequest.from_dict(request_data)
                 tick = tick_request.tick
 
-                logger.debug(
-                    f"Processing tick {tick} with {len(tick_request.perceptions)} agents"
-                )
+                logger.debug(f"Processing tick {tick} with {len(tick_request.perceptions)} agents")
 
                 # Build observations dict for runtime
                 observations = {}
@@ -220,9 +218,7 @@ class IPCServer:
         if not self.app:
             self.create_app()
 
-        config = uvicorn.Config(
-            self.app, host=self.host, port=self.port, log_level="info"
-        )
+        config = uvicorn.Config(self.app, host=self.host, port=self.port, log_level="info")
         server = uvicorn.Server(config)
         await server.serve()
 

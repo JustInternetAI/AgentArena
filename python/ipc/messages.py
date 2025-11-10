@@ -15,6 +15,7 @@ class PerceptionMessage:
 
     Contains all observations the agent receives from the simulation.
     """
+
     agent_id: str
     tick: int
     position: list[float]  # [x, y, z]
@@ -65,6 +66,7 @@ class ActionMessage:
 
     Contains the tool call and parameters for the agent to execute.
     """
+
     agent_id: str
     tick: int
     tool: str
@@ -98,6 +100,7 @@ class TickRequest:
     """
     Request sent from Godot to Python containing all agent perceptions for a tick.
     """
+
     tick: int
     perceptions: list[PerceptionMessage]
     simulation_state: dict[str, Any] = field(default_factory=dict)
@@ -105,9 +108,7 @@ class TickRequest:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "TickRequest":
         """Create TickRequest from dictionary."""
-        perceptions = [
-            PerceptionMessage.from_dict(p) for p in data.get("perceptions", [])
-        ]
+        perceptions = [PerceptionMessage.from_dict(p) for p in data.get("perceptions", [])]
         return cls(
             tick=data["tick"],
             perceptions=perceptions,
@@ -128,6 +129,7 @@ class TickResponse:
     """
     Response sent from Python to Godot containing all agent actions for a tick.
     """
+
     tick: int
     actions: list[ActionMessage]
     metrics: dict[str, Any] = field(default_factory=dict)  # Performance metrics
