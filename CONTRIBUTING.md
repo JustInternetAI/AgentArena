@@ -34,6 +34,27 @@ Thank you for your interest in contributing to Agent Arena! This project bridges
 
 See [docs/quickstart.md](docs/quickstart.md) for initial setup.
 
+### Work Division Strategy
+
+To minimize merge conflicts and maximize parallel development:
+
+**C++/Godot Development**:
+- `godot/**/*` - C++ GDExtension code
+- `scenes/**/*.tscn` - Godot scenes
+- `scripts/**/*.gd` - GDScript files
+- Scene balancing and visual improvements
+
+**Python Development**:
+- `python/**/*.py` - Agent runtime, backends, tools
+- `configs/**/*.yaml` - Configuration files
+- `tests/**/*.py` - Python unit tests
+- LLM integration and memory systems
+
+**Shared** (coordinate before modifying):
+- `README.md`, `docs/**/*.md`
+- `.claude/project-context.md`
+- `CONTRIBUTING.md` (this file)
+
 ### Development Workflow
 
 1. **C++ Module Changes:**
@@ -56,6 +77,45 @@ See [docs/quickstart.md](docs/quickstart.md) for initial setup.
    - Update relevant `.md` files
    - Keep examples working
    - Add diagrams if helpful
+
+### Branch Strategy
+
+Use feature branches with descriptive names:
+
+```bash
+# Create feature branch
+git checkout -b feature/llama-cpp-backend
+
+# Make changes and commit
+git commit -m "feat(backend): implement llama.cpp integration"
+
+# Push and create PR
+git push origin feature/llama-cpp-backend
+gh pr create --title "Add llama.cpp backend" --body "..."
+```
+
+**Branch naming**:
+- `feature/` - New features
+- `fix/` - Bug fixes
+- `refactor/` - Code refactoring
+- `docs/` - Documentation updates
+- `test/` - Test additions
+
+### Daily Sync Pattern
+
+**Morning** (async update):
+- Post what you're working on today
+- Mention any blockers
+
+**Evening**:
+- Push changes to your branch
+- Tag teammates on PRs needing review
+- Update issue status
+
+**Weekly**:
+- Integration checkpoint
+- Demo progress
+- Plan next week's work
 
 ## Code Standards
 
@@ -204,9 +264,22 @@ python python/evals/run_eval.py --scene foraging --trials 1
 
 ## Communication
 
-- **GitHub Issues**: Bug reports, feature requests
-- **GitHub Discussions**: Questions, ideas, general discussion
-- **Pull Requests**: Code contributions
+- **GitHub Issues**: Bug reports, feature requests, task tracking
+- **GitHub Discussions**: Questions, ideas, architecture decisions
+- **Pull Requests**: Code contributions and reviews
+- **Discord/Slack** (if configured): Quick questions, daily standups
+
+### IPC Protocol Changes
+
+If you need to modify the Godot ↔ Python communication protocol:
+
+1. Update [docs/ipc_protocol.md](docs/ipc_protocol.md)
+2. Implement changes on both sides (Godot C++ and Python)
+3. Add integration tests
+4. Notify team (breaking change)
+5. Version the protocol if needed
+
+See [IPC Protocol Documentation](docs/ipc_protocol.md) for message format details.
 
 ## Code of Conduct
 
