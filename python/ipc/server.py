@@ -5,16 +5,15 @@ This server receives perception data from Godot, processes agent decisions,
 and returns actions to execute in the simulation.
 """
 
-import asyncio
 import logging
 import time
 from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse
 
 from agent_runtime.runtime import AgentRuntime
+
 from .messages import ActionMessage, TickRequest, TickResponse
 
 logger = logging.getLogger(__name__)
