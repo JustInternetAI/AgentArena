@@ -1,0 +1,24 @@
+[gd_scene load_steps=4 format=3 uid="uid://ds214tpdao70a"]
+
+[ext_resource type="Script" uid="uid://do3kh277exd84" path="res://scripts/resources/iron_ore.gd" id="1_nuofo"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ironore"]
+albedo_color = Color(0.4, 0.4, 0.45, 1)
+metallic = 0.7
+roughness = 0.3
+
+[sub_resource type="BoxMesh" id="BoxMesh_ironore"]
+size = Vector3(0.5, 0.5, 0.5)
+material = SubResource("StandardMaterial3D_ironore")
+
+[sub_resource type="BoxShape3D" id="BoxShape_ironore"]
+size = Vector3(0.5, 0.5, 0.5)
+
+[node name="IronOre" type="Area3D"]
+script = ExtResource("1_nuofo")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_ironore")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape_ironore")

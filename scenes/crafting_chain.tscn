@@ -1,9 +1,18 @@
-[gd_scene load_steps=3 format=3 uid="uid://crafting_chain_scene"]
+[gd_scene load_steps=8 format=3 uid="uid://b6w2wbpm323nc"]
 
-[ext_resource type="Script" path="res://scripts/crafting_chain.gd" id="1_crafting"]
+[ext_resource type="Script" uid="uid://b5jfvj0m2vh0m" path="res://scripts/crafting_chain.gd" id="1_crafting"]
+[ext_resource type="PackedScene" uid="uid://ds214tpdao70a" path="res://scenes/resources/iron_ore.tscn" id="2_pxew1"]
+[ext_resource type="PackedScene" uid="uid://0rkuoje480am" path="res://scenes/resources/wood.tscn" id="3_fmpvf"]
+[ext_resource type="PackedScene" uid="uid://b6a6y5yl011cr" path="res://scenes/stations/anvil.tscn" id="4_d1mqj"]
+[ext_resource type="PackedScene" uid="uid://5pkkwbyi8esy" path="res://scenes/stations/furnace.tscn" id="5_mp2gt"]
+[ext_resource type="PackedScene" uid="uid://lmo3kerl5nym" path="res://scenes/stations/workbench.tscn" id="6_8dtr0"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ground"]
+albedo_color = Color(0.5, 0.5, 0.5, 1)
 
 [sub_resource type="BoxMesh" id="BoxMesh_ground"]
 size = Vector3(40, 0.5, 40)
+material = SubResource("StandardMaterial3D_ground")
 
 [node name="CraftingChainScene" type="Node3D"]
 script = ExtResource("1_crafting")
@@ -26,66 +35,28 @@ shadow_enabled = true
 
 [node name="BaseResources" type="Node3D" parent="."]
 
-[node name="IronOre1" type="Area3D" parent="BaseResources"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 0.5, -10)
+[node name="IronOre1" parent="BaseResources" instance=ExtResource("2_pxew1")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0.5, -5)
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="BaseResources/IronOre1"]
-mesh = SubResource("BoxMesh_ground")
-
-[node name="IronOre2" type="Area3D" parent="BaseResources"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12, 0.5, -8)
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="BaseResources/IronOre2"]
-mesh = SubResource("BoxMesh_ground")
-
-[node name="Wood1" type="Area3D" parent="BaseResources"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0.5, -12)
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="BaseResources/Wood1"]
-mesh = SubResource("BoxMesh_ground")
-
-[node name="Wood2" type="Area3D" parent="BaseResources"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 0.5, -14)
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="BaseResources/Wood2"]
-mesh = SubResource("BoxMesh_ground")
-
-[node name="Coal1" type="Area3D" parent="BaseResources"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0.5, -10)
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="BaseResources/Coal1"]
-mesh = SubResource("BoxMesh_ground")
-
-[node name="Coal2" type="Area3D" parent="BaseResources"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0.5, -12)
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="BaseResources/Coal2"]
-mesh = SubResource("BoxMesh_ground")
+[node name="Wood1" parent="BaseResources" instance=ExtResource("3_fmpvf")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0.5, 5)
 
 [node name="CraftingStations" type="Node3D" parent="."]
 
-[node name="Furnace" type="Area3D" parent="CraftingStations"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -5)
+[node name="Anvil" parent="CraftingStations" instance=ExtResource("4_d1mqj")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0.5, -5)
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="CraftingStations/Furnace"]
-mesh = SubResource("BoxMesh_ground")
+[node name="Furnace" parent="CraftingStations" instance=ExtResource("5_mp2gt")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0.75, 0)
 
-[node name="Anvil" type="Area3D" parent="CraftingStations"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="CraftingStations/Anvil"]
-mesh = SubResource("BoxMesh_ground")
-
-[node name="Workbench" type="Area3D" parent="CraftingStations"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 5)
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="CraftingStations/Workbench"]
-mesh = SubResource("BoxMesh_ground")
+[node name="Workbench" parent="CraftingStations" instance=ExtResource("6_8dtr0")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0.5, 5)
 
 [node name="Agents" type="Node3D" parent="."]
 
 [node name="Agent1" type="Agent" parent="Agents"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 10)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+agent_id = "agent_9033"
 
 [node name="Camera3D" type="Camera3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 20, 20)

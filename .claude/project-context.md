@@ -9,6 +9,37 @@ Quick reference for Claude Code sessions.
 - **Founders**: Andrew Madison & Justin Madison
 - **Organization**: JustInternetAI
 
+## GitHub Configuration
+- **Project Board**: Agent Arena Development Board (Project #3)
+- **Project Board ID**: `PVT_kwDODG39W84BHw8k`
+- **Issue Labels**:
+  - `enhancement`: New feature or request
+  - `backend`: LLM backends and inference
+  - `tools`: Agent tools
+  - `memory`: Memory systems
+  - `evals`: Evaluation and benchmarks
+  - `critical`: Critical priority
+  - `high-priority`: High priority
+
+### GitHub CLI Commands
+```bash
+# List projects
+gh project list --owner JustInternetAI
+
+# View project board
+gh project view 3 --owner JustInternetAI
+
+# Create issue (may auto-add to project if automation enabled)
+gh issue create --title "Title" --body "Description" --label "enhancement"
+
+# Create issue and add to project
+gh issue create --title "Title" --body "Description" --label "enhancement"
+gh project item-add 3 --owner JustInternetAI --url https://github.com/JustInternetAI/AgentArena/issues/ISSUE_NUMBER
+
+# Refresh auth with project scopes (if needed)
+gh auth refresh -h github.com -s read:project -s project
+```
+
 ## Tech Stack
 - **Godot 4.5**: C++ GDExtension module for simulation
 - **Python 3.11**: Agent runtime, LLM backends, tools (3.11 required - many ML packages don't support 3.14 yet)

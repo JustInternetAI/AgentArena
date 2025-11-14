@@ -1,6 +1,7 @@
-[gd_scene load_steps=3 format=3 uid="uid://team_capture_scene"]
+[gd_scene load_steps=4 format=3 uid="uid://team_capture_scene"]
 
 [ext_resource type="Script" path="res://scripts/team_capture.gd" id="1_team_capture"]
+[ext_resource type="PackedScene" uid="uid://capture_point_scene" path="res://scenes/capture_point.tscn" id="2_capture_point"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_ground"]
 size = Vector3(60, 0.5, 60)
@@ -26,35 +27,25 @@ shadow_enabled = true
 
 [node name="CapturePoints" type="Node3D" parent="."]
 
-[node name="CapturePointA" type="Area3D" parent="CapturePoints"]
+[node name="PointA" parent="CapturePoints" instance=ExtResource("2_capture_point")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -15, 0.5, -15)
+point_name = "Point A"
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="CapturePoints/CapturePointA"]
-mesh = SubResource("BoxMesh_ground")
-
-[node name="CapturePointB" type="Area3D" parent="CapturePoints"]
+[node name="PointB" parent="CapturePoints" instance=ExtResource("2_capture_point")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 0.5, -15)
+point_name = "Point B"
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="CapturePoints/CapturePointB"]
-mesh = SubResource("BoxMesh_ground")
-
-[node name="CapturePointC" type="Area3D" parent="CapturePoints"]
+[node name="PointC" parent="CapturePoints" instance=ExtResource("2_capture_point")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+point_name = "Center"
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="CapturePoints/CapturePointC"]
-mesh = SubResource("BoxMesh_ground")
-
-[node name="CapturePointD" type="Area3D" parent="CapturePoints"]
+[node name="PointD" parent="CapturePoints" instance=ExtResource("2_capture_point")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -15, 0.5, 15)
+point_name = "Point D"
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="CapturePoints/CapturePointD"]
-mesh = SubResource("BoxMesh_ground")
-
-[node name="CapturePointE" type="Area3D" parent="CapturePoints"]
+[node name="PointE" parent="CapturePoints" instance=ExtResource("2_capture_point")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 0.5, 15)
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="CapturePoints/CapturePointE"]
-mesh = SubResource("BoxMesh_ground")
+point_name = "Point E"
 
 [node name="TeamBlue" type="Node3D" parent="."]
 
