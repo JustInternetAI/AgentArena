@@ -2,6 +2,7 @@
 #define AGENT_ARENA_H
 
 #include <godot_cpp/classes/node.hpp>
+#include <godot_cpp/classes/node3d.hpp>
 #include <godot_cpp/classes/ref_counted.hpp>
 #include <godot_cpp/classes/time.hpp>
 #include <godot_cpp/classes/http_request.hpp>
@@ -33,7 +34,7 @@ private:
     uint64_t current_tick;
     double tick_rate;
     bool is_running;
-    godot::Ref<EventBus> event_bus;
+    EventBus* event_bus;
 
 protected:
     static void _bind_methods();
@@ -42,6 +43,7 @@ public:
     SimulationManager();
     ~SimulationManager();
 
+    void _ready() override;
     void _process(double delta) override;
     void _physics_process(double delta) override;
 
@@ -64,8 +66,8 @@ public:
 /**
  * Event bus for deterministic event ordering and replay
  */
-class EventBus : public godot::RefCounted {
-    GDCLASS(EventBus, godot::RefCounted)
+class EventBus : public godot::Node {
+    GDCLASS(EventBus, godot::Node)
 
 private:
     struct Event {
@@ -97,8 +99,8 @@ public:
 /**
  * Base agent class with perception, memory, and action capabilities
  */
-class Agent : public godot::Node {
-    GDCLASS(Agent, godot::Node)
+class Agent : public godot::Node3D {
+    GDCLASS(Agent, godot::Node3D)
 
 private:
     godot::String agent_id;
@@ -137,8 +139,8 @@ public:
 /**
  * Tool registry for managing available agent actions
  */
-class ToolRegistry : public godot::RefCounted {
-    GDCLASS(ToolRegistry, godot::RefCounted)
+class ToolRegistry : public godot::Node {
+    GDCLASS(ToolRegistry, godot::Node)
 
 private:
     godot::Dictionary registered_tools;

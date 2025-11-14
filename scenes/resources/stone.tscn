@@ -1,0 +1,23 @@
+[gd_scene load_steps=4 format=3 uid="uid://b8iai0j1k2l3m"]
+
+[ext_resource type="Script" path="res://scripts/resources/stone.gd" id="1_stone"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_stone"]
+albedo_color = Color(0.6, 0.6, 0.65, 1)
+roughness = 0.9
+
+[sub_resource type="BoxMesh" id="BoxMesh_stone"]
+size = Vector3(0.6, 0.5, 0.6)
+material = SubResource("StandardMaterial3D_stone")
+
+[sub_resource type="BoxShape3D" id="BoxShape_stone"]
+size = Vector3(0.6, 0.5, 0.6)
+
+[node name="Stone" type="Area3D"]
+script = ExtResource("1_stone")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_stone")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape_stone")

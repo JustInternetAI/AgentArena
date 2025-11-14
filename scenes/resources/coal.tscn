@@ -1,0 +1,18 @@
+[gd_scene load_steps=4 format=3 uid="uid://nyjfj2ribuww"]
+
+[ext_resource type="Script" uid="uid://x2ici4ychhjl" path="res://scripts/resources/coal.gd" id="1_3wt6h"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_coal"]
+size = Vector3(0.4, 0.4, 0.4)
+
+[sub_resource type="BoxShape3D" id="BoxShape_coal"]
+size = Vector3(0.4, 0.4, 0.4)
+
+[node name="Coal" type="Area3D"]
+script = ExtResource("1_3wt6h")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_coal")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape_coal")

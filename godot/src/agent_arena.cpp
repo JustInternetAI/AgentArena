@@ -9,8 +9,7 @@ using namespace agent_arena;
 // ============================================================================
 
 SimulationManager::SimulationManager()
-    : current_tick(0), tick_rate(60.0), is_running(false) {
-    event_bus.instantiate();
+    : current_tick(0), tick_rate(60.0), is_running(false), event_bus(nullptr) {
 }
 
 SimulationManager::~SimulationManager() {}
@@ -37,6 +36,18 @@ void SimulationManager::_bind_methods() {
     ADD_SIGNAL(MethodInfo("simulation_stopped"));
 }
 
+void SimulationManager::_ready() {
+    // Get EventBus from the scene tree (sibling node)
+    Node* parent = get_parent();
+    if (parent) {
+        event_bus = Object::cast_to<EventBus>(parent->get_node_or_null("EventBus"));
+        if (event_bus) {
+            UtilityFunctions::print("SimulationManager: EventBus connected");
+        }
+        // Note: EventBus is optional - scenes without it will simply not record events
+    }
+}
+
 void SimulationManager::_process(double delta) {
     if (!is_running) return;
 
@@ -50,14 +61,18 @@ void SimulationManager::_physics_process(double delta) {
 
 void SimulationManager::start_simulation() {
     is_running = true;
-    event_bus->start_recording();
+    if (event_bus) {
+        event_bus->start_recording();
+    }
     emit_signal("simulation_started");
     UtilityFunctions::print("Simulation started at tick ", current_tick);
 }
 
 void SimulationManager::stop_simulation() {
     is_running = false;
-    event_bus->stop_recording();
+    if (event_bus) {
+        event_bus->stop_recording();
+    }
     emit_signal("simulation_stopped");
     UtilityFunctions::print("Simulation stopped at tick ", current_tick);
 }
@@ -67,16 +82,20 @@ void SimulationManager::step_simulation() {
     emit_signal("tick_advanced", current_tick);
 
     // Process all pending events for this tick
-    Array events = event_bus->get_events_for_tick(current_tick);
-    for (int i = 0; i < events.size(); i++) {
-        // Process each event
+    if (event_bus) {
+        Array events = event_bus->get_events_for_tick(current_tick);
+        for (int i = 0; i < events.size(); i++) {
+            // Process each event
+        }
     }
 }
 
 void SimulationManager::reset_simulation() {
     current_tick = 0;
     is_running = false;
-    event_bus->clear_events();
+    if (event_bus) {
+        event_bus->clear_events();
+    }
     UtilityFunctions::print("Simulation reset");
 }
 
