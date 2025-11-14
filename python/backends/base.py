@@ -16,6 +16,7 @@ class BackendConfig:
     max_tokens: int = 512
     top_p: float = 0.9
     top_k: int = 40
+    n_gpu_layers: int = 0  # Number of layers to offload to GPU (0 = CPU only, -1 = all)
 
 
 @dataclass
