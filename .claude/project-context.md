@@ -93,8 +93,12 @@ c:\Projects\Agent Arena\
 - ✅ Core classes verified: SimulationManager, Agent, EventBus, ToolRegistry
 - ✅ IPC system implemented (Godot ↔ Python via HTTP/FastAPI)
 - ✅ Benchmark scenes created (foraging, crafting_chain, team_capture)
-- ⏳ Next: Set up Python environment and agent runtime
-- ⏳ Next: Integrate LLM backends with agent decision-making
+- ✅ Tool execution system connected (Agent → ToolRegistry → IPC → Python)
+
+### Active Work Items
+- 🔄 **Andrew**: LLM backend integration with agent decision-making
+- 🔄 **Justin** (Issue #15): Build out benchmark scenes with game content
+- ✅ **Justin** (Issue #16): Connect tool execution system in Godot - **COMPLETE**
 
 ## Development Commands
 
@@ -196,15 +200,62 @@ python run_ipc_server.py --host 127.0.0.1 --port 5000 --workers 4 --debug
 
 ### IPCClient (Node)
 - HTTP client for Godot ↔ Python communication
-- Methods: `connect_to_server()`, `send_tick_request()`, `get_tick_response()`, `has_response()`
+- Methods: `connect_to_server()`, `send_tick_request()`, `get_tick_response()`, `has_response()`, `execute_tool_sync()`
 - Properties: `server_url`
 - Signals: `response_received`, `connection_failed`
 
+## Tool Execution System
+
+The tool execution system enables agents to perform actions in the simulation by calling Python tool functions.
+
+### Architecture
+```
+Agent.call_tool() → ToolRegistry.execute_tool() → IPCClient.execute_tool_sync() →
+Python IPC Server (/tools/execute) → ToolDispatcher.execute_tool() → Tool Function
+```
+
+### Available Tools
+- **Movement**: `move_to`, `navigate_to`, `stop_movement`, `rotate_to_face`
+- **Inventory**: `pickup_item`, `drop_item`, `use_item`, `get_inventory`, `craft_item`
+- **World Query**: (defined in `python/tools/world_query.py`)
+
+### Usage Example (GDScript)
+```gdscript
+# Setup
+var agent = Agent.new()
+var tool_registry = ToolRegistry.new()
+var ipc_client = IPCClient.new()
+
+tool_registry.set_ipc_client(ipc_client)
+agent.set_tool_registry(tool_registry)
+
+# Execute tool
+var result = agent.call_tool("move_to", {
+    "target_position": [10.0, 0.0, 5.0],
+    "speed": 1.5
+})
+
+if result["success"]:
+    print("Tool executed successfully: ", result["result"])
+else:
+    print("Tool failed: ", result["error"])
+```
+
+### Testing
+- Test scenes: `scenes/tests/test_tool_execution_simple.tscn` (recommended), `scenes/tests/test_tool_execution.tscn`
+- Test scripts: `scripts/tests/test_tool_execution_simple.gd`, `scripts/tests/test_tool_execution.gd`
+- Test README: `scenes/tests/README.md`
+- Documentation: `TESTING_TOOL_EXECUTION.md`, `TOOL_TESTING_FIXED.md`
+
 ## Known Issues
-- Benchmark scenes are empty placeholders (need to create actual game worlds)
 - Python environment needs initial setup (venv + pip install)
-- LLM backends not yet connected to agent decision-making
-- Tool execution in Godot currently returns stub responses
+
+## Recent Issues
+- Issue #15: Build out benchmark scenes with game content (assigned to Justin) - In Progress
+- Issue #16: Connect tool execution system in Godot (assigned to Justin) - ✅ **COMPLETE**
+  - See: `TESTING_TOOL_EXECUTION.md`, `TOOL_TESTING_FIXED.md` for details
+  - Test scenes: `scenes/tests/` (use `test_tool_execution_simple.tscn` for quick verification)
+- LLM backend integration (assigned to Andrew) - In Progress
 
 ## References
 - Godot docs: https://docs.godotengine.org/

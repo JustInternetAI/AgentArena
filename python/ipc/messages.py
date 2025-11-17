@@ -151,3 +151,62 @@ class TickResponse:
             "actions": [a.to_dict() for a in self.actions],
             "metrics": self.metrics,
         }
+
+
+@dataclass
+class ToolExecutionRequest:
+    """
+    Request from Godot to execute a tool in Python.
+    """
+
+    tool_name: str
+    params: dict[str, Any] = field(default_factory=dict)
+    agent_id: str = ""  # Optional agent context
+    tick: int = 0  # Optional tick context
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ToolExecutionRequest":
+        """Create ToolExecutionRequest from dictionary."""
+        return cls(
+            tool_name=data["tool_name"],
+            params=data.get("params", {}),
+            agent_id=data.get("agent_id", ""),
+            tick=data.get("tick", 0),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "tool_name": self.tool_name,
+            "params": self.params,
+            "agent_id": self.agent_id,
+            "tick": self.tick,
+        }
+
+
+@dataclass
+class ToolExecutionResponse:
+    """
+    Response from Python after executing a tool.
+    """
+
+    success: bool
+    result: Any = None
+    error: str = ""
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ToolExecutionResponse":
+        """Create ToolExecutionResponse from dictionary."""
+        return cls(
+            success=data["success"],
+            result=data.get("result"),
+            error=data.get("error", ""),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "success": self.success,
+            "result": self.result,
+            "error": self.error,
+        }

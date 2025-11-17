@@ -7,6 +7,7 @@ extends Node3D
 @onready var simulation_manager = $SimulationManager
 @onready var event_bus = $EventBus
 @onready var tool_registry = $ToolRegistry
+@onready var ipc_client = $IPCClient
 @onready var agent = $Agents/Agent1
 @onready var metrics_label = $UI/MetricsLabel
 
@@ -69,6 +70,14 @@ func _ready():
 
 	# Initialize agent
 	agent.agent_id = "crafting_agent_001"
+
+	# Connect tool system (IPCClient → ToolRegistry → Agent)
+	if ipc_client != null and tool_registry != null and agent != null:
+		tool_registry.set_ipc_client(ipc_client)
+		agent.set_tool_registry(tool_registry)
+		print("✓ Tool execution system connected!")
+	else:
+		push_warning("Tool execution system not fully available")
 
 	# Connect signals
 	simulation_manager.simulation_started.connect(_on_simulation_started)

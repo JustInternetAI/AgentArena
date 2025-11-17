@@ -13,8 +13,16 @@ from typing import Any
 from fastapi import FastAPI, HTTPException
 
 from agent_runtime.runtime import AgentRuntime
+from agent_runtime.tool_dispatcher import ToolDispatcher
+from tools import register_inventory_tools, register_movement_tools, register_world_query_tools
 
-from .messages import ActionMessage, TickRequest, TickResponse
+from .messages import (
+    ActionMessage,
+    TickRequest,
+    TickResponse,
+    ToolExecutionRequest,
+    ToolExecutionResponse,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -44,11 +52,21 @@ class IPCServer:
         self.host = host
         self.port = port
         self.app: FastAPI | None = None
+        self.tool_dispatcher = ToolDispatcher()
+        self._register_all_tools()
         self.metrics = {
             "total_ticks": 0,
             "total_agents_processed": 0,
             "avg_tick_time_ms": 0.0,
+            "total_tools_executed": 0,
         }
+
+    def _register_all_tools(self) -> None:
+        """Register all available tools with the dispatcher."""
+        register_movement_tools(self.tool_dispatcher)
+        register_inventory_tools(self.tool_dispatcher)
+        register_world_query_tools(self.tool_dispatcher)
+        logger.info(f"Registered {len(self.tool_dispatcher.tools)} tools")
 
     def create_app(self) -> FastAPI:
         """Create and configure the FastAPI application."""
@@ -191,6 +209,64 @@ class IPCServer:
             except Exception as e:
                 logger.error(f"Error registering agent: {e}")
                 raise HTTPException(status_code=500, detail=str(e))
+
+        @app.post("/tools/execute")
+        async def execute_tool(request_data: dict[str, Any]) -> dict[str, Any]:
+            """
+            Execute a tool requested from Godot.
+
+            Args:
+                request_data: Tool execution request
+
+            Returns:
+                Tool execution response with result or error
+            """
+            try:
+                # Parse request
+                tool_request = ToolExecutionRequest.from_dict(request_data)
+
+                logger.debug(
+                    f"Executing tool '{tool_request.tool_name}' "
+                    f"for agent '{tool_request.agent_id}' at tick {tool_request.tick}"
+                )
+
+                # Execute the tool through dispatcher
+                result = self.tool_dispatcher.execute_tool(
+                    tool_request.tool_name, tool_request.params
+                )
+
+                # Update metrics
+                self.metrics["total_tools_executed"] += 1
+
+                # Build response
+                response = ToolExecutionResponse(
+                    success=result.get("success", False),
+                    result=result.get("result"),
+                    error=result.get("error", ""),
+                )
+
+                logger.debug(
+                    f"Tool '{tool_request.tool_name}' executed: " f"success={response.success}"
+                )
+
+                return response.to_dict()
+
+            except Exception as e:
+                logger.error(f"Error executing tool: {e}", exc_info=True)
+                return ToolExecutionResponse(success=False, error=str(e)).to_dict()
+
+        @app.get("/tools/list")
+        async def list_tools() -> dict[str, Any]:
+            """Get list of available tools and their schemas."""
+            schemas = {}
+            for name, schema in self.tool_dispatcher.schemas.items():
+                schemas[name] = {
+                    "name": schema.name,
+                    "description": schema.description,
+                    "parameters": schema.parameters,
+                    "returns": schema.returns,
+                }
+            return {"tools": schemas, "count": len(schemas)}
 
         @app.get("/metrics")
         async def get_metrics():

@@ -43,6 +43,7 @@ build/
 *.swo
 *~
 .DS_Store
+promptPad.md
 
 # Logs and databases
 *.log

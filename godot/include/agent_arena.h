@@ -107,6 +107,7 @@ private:
     godot::Dictionary short_term_memory;
     godot::Array action_history;
     bool is_active;
+    ToolRegistry* tool_registry;
 
 protected:
     static void _bind_methods();
@@ -131,6 +132,10 @@ public:
     // Tool interface
     godot::Dictionary call_tool(const godot::String& tool_name, const godot::Dictionary& params);
 
+    // Tool registry management
+    void set_tool_registry(ToolRegistry* registry);
+    ToolRegistry* get_tool_registry() const { return tool_registry; }
+
     // Getters/Setters
     godot::String get_agent_id() const { return agent_id; }
     void set_agent_id(const godot::String& id) { agent_id = id; }
@@ -144,6 +149,7 @@ class ToolRegistry : public godot::Node {
 
 private:
     godot::Dictionary registered_tools;
+    IPCClient* ipc_client;
 
 protected:
     static void _bind_methods();
@@ -152,11 +158,17 @@ public:
     ToolRegistry();
     ~ToolRegistry();
 
+    void _ready() override;
+
     void register_tool(const godot::String& name, const godot::Dictionary& schema);
     void unregister_tool(const godot::String& name);
     godot::Dictionary get_tool_schema(const godot::String& name);
     godot::Array get_all_tool_names();
     godot::Dictionary execute_tool(const godot::String& name, const godot::Dictionary& params);
+
+    // IPC Client management
+    void set_ipc_client(IPCClient* client);
+    IPCClient* get_ipc_client() const { return ipc_client; }
 };
 
 /**
@@ -194,6 +206,9 @@ public:
     void send_tick_request(uint64_t tick, const godot::Array& perceptions);
     godot::Dictionary get_tick_response();
     bool has_response() const { return response_received; }
+
+    // Tool execution
+    godot::Dictionary execute_tool_sync(const godot::String& tool_name, const godot::Dictionary& params, const godot::String& agent_id = "", uint64_t tick = 0);
 
     // Getters/Setters
     godot::String get_server_url() const { return server_url; }
