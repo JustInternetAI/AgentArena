@@ -1,0 +1,66 @@
+# Tool Execution Tests
+
+Test scenes for verifying the tool execution system.
+
+## Test Scenes
+
+### test_tool_execution_simple.tscn (RECOMMENDED)
+**Direct HTTP test of Python IPC server**
+
+- **Purpose**: Verify Python server and tool execution works
+- **Tests**: HTTP `/tools/execute` endpoint directly
+- **Output**: Clear pass/fail for each tool
+- **Best for**: Initial verification, debugging
+
+**How to run:**
+1. Start Python server: `START_IPC_SERVER.bat`
+2. Open this scene in Godot
+3. Press F6
+4. Watch console for results
+
+### test_tool_execution.tscn
+**Full integration test**
+
+- **Purpose**: Test complete Agent → Python pipeline
+- **Tests**: C++ classes, IPC, Python integration
+- **Output**: Async responses via signals
+- **Best for**: Integration testing, realistic scenarios
+
+**How to run:**
+1. Start Python server: `START_IPC_SERVER.bat`
+2. Open this scene in Godot
+3. Press F6
+4. Check both consoles for async responses
+
+## Controls
+
+Both tests support:
+- **T** - Run tests again
+- **Q** - Quit
+
+## Prerequisites
+
+Python IPC server must be running:
+```bash
+START_IPC_SERVER.bat
+```
+
+Or manually:
+```bash
+cd python
+venv\Scripts\activate
+python run_ipc_server.py
+```
+
+## Expected Results
+
+All 5 tools should pass:
+1. `move_to`
+2. `pickup_item`
+3. `stop_movement`
+4. `get_inventory`
+5. `navigate_to`
+
+## Troubleshooting
+
+See `TESTING_TOOL_EXECUTION.md` in project root for detailed troubleshooting.

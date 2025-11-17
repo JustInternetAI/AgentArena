@@ -23,6 +23,9 @@ script = ExtResource("1_crafting")
 
 [node name="ToolRegistry" type="ToolRegistry" parent="."]
 
+[node name="IPCClient" type="IPCClient" parent="."]
+server_url = "http://127.0.0.1:5000"
+
 [node name="Environment" type="Node3D" parent="."]
 
 [node name="Ground" type="MeshInstance3D" parent="Environment"]

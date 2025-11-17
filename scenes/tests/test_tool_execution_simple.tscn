@@ -1,0 +1,31 @@
+[gd_scene load_steps=2 format=3 uid="uid://c8ykp8t3k5it"]
+
+[ext_resource type="Script" path="res://scripts/tests/test_tool_execution_simple.gd" id="1_simple"]
+
+[node name="SimpleToolTest" type="Node"]
+script = ExtResource("1_simple")
+
+[node name="Label" type="Label" parent="."]
+offset_left = 20.0
+offset_top = 20.0
+offset_right = 900.0
+offset_bottom = 250.0
+theme_override_font_sizes/font_size = 18
+text = "Simple Tool Execution Test
+
+This test directly calls the Python IPC server via HTTP
+to verify that tool execution works.
+
+Prerequisites:
+1. Python IPC server must be running
+   cd python && venv\\Scripts\\activate && python run_ipc_server.py
+
+2. Server should be on http://127.0.0.1:5000
+
+The test will run automatically and show results in the console.
+
+Controls:
+T - Run tests again
+Q - Quit
+
+Check both Godot console and Python server logs for details."

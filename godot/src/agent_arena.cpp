@@ -170,7 +170,7 @@ void EventBus::load_recording(const Array& events) {
 // Agent Implementation
 // ============================================================================
 
-Agent::Agent() : is_active(true) {
+Agent::Agent() : is_active(true), tool_registry(nullptr) {
     agent_id = "agent_" + String::num_int64(Time::get_singleton()->get_ticks_msec());
 }
 
@@ -186,6 +186,8 @@ void Agent::_bind_methods() {
     ClassDB::bind_method(D_METHOD("clear_short_term_memory"), &Agent::clear_short_term_memory);
 
     ClassDB::bind_method(D_METHOD("call_tool", "tool_name", "params"), &Agent::call_tool);
+    ClassDB::bind_method(D_METHOD("set_tool_registry", "registry"), &Agent::set_tool_registry);
+    ClassDB::bind_method(D_METHOD("get_tool_registry"), &Agent::get_tool_registry);
 
     ClassDB::bind_method(D_METHOD("get_agent_id"), &Agent::get_agent_id);
     ClassDB::bind_method(D_METHOD("set_agent_id", "id"), &Agent::set_agent_id);
@@ -197,6 +199,14 @@ void Agent::_bind_methods() {
 }
 
 void Agent::_ready() {
+    // Try to find ToolRegistry in the scene tree
+    Node* parent = get_parent();
+    if (parent) {
+        tool_registry = Object::cast_to<ToolRegistry>(parent->get_node_or_null("ToolRegistry"));
+        if (tool_registry) {
+            UtilityFunctions::print("Agent ", agent_id, " connected to ToolRegistry");
+        }
+    }
     UtilityFunctions::print("Agent ", agent_id, " ready");
 }
 
@@ -242,16 +252,31 @@ void Agent::clear_short_term_memory() {
 
 Dictionary Agent::call_tool(const String& tool_name, const Dictionary& params) {
     Dictionary result;
-    result["success"] = false;
-    result["error"] = "Tool not implemented";
+
+    if (tool_registry) {
+        result = tool_registry->execute_tool(tool_name, params);
+        UtilityFunctions::print("Agent ", agent_id, " called tool '", tool_name, "'");
+    } else {
+        result["success"] = false;
+        result["error"] = "No ToolRegistry available";
+        UtilityFunctions::print("Agent ", agent_id, " error: No ToolRegistry for tool '", tool_name, "'");
+    }
+
     return result;
+}
+
+void Agent::set_tool_registry(ToolRegistry* registry) {
+    tool_registry = registry;
+    if (registry) {
+        UtilityFunctions::print("Agent ", agent_id, ": ToolRegistry set");
+    }
 }
 
 // ============================================================================
 // ToolRegistry Implementation
 // ============================================================================
 
-ToolRegistry::ToolRegistry() {}
+ToolRegistry::ToolRegistry() : ipc_client(nullptr) {}
 
 ToolRegistry::~ToolRegistry() {}
 
@@ -261,6 +286,21 @@ void ToolRegistry::_bind_methods() {
     ClassDB::bind_method(D_METHOD("get_tool_schema", "name"), &ToolRegistry::get_tool_schema);
     ClassDB::bind_method(D_METHOD("get_all_tool_names"), &ToolRegistry::get_all_tool_names);
     ClassDB::bind_method(D_METHOD("execute_tool", "name", "params"), &ToolRegistry::execute_tool);
+    ClassDB::bind_method(D_METHOD("set_ipc_client", "client"), &ToolRegistry::set_ipc_client);
+    ClassDB::bind_method(D_METHOD("get_ipc_client"), &ToolRegistry::get_ipc_client);
+}
+
+void ToolRegistry::_ready() {
+    // Try to find IPCClient in the scene tree
+    Node* parent = get_parent();
+    if (parent) {
+        ipc_client = Object::cast_to<IPCClient>(parent->get_node_or_null("IPCClient"));
+        if (ipc_client) {
+            UtilityFunctions::print("ToolRegistry: IPCClient connected");
+        } else {
+            UtilityFunctions::print("ToolRegistry: Warning - No IPCClient found. Tools will not execute.");
+        }
+    }
 }
 
 void ToolRegistry::register_tool(const String& name, const Dictionary& schema) {
@@ -295,11 +335,24 @@ Dictionary ToolRegistry::execute_tool(const String& name, const Dictionary& para
         return result;
     }
 
-    // Tool execution logic would go here
-    result["success"] = true;
-    result["output"] = Variant();
+    // Execute tool via IPC if available
+    if (ipc_client) {
+        result = ipc_client->execute_tool_sync(name, params);
+        UtilityFunctions::print("Executed tool '", name, "' via IPC");
+    } else {
+        result["success"] = false;
+        result["error"] = "No IPC client available for tool execution";
+        UtilityFunctions::print("Error: Cannot execute tool '", name, "' - no IPC client");
+    }
 
     return result;
+}
+
+void ToolRegistry::set_ipc_client(IPCClient* client) {
+    ipc_client = client;
+    if (client) {
+        UtilityFunctions::print("ToolRegistry: IPC client set");
+    }
 }
 
 // ============================================================================
@@ -328,6 +381,9 @@ void IPCClient::_bind_methods() {
     ClassDB::bind_method(D_METHOD("send_tick_request", "tick", "perceptions"), &IPCClient::send_tick_request);
     ClassDB::bind_method(D_METHOD("get_tick_response"), &IPCClient::get_tick_response);
     ClassDB::bind_method(D_METHOD("has_response"), &IPCClient::has_response);
+
+    ClassDB::bind_method(D_METHOD("execute_tool_sync", "tool_name", "params", "agent_id", "tick"),
+                         &IPCClient::execute_tool_sync);
 
     ClassDB::bind_method(D_METHOD("get_server_url"), &IPCClient::get_server_url);
     ClassDB::bind_method(D_METHOD("set_server_url", "url"), &IPCClient::set_server_url);
@@ -457,4 +513,48 @@ void IPCClient::_on_request_completed(int result, int response_code,
         UtilityFunctions::print("HTTP request returned error code: ", response_code);
         is_connected = false;
     }
+}
+
+Dictionary IPCClient::execute_tool_sync(const String& tool_name, const Dictionary& params,
+                                        const String& agent_id, uint64_t tick) {
+    Dictionary result;
+
+    if (!is_connected) {
+        UtilityFunctions::print("Warning: Tool execution while not connected to server");
+    }
+
+    // Build request JSON
+    Dictionary request_dict;
+    request_dict["tool_name"] = tool_name;
+    request_dict["params"] = params;
+    request_dict["agent_id"] = agent_id;
+    request_dict["tick"] = tick;
+
+    String json_str = JSON::stringify(request_dict);
+
+    // Send POST request using main http_request
+    String url = server_url + "/tools/execute";
+    PackedStringArray headers;
+    headers.append("Content-Type: application/json");
+
+    Error err = http_request->request(url, headers, HTTPClient::METHOD_POST, json_str);
+
+    if (err != OK) {
+        UtilityFunctions::print("Error sending tool execution request: ", err);
+        result["success"] = false;
+        result["error"] = "Failed to send HTTP request";
+        return result;
+    }
+
+    // NOTE: This is a simplified implementation that returns immediately
+    // In a real scenario, you'd want to wait for the response or use callbacks
+    // For now, we'll use the pending_response mechanism
+    UtilityFunctions::print("Tool execution request sent for '", tool_name, "'");
+
+    // Return a pending status - the actual response will come through the signal
+    result["success"] = true;
+    result["result"] = Dictionary();
+    result["note"] = "Tool execution initiated - check response signal";
+
+    return result;
 }
