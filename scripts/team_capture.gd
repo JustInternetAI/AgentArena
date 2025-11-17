@@ -127,6 +127,8 @@ func _initialize_scene():
 	for child in blue_team_node.get_children():
 		if child.get_class() == "Agent":
 			child.agent_id = "blue_%s" % child.name
+			# Create visual representation
+			_create_agent_visual(child, child.name, Color(0.2, 0.4, 0.9))  # Blue color
 			# Connect agent to tool registry
 			if tool_registry != null:
 				child.set_tool_registry(tool_registry)
@@ -149,6 +151,8 @@ func _initialize_scene():
 	for child in red_team_node.get_children():
 		if child.get_class() == "Agent":
 			child.agent_id = "red_%s" % child.name
+			# Create visual representation
+			_create_agent_visual(child, child.name, Color(0.9, 0.2, 0.2))  # Red color
 			# Connect agent to tool registry
 			if tool_registry != null:
 				child.set_tool_registry(tool_registry)
@@ -544,6 +548,23 @@ Press M for detailed metrics" % [
 		objectives_captured.red,
 		elapsed_time
 	]
+
+func _create_agent_visual(agent_node: Node, agent_name: String, color: Color):
+	"""Create visual representation for an agent"""
+	var visual_scene = load("res://scenes/agent_visual.tscn")
+	if visual_scene == null:
+		push_warning("Could not load agent_visual.tscn")
+		return
+
+	var visual_instance = visual_scene.instantiate()
+	agent_node.add_child(visual_instance)
+
+	if visual_instance.has_method("set_team_color"):
+		visual_instance.set_team_color(color)
+	if visual_instance.has_method("set_agent_name"):
+		visual_instance.set_agent_name(agent_name)
+
+	print("✓ Created visual for: ", agent_name, " (", color, ")")
 
 func _reset_scene():
 	"""Reset the scene"""
