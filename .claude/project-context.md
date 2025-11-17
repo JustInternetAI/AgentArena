@@ -94,10 +94,11 @@ c:\Projects\Agent Arena\
 - ✅ IPC system implemented (Godot ↔ Python via HTTP/FastAPI)
 - ✅ Benchmark scenes created (foraging, crafting_chain, team_capture)
 - ✅ Tool execution system connected (Agent → ToolRegistry → IPC → Python)
+- ✅ Benchmark scenes integrated with tool execution system
 
 ### Active Work Items
 - 🔄 **Andrew**: LLM backend integration with agent decision-making
-- 🔄 **Justin** (Issue #15): Build out benchmark scenes with game content
+- ✅ **Justin** (Issue #15): Build out benchmark scenes with game content - **COMPLETE**
 - ✅ **Justin** (Issue #16): Connect tool execution system in Godot - **COMPLETE**
 
 ## Development Commands
@@ -251,7 +252,12 @@ else:
 - Python environment needs initial setup (venv + pip install)
 
 ## Recent Issues
-- Issue #15: Build out benchmark scenes with game content (assigned to Justin) - In Progress
+- Issue #15: Build out benchmark scenes with game content (assigned to Justin) - ✅ **COMPLETE**
+  - Connected all three benchmark scenes to tool execution system
+  - Foraging scene: Resource collection with hazard avoidance
+  - Crafting chain scene: Multi-step crafting recipes
+  - Team capture scene: Multi-agent team competition
+  - All scenes ready for LLM-driven agents
 - Issue #16: Connect tool execution system in Godot (assigned to Justin) - ✅ **COMPLETE**
   - See: `TESTING_TOOL_EXECUTION.md`, `TOOL_TESTING_FIXED.md` for details
   - Test scenes: `scenes/tests/` (use `test_tool_execution_simple.tscn` for quick verification)
