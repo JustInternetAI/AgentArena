@@ -48,7 +48,7 @@ The texture will be automatically loaded from the Textures subfolder.
 ## Example Usage
 
 Current project usage:
-- **Berry scene** ([scenes/resources/berry.tscn](../../../scenes/resources/berry.tscn)) uses `apple.glb`
+- **Apple scene** ([scenes/resources/apple.tscn](../../../scenes/resources/apple.tscn)) uses `apple.glb`
 
 ## Source & License
 

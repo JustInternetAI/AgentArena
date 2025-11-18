@@ -1,7 +1,7 @@
 [gd_scene load_steps=8 format=3 uid="uid://dyr7xuv3evk0g"]
 
 [ext_resource type="Script" uid="uid://cuvvv5nbixqy8" path="res://scripts/foraging.gd" id="1_foraging"]
-[ext_resource type="PackedScene" uid="uid://c3r4w5d6e7f8g" path="res://scenes/resources/berry.tscn" id="2_nlo2w"]
+[ext_resource type="PackedScene" uid="uid://c3r4w5d6e7f8g" path="res://scenes/resources/apple.tscn" id="2_nlo2w"]
 [ext_resource type="PackedScene" uid="uid://b8iai0j1k2l3m" path="res://scenes/resources/stone.tscn" id="3_qjgy7"]
 [ext_resource type="PackedScene" uid="uid://0rkuoje480am" path="res://scenes/resources/wood.tscn" id="4_jq1ou"]
 [ext_resource type="PackedScene" uid="uid://bbgca5y0d2287" path="res://scenes/resources/pit.tscn" id="5_jrjj6"]
@@ -34,13 +34,13 @@ shadow_enabled = true
 
 [node name="Resources" type="Node3D" parent="."]
 
-[node name="Berry" parent="Resources" instance=ExtResource("2_nlo2w")]
+[node name="Apple" parent="Resources" instance=ExtResource("2_nlo2w")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.2767699, 0.97824025, 0.6348424)
 
-[node name="Berry2" parent="Resources" instance=ExtResource("2_nlo2w")]
+[node name="Apple2" parent="Resources" instance=ExtResource("2_nlo2w")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.4710245, 1.2601786, -0.5271497)
 
-[node name="Berry3" parent="Resources" instance=ExtResource("2_nlo2w")]
+[node name="Apple3" parent="Resources" instance=ExtResource("2_nlo2w")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.2352296, 1.2772655, -0.11761141)
 
 [node name="Stone" parent="Resources" instance=ExtResource("3_qjgy7")]

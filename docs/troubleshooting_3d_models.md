@@ -92,15 +92,14 @@ Quick test in Godot:
 4. **Test import** by dragging into a scene first
 5. **Use procedural meshes** for placeholders if needed
 
-## Current Status: Berry Scene
+## Current Status: Apple Scene
 
-The berry scene is currently using a **procedural SphereMesh with the apple texture** as a fallback. This works great for gameplay!
+The apple scene is now using the **proper Kenney apple.glb model** with textures!
 
-When you get a proper apple.glb model (from Kenney or elsewhere), you can:
-1. Replace the file at `assets/models/resources/apple.glb`
-2. Update `berry.tscn` to instance the GLB instead of using SphereMesh
-3. The texture will be automatically applied
+Location: `scenes/resources/apple.tscn` instances `assets/models/kenney_food_kit/Models/apple.glb`
+
+The Kenney Food Kit provides 200+ food models, all properly textured and ready to use. See `assets/models/kenney_food_kit/README.md` for the complete list.
 
 ---
 
-**Bottom line:** The current setup works perfectly for development. You can upgrade to a fancy 3D model later when you have time to download proper assets from Kenney!
+**Bottom line:** Kenney assets work great when you preserve their original folder structure!
