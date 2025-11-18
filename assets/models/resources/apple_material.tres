@@ -1,6 +1,6 @@
 [gd_resource type="StandardMaterial3D" load_steps=2 format=3]
 
-[ext_resource type="Texture2D" path="res://assets/textures/materials/colormap.png" id="1_colormap"]
+[ext_resource type="Texture2D" path="res://assets/models/resources/colormap.png" id="1_colormap"]
 
 [resource]
 albedo_texture = ExtResource("1_colormap")
