@@ -6,13 +6,13 @@ Organized storage for all game assets (3D models, textures, audio).
 
 ```
 assets/
-├── kenney_food_kit/  # Kenney Food Kit (keep original structure!)
-│   ├── Models/       # GLB files with hardcoded texture paths
-│   │   ├── apple.glb
-│   │   └── apple-half.glb
-│   └── Textures/     # Shared texture atlas
-│       └── colormap.png
-├── models/           # Other 3D models (.glb, .gltf, .obj)
+├── models/           # 3D models (.glb, .gltf, .obj)
+│   ├── kenney_food_kit/  # Kenney Food Kit (keep original structure!)
+│   │   ├── Models/       # GLB files with hardcoded texture paths
+│   │   │   ├── apple.glb
+│   │   │   └── apple-half.glb
+│   │   └── Textures/     # Shared texture atlas
+│   │       └── colormap.png
 │   ├── characters/   # Agent/character models
 │   ├── resources/    # Collectible resources (berries, wood, stone, ore)
 │   ├── stations/     # Crafting stations (anvil, furnace, workbench)
@@ -82,14 +82,14 @@ See `docs/getting_3d_assets.md` for detailed guide.
 **Kenney's GLB files have hardcoded paths to textures!** You MUST keep the original folder structure:
 
 ```
-assets/kenney_food_kit/
+assets/models/kenney_food_kit/
 ├── Models/          # GLB files go here
 └── Textures/        # colormap.png goes here
 ```
 
 **Do NOT** move GLB files out of the Models folder or they will appear white/untextured.
 
-See `assets/kenney_food_kit/README.md` for complete details.
+See `assets/models/kenney_food_kit/README.md` for complete details.
 
 ## Current Assets
 

@@ -1,7 +1,7 @@
 [gd_scene load_steps=3 format=3 uid="uid://c3r4w5d6e7f8g"]
 
-[ext_resource type="Script" path="res://scripts/resources/berry.gd" id="1_berry"]
-[ext_resource type="PackedScene" path="res://assets/kenney_food_kit/Models/apple.glb" id="2_apple"]
+[ext_resource type="Script" uid="uid://c224tcem2fxhh" path="res://scripts/resources/berry.gd" id="1_berry"]
+[ext_resource type="PackedScene" uid="uid://dlqvdt4xvh1n1" path="res://assets/models/kenney_food_kit/Models/apple.glb" id="2_apple"]
 
 [sub_resource type="SphereShape3D" id="SphereShape_berry"]
 radius = 0.2
