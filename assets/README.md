@@ -9,16 +9,22 @@ assets/
 ├── models/           # 3D models (.glb, .gltf, .obj)
 │   ├── characters/   # Agent/character models
 │   ├── resources/    # Collectible resources (berries, wood, stone, ore)
+│   │   ├── apple.glb          # Model file
+│   │   └── colormap.png       # Texture for apple (kept with model)
 │   ├── stations/     # Crafting stations (anvil, furnace, workbench)
 │   ├── hazards/      # Dangerous objects (fire, pits)
 │   └── environment/  # Terrain and environment props
 ├── textures/         # Image files (.png, .jpg)
-│   ├── materials/    # Material textures
+│   ├── materials/    # Shared/generic material textures
 │   └── ui/           # UI graphics
 └── audio/            # Sound files (.wav, .ogg)
     ├── sfx/          # Sound effects
     └── music/        # Background music
 ```
+
+**Note**: Model textures are kept next to their GLB files (industry standard).
+Only shared/generic textures go in `textures/materials/`.
+
 
 ## Adding New Assets
 
@@ -41,7 +47,13 @@ Godot path: res://assets/models/resources/berry.glb
 
 ### Textures
 
-Place `.png` or `.jpg` files in `textures/materials/`
+**For model-specific textures:**
+- Keep them next to the GLB file (e.g., `apple.glb` + `colormap.png` in same folder)
+- This is standard practice and Godot handles it automatically
+
+**For shared textures:**
+- Place in `textures/materials/` for generic materials (grass, dirt, etc.)
+- Place in `textures/ui/` for UI graphics
 
 ### Audio
 
