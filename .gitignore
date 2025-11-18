@@ -53,13 +53,13 @@ promptPad.md
 logs/
 replays/
 
-# Model files
+# ML Model files (LLM weights, not game assets)
 *.gguf
 *.bin
 *.safetensors
 *.pt
 *.pth
-models/
+# Note: assets/models/ (game 3D models) are tracked, this ignores ML models in other locations
 
 # Configs (keep templates, ignore local overrides)
 configs/local/

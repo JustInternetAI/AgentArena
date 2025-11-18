@@ -1,10 +1,11 @@
-[gd_scene load_steps=7 format=3 uid="uid://dyr7xuv3evk0g"]
+[gd_scene load_steps=8 format=3 uid="uid://dyr7xuv3evk0g"]
 
 [ext_resource type="Script" uid="uid://cuvvv5nbixqy8" path="res://scripts/foraging.gd" id="1_foraging"]
-[ext_resource type="PackedScene" path="res://scenes/resources/berry.tscn" id="2_nlo2w"]
-[ext_resource type="PackedScene" path="res://scenes/resources/stone.tscn" id="3_qjgy7"]
+[ext_resource type="PackedScene" uid="uid://c3r4w5d6e7f8g" path="res://scenes/resources/berry.tscn" id="2_nlo2w"]
+[ext_resource type="PackedScene" uid="uid://b8iai0j1k2l3m" path="res://scenes/resources/stone.tscn" id="3_qjgy7"]
 [ext_resource type="PackedScene" uid="uid://0rkuoje480am" path="res://scenes/resources/wood.tscn" id="4_jq1ou"]
-[ext_resource type="PackedScene" path="res://scenes/resources/pit.tscn" id="5_jrjj6"]
+[ext_resource type="PackedScene" uid="uid://bbgca5y0d2287" path="res://scenes/resources/pit.tscn" id="5_jrjj6"]
+[ext_resource type="PackedScene" path="res://scenes/agent_visual.tscn" id="6_qjgy7"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_ground"]
 size = Vector3(50, 0.5, 50)
@@ -19,7 +20,6 @@ script = ExtResource("1_foraging")
 [node name="ToolRegistry" type="ToolRegistry" parent="."]
 
 [node name="IPCClient" type="IPCClient" parent="."]
-server_url = "http://127.0.0.1:5000"
 
 [node name="Environment" type="Node3D" parent="."]
 
@@ -62,8 +62,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.29249334, -0.09130466, -1.0
 
 [node name="Agents" type="Node3D" parent="."]
 
-[node name="Agent1" type="Agent" parent="Agents"]
-agent_id = "agent_2080718"
+[node name="AgentVisual" parent="Agents" instance=ExtResource("6_qjgy7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.845533, -0.09066391, -1.6333704)
+agent_name = "Agent1"
 
 [node name="Camera3D" type="Camera3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 20, 20)
