@@ -1,0 +1,26 @@
+[gd_scene load_steps=4 format=3 uid="uid://bbgca5y0d2287"]
+
+[ext_resource type="Script" path="res://scripts/resources/pit.gd" id="1_pit"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_pit"]
+albedo_color = Color(0.3, 0.2, 0.15, 1)
+roughness = 0.95
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_pit"]
+top_radius = 0.6
+bottom_radius = 0.5
+height = 0.3
+material = SubResource("StandardMaterial3D_pit")
+
+[sub_resource type="CylinderShape3D" id="CylinderShape_pit"]
+radius = 0.6
+height = 0.3
+
+[node name="Pit" type="Area3D"]
+script = ExtResource("1_pit")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = SubResource("CylinderMesh_pit")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("CylinderShape_pit")

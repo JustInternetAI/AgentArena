@@ -1,0 +1,25 @@
+[gd_scene load_steps=4 format=3 uid="uid://5pkkwbyi8esy"]
+
+[ext_resource type="Script" uid="uid://clba3etrgc4mn" path="res://scripts/stations/furnace.gd" id="1_vboj5"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_furnace"]
+albedo_color = Color(0.8, 0.3, 0.2, 1)
+emission_enabled = true
+emission = Color(1, 0.4, 0.1, 1)
+emission_energy_multiplier = 0.3
+
+[sub_resource type="BoxMesh" id="BoxMesh_furnace"]
+size = Vector3(1.5, 1.5, 1.5)
+material = SubResource("StandardMaterial3D_furnace")
+
+[sub_resource type="BoxShape3D" id="BoxShape_furnace"]
+size = Vector3(1.5, 1.5, 1.5)
+
+[node name="Furnace" type="Area3D"]
+script = ExtResource("1_vboj5")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_furnace")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape_furnace")

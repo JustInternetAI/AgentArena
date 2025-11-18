@@ -23,11 +23,18 @@ elseif(UNIX)
     set(PLATFORM_ARCH "x86_64")
 endif()
 
-# Build type
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    set(BUILD_TYPE "template_debug")
+# Build type (handle both single-config and multi-config generators)
+if(CMAKE_BUILD_TYPE)
+    # Single-config generator (Ninja, Unix Makefiles)
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        set(BUILD_TYPE "template_debug")
+    else()
+        set(BUILD_TYPE "template_release")
+    endif()
 else()
-    set(BUILD_TYPE "template_release")
+    # Multi-config generator (Visual Studio, Xcode)
+    # Use generator expression for build type
+    set(BUILD_TYPE "$<IF:$<CONFIG:Debug>,template_debug,template_release>")
 endif()
 
 # godot-cpp path (you'll need to clone godot-cpp as a submodule or dependency)
@@ -86,9 +93,16 @@ endif()
 # Output directory
 set(OUTPUT_NAME "libagent_arena.${PLATFORM_NAME}.${BUILD_TYPE}.${PLATFORM_ARCH}")
 set_target_properties(${PROJECT_NAME} PROPERTIES
-    OUTPUT_NAME ${OUTPUT_NAME}
+    OUTPUT_NAME_DEBUG "libagent_arena.${PLATFORM_NAME}.template_debug.${PLATFORM_ARCH}"
+    OUTPUT_NAME_RELEASE "libagent_arena.${PLATFORM_NAME}.template_release.${PLATFORM_ARCH}"
+    OUTPUT_NAME_RELWITHDEBINFO "libagent_arena.${PLATFORM_NAME}.template_release.${PLATFORM_ARCH}"
+    OUTPUT_NAME_MINSIZEREL "libagent_arena.${PLATFORM_NAME}.template_release.${PLATFORM_ARCH}"
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../bin/${PLATFORM_NAME}"
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../bin/${PLATFORM_NAME}"
+    LIBRARY_OUTPUT_DIRECTORY_DEBUG "${CMAKE_CURRENT_SOURCE_DIR}/../bin/${PLATFORM_NAME}"
+    LIBRARY_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_SOURCE_DIR}/../bin/${PLATFORM_NAME}"
+    RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_CURRENT_SOURCE_DIR}/../bin/${PLATFORM_NAME}"
+    RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_SOURCE_DIR}/../bin/${PLATFORM_NAME}"
 )
 
 # Install rules

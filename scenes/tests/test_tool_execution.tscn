@@ -1,0 +1,31 @@
+[gd_scene load_steps=2 format=3 uid="uid://dw8ykp8t3k4hs"]
+
+[ext_resource type="Script" path="res://scripts/tests/test_tool_execution.gd" id="1_tool_test"]
+
+[node name="ToolExecutionTest" type="Node"]
+script = ExtResource("1_tool_test")
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.866025, 0.5, 0, -0.5, 0.866025, 0, 5, 10)
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 5, 0)
+
+[node name="Label" type="Label" parent="."]
+offset_left = 20.0
+offset_top = 20.0
+offset_right = 800.0
+offset_bottom = 200.0
+theme_override_font_sizes/font_size = 20
+text = "Tool Execution Test
+
+Prerequisites:
+1. Start Python IPC server: cd python && venv\\Scripts\\activate && python run_ipc_server.py
+2. Wait for connection message
+3. Tools will execute automatically after 2 seconds
+
+Controls:
+T - Run tests again
+Q - Quit
+
+Check the output console and Python server logs for results."

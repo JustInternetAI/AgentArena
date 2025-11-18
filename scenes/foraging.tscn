@@ -1,6 +1,10 @@
-[gd_scene load_steps=3 format=3 uid="uid://foraging_scene"]
+[gd_scene load_steps=7 format=3 uid="uid://dyr7xuv3evk0g"]
 
-[ext_resource type="Script" path="res://scripts/foraging.gd" id="1_foraging"]
+[ext_resource type="Script" uid="uid://cuvvv5nbixqy8" path="res://scripts/foraging.gd" id="1_foraging"]
+[ext_resource type="PackedScene" path="res://scenes/resources/berry.tscn" id="2_nlo2w"]
+[ext_resource type="PackedScene" path="res://scenes/resources/stone.tscn" id="3_qjgy7"]
+[ext_resource type="PackedScene" uid="uid://0rkuoje480am" path="res://scenes/resources/wood.tscn" id="4_jq1ou"]
+[ext_resource type="PackedScene" path="res://scenes/resources/pit.tscn" id="5_jrjj6"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_ground"]
 size = Vector3(50, 0.5, 50)
@@ -14,9 +18,13 @@ script = ExtResource("1_foraging")
 
 [node name="ToolRegistry" type="ToolRegistry" parent="."]
 
+[node name="IPCClient" type="IPCClient" parent="."]
+server_url = "http://127.0.0.1:5000"
+
 [node name="Environment" type="Node3D" parent="."]
 
 [node name="Ground" type="MeshInstance3D" parent="Environment"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.13587832, -0.7860099, 0.56352854)
 mesh = SubResource("BoxMesh_ground")
 skeleton = NodePath("../..")
 
@@ -26,82 +34,36 @@ shadow_enabled = true
 
 [node name="Resources" type="Node3D" parent="."]
 
-[node name="Berry1" type="Area3D" parent="Resources"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0.5, 5)
+[node name="Berry" parent="Resources" instance=ExtResource("2_nlo2w")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.2767699, 0.97824025, 0.6348424)
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Resources/Berry1"]
-mesh = SubResource("BoxMesh_ground")
-skeleton = NodePath("../../..")
+[node name="Berry2" parent="Resources" instance=ExtResource("2_nlo2w")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.4710245, 1.2601786, -0.5271497)
 
-[node name="Berry2" type="Area3D" parent="Resources"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0.5, 3)
+[node name="Berry3" parent="Resources" instance=ExtResource("2_nlo2w")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.2352296, 1.2772655, -0.11761141)
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Resources/Berry2"]
-mesh = SubResource("BoxMesh_ground")
-skeleton = NodePath("../../..")
+[node name="Stone" parent="Resources" instance=ExtResource("3_qjgy7")]
+transform = Transform3D(1, 0, 0, 0, 0.9979949, -0.06329565, 0, 0.06329565, 0.9979949, -2.3462286, -0.2733947, 1.451941)
 
-[node name="Berry3" type="Area3D" parent="Resources"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0.5, -7)
+[node name="Stone2" parent="Resources" instance=ExtResource("3_qjgy7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.09641945, -0.15378493, 0.14840579)
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Resources/Berry3"]
-mesh = SubResource("BoxMesh_ground")
-skeleton = NodePath("../../..")
-
-[node name="Wood1" type="Area3D" parent="Resources"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0.5, -5)
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Resources/Wood1"]
-mesh = SubResource("BoxMesh_ground")
-skeleton = NodePath("../../..")
-
-[node name="Wood2" type="Area3D" parent="Resources"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0.5, 8)
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Resources/Wood2"]
-mesh = SubResource("BoxMesh_ground")
-skeleton = NodePath("../../..")
-
-[node name="Stone1" type="Area3D" parent="Resources"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 10)
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Resources/Stone1"]
-mesh = SubResource("BoxMesh_ground")
-skeleton = NodePath("../../..")
-
-[node name="Stone2" type="Area3D" parent="Resources"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 0.5, -8)
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Resources/Stone2"]
-mesh = SubResource("BoxMesh_ground")
-skeleton = NodePath("../../..")
+[node name="Wood" parent="Resources" instance=ExtResource("4_jq1ou")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5196384, 0.18368697, -0.9445286)
 
 [node name="Hazards" type="Node3D" parent="."]
 
-[node name="Fire1" type="Area3D" parent="Hazards"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7, 0.5, -3)
+[node name="Pit" parent="Hazards" instance=ExtResource("5_jrjj6")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.248175, -0.2904817, 0.86270857)
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Hazards/Fire1"]
-mesh = SubResource("BoxMesh_ground")
-skeleton = NodePath("../../..")
-
-[node name="Fire2" type="Area3D" parent="Hazards"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0.5, 7)
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Hazards/Fire2"]
-mesh = SubResource("BoxMesh_ground")
-skeleton = NodePath("../../..")
-
-[node name="Pit1" type="Area3D" parent="Hazards"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -12)
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Hazards/Pit1"]
-mesh = SubResource("BoxMesh_ground")
-skeleton = NodePath("../../..")
+[node name="Stone" parent="Hazards" instance=ExtResource("3_qjgy7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.29249334, -0.09130466, -1.0156603)
 
 [node name="Agents" type="Node3D" parent="."]
 
 [node name="Agent1" type="Agent" parent="Agents"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+agent_id = "agent_2080718"
 
 [node name="Camera3D" type="Camera3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 20, 20)

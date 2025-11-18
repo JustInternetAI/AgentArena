@@ -7,6 +7,7 @@ extends Node3D
 @onready var simulation_manager = $SimulationManager
 @onready var event_bus = $EventBus
 @onready var tool_registry = $ToolRegistry
+@onready var ipc_client = $IPCClient
 @onready var metrics_label = $UI/MetricsLabel
 
 # Scene configuration
@@ -42,6 +43,13 @@ func _ready():
 	if simulation_manager == null:
 		push_error("GDExtension nodes not found!")
 		return
+
+	# Connect tool system (IPCClient → ToolRegistry → Agents)
+	if ipc_client != null and tool_registry != null:
+		tool_registry.set_ipc_client(ipc_client)
+		print("✓ Tool execution system connected!")
+	else:
+		push_warning("Tool execution system not fully available")
 
 	# Connect simulation signals
 	simulation_manager.simulation_started.connect(_on_simulation_started)
@@ -119,6 +127,9 @@ func _initialize_scene():
 	for child in blue_team_node.get_children():
 		if child.get_class() == "Agent":
 			child.agent_id = "blue_%s" % child.name
+			# Connect agent to tool registry
+			if tool_registry != null:
+				child.set_tool_registry(tool_registry)
 			blue_team.append({
 				"agent": child,
 				"id": child.agent_id,
@@ -138,6 +149,9 @@ func _initialize_scene():
 	for child in red_team_node.get_children():
 		if child.get_class() == "Agent":
 			child.agent_id = "red_%s" % child.name
+			# Connect agent to tool registry
+			if tool_registry != null:
+				child.set_tool_registry(tool_registry)
 			red_team.append({
 				"agent": child,
 				"id": child.agent_id,
@@ -155,16 +169,10 @@ func _initialize_scene():
 	# Initialize Capture Points
 	var points_node = $CapturePoints
 	for child in points_node.get_children():
-		if child is Area3D:
-			capture_points.append({
-				"name": child.name,
-				"position": child.global_position,
-				"owner": "neutral",
-				"capture_progress": 0.0,
-				"capturing_team": null,
-				"agents_present": [],
-				"node": child
-			})
+		if child.has_method("get_state"):
+			# This is a CapturePoint scene
+			var state = child.get_state()
+			capture_points.append(state)
 
 func _process(_delta):
 	_update_metrics_ui()
@@ -240,6 +248,10 @@ func _update_capture_points(delta: float):
 				point.agents_present.append(agent_data)
 				red_count += 1
 
+		# Update agents_present on the node itself for visual feedback
+		if point.node:
+			point.node.agents_present = point.agents_present
+
 		# Determine capturing team
 		var dominant_team = null
 		if blue_count > red_count:
@@ -255,6 +267,11 @@ func _update_capture_points(delta: float):
 				point.capture_progress = 0.0
 
 			point.capture_progress += delta
+
+			# Update visual feedback on the node
+			if point.node:
+				point.node.set_capture_progress(point.capture_progress / CAPTURE_TIME, dominant_team)
+
 			if point.capture_progress >= CAPTURE_TIME:
 				_capture_point(point, dominant_team)
 		else:
@@ -262,12 +279,21 @@ func _update_capture_points(delta: float):
 			point.capturing_team = null
 			point.capture_progress = 0.0
 
+			# Update visual feedback
+			if point.node:
+				point.node.reset_capture()
+
 func _capture_point(point: Dictionary, team: String):
 	"""Capture a point for a team"""
 	var previous_owner = point.owner
 	point.owner = team
 	point.capture_progress = 0.0
 	point.capturing_team = null
+
+	# Update visual on the node
+	if point.node:
+		point.node.set_owner_team(team)
+		point.node.reset_capture()
 
 	# Award points
 	if team == "blue":
@@ -554,6 +580,11 @@ func _reset_scene():
 		point.capture_progress = 0.0
 		point.capturing_team = null
 		point.agents_present.clear()
+
+		# Update visual on the node
+		if point.node:
+			point.node.set_owner_team("neutral")
+			point.node.reset_capture()
 
 	# Reset agent positions
 	var blue_spawn_positions = [Vector3(-20, 1, -20), Vector3(-22, 1, -18), Vector3(-18, 1, -22)]
