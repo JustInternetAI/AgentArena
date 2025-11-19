@@ -7,6 +7,9 @@ extends Node
 var ipc_client: IPCClient
 var tool_registry: ToolRegistry
 var agent: Agent
+var test_running := true  # Keep scene alive
+var wait_time := 0.0
+var tests_started := false
 
 func _ready():
 	print("=== Tool Execution Test ===")
@@ -58,9 +61,18 @@ func _ready():
 
 	ipc_client.connect_to_server("http://127.0.0.1:5000")
 
-	# Wait a moment for connection, then test tools
-	print("Waiting 3 seconds for connection...")
-	await get_tree().create_timer(3.0).timeout
+	# Skip waiting - call tests immediately after 1 frame
+	print("Starting tests after 1 frame...")
+	call_deferred("_start_tests")
+
+func _process(delta):
+	# Keep scene alive while test is running
+	# (We removed the manual timer since we're using call_deferred now)
+	pass
+
+func _start_tests():
+	print("\nChecking connection status...")
+	print("is_server_connected() = ", ipc_client.is_server_connected())
 
 	if not ipc_client.is_server_connected():
 		print("\n[WARNING] Not connected to server!")
@@ -69,8 +81,13 @@ func _ready():
 		print("2. Server is on http://127.0.0.1:5000")
 		print("3. No firewall is blocking the connection")
 		print("\nTrying to test tools anyway...")
+	else:
+		print("[SUCCESS] Connected to IPC server!")
 
+	print("About to call test_tools()...")
+	tests_started = true
 	test_tools()
+	print("test_tools() call completed")
 
 func test_tools():
 	print("\n=== Testing Tool Execution ===")
@@ -85,7 +102,6 @@ func test_tools():
 	}
 	var move_result = agent.call_tool("move_to", move_params)
 	print("Request sent: ", move_result)
-	await get_tree().create_timer(0.5).timeout
 
 	# Test 2: Pickup item tool
 	print("\n[Test 2] Testing pickup_item tool...")
@@ -94,19 +110,16 @@ func test_tools():
 	}
 	var pickup_result = agent.call_tool("pickup_item", pickup_params)
 	print("Request sent: ", pickup_result)
-	await get_tree().create_timer(0.5).timeout
 
 	# Test 3: Stop movement tool
 	print("\n[Test 3] Testing stop_movement tool...")
 	var stop_result = agent.call_tool("stop_movement", {})
 	print("Request sent: ", stop_result)
-	await get_tree().create_timer(0.5).timeout
 
 	# Test 4: Get inventory tool
 	print("\n[Test 4] Testing get_inventory tool...")
 	var inventory_result = agent.call_tool("get_inventory", {})
 	print("Request sent: ", inventory_result)
-	await get_tree().create_timer(0.5).timeout
 
 	# Test 5: Direct ToolRegistry execution
 	print("\n[Test 5] Testing navigate_to tool...")
@@ -116,13 +129,10 @@ func test_tools():
 	print("Request sent: ", direct_result)
 
 	print("\n=== All Tool Requests Sent ===")
-	print("Waiting for responses (check 'IPC Response Received' below)...")
+	print("Waiting for async responses from Python server...")
 	print("Python server log should show tool executions")
-
-	# Wait a bit for all responses
-	await get_tree().create_timer(2.0).timeout
-	print("\n=== Test Complete ===")
-	print("If you saw response_received callbacks above, tool execution works!")
+	print("Scene will stay running - press Q to quit when done")
+	print("\nWatch for '[IPC Response Received]' messages below...")
 
 func _on_response_received(response: Dictionary):
 	print("\n[IPC Response Received]")
