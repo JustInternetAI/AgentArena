@@ -1,16 +1,16 @@
-[gd_scene load_steps=3 format=3 uid="uid://c3r4w5d6e7f8g"]
+[gd_scene load_steps=4 format=3 uid="uid://c3r4w5d6e7f8g"]
 
-[ext_resource type="Script" uid="uid://c224tcem2fxhh" path="res://scripts/resources/apple.gd" id="1_apple"]
+[ext_resource type="Script" uid="uid://cil7mvctxsxbt" path="res://scripts/resources/apple.gd" id="1_apple"]
 [ext_resource type="PackedScene" uid="uid://dlqvdt4xvh1n1" path="res://assets/models/kenney_food_kit/Models/apple.glb" id="2_apple"]
 
 [sub_resource type="SphereShape3D" id="SphereShape_apple"]
-radius = 0.2
+radius = 0.102449894
 
 [node name="Apple" type="Area3D"]
 script = ExtResource("1_apple")
 
 [node name="AppleModel" parent="." instance=ExtResource("2_apple")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.017910182, 0.065713495, -0.031122804)
 shape = SubResource("SphereShape_apple")
