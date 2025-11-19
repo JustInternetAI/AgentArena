@@ -180,12 +180,14 @@ class IPCClient : public godot::Node {
 private:
     godot::String server_url;
     godot::HTTPRequest* http_request;
+    godot::HTTPRequest* http_request_tool;  // Separate request node for tool execution
     bool is_connected;
     uint64_t current_tick;
     godot::Dictionary pending_response;
     bool response_received;
 
     void _on_request_completed(int result, int response_code, const godot::PackedStringArray& headers, const godot::PackedByteArray& body);
+    void _on_tool_request_completed(int result, int response_code, const godot::PackedStringArray& headers, const godot::PackedByteArray& body);
 
 protected:
     static void _bind_methods();

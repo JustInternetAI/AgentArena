@@ -362,6 +362,7 @@ void ToolRegistry::set_ipc_client(IPCClient* client) {
 IPCClient::IPCClient()
     : server_url("http://127.0.0.1:5000"),
       http_request(nullptr),
+      http_request_tool(nullptr),
       is_connected(false),
       current_tick(0),
       response_received(false) {
@@ -370,6 +371,9 @@ IPCClient::IPCClient()
 IPCClient::~IPCClient() {
     if (http_request != nullptr) {
         http_request->queue_free();
+    }
+    if (http_request_tool != nullptr) {
+        http_request_tool->queue_free();
     }
 }
 
@@ -390,6 +394,8 @@ void IPCClient::_bind_methods() {
 
     ClassDB::bind_method(D_METHOD("_on_request_completed", "result", "response_code", "headers", "body"),
                          &IPCClient::_on_request_completed);
+    ClassDB::bind_method(D_METHOD("_on_tool_request_completed", "result", "response_code", "headers", "body"),
+                         &IPCClient::_on_tool_request_completed);
 
     ADD_PROPERTY(PropertyInfo(Variant::STRING, "server_url"), "set_server_url", "get_server_url");
 
@@ -398,13 +404,21 @@ void IPCClient::_bind_methods() {
 }
 
 void IPCClient::_ready() {
-    // Create HTTPRequest node
+    // Create HTTPRequest node for general requests (health check, tick)
     http_request = memnew(HTTPRequest);
     add_child(http_request);
 
     // Connect signal
     http_request->connect("request_completed",
                          Callable(this, "_on_request_completed"));
+
+    // Create separate HTTPRequest node for tool execution
+    http_request_tool = memnew(HTTPRequest);
+    add_child(http_request_tool);
+
+    // Connect signal for tool requests
+    http_request_tool->connect("request_completed",
+                               Callable(this, "_on_tool_request_completed"));
 
     UtilityFunctions::print("IPCClient initialized with server URL: ", server_url);
 }
@@ -515,6 +529,42 @@ void IPCClient::_on_request_completed(int result, int response_code,
     }
 }
 
+void IPCClient::_on_tool_request_completed(int result, int response_code,
+                                           const PackedStringArray& headers,
+                                           const PackedByteArray& body) {
+    UtilityFunctions::print("[C++] Tool request callback triggered - result: ", result, ", code: ", response_code);
+
+    if (result != HTTPRequest::RESULT_SUCCESS) {
+        UtilityFunctions::print("Tool HTTP Request failed with result: ", result);
+        return;
+    }
+
+    if (response_code == 200) {
+        // Parse JSON response
+        String body_string = body.get_string_from_utf8();
+
+        // Parse JSON
+        JSON json;
+        Error err = json.parse(body_string);
+
+        if (err == OK) {
+            Variant data = json.get_data();
+            if (data.get_type() == Variant::DICTIONARY) {
+                Dictionary tool_response = data;
+                UtilityFunctions::print("Tool execution response received: ", tool_response);
+                // Could emit a signal here for async handling
+                emit_signal("response_received", tool_response);
+            } else {
+                UtilityFunctions::print("Invalid tool response JSON format");
+            }
+        } else {
+            UtilityFunctions::print("Failed to parse tool response JSON");
+        }
+    } else {
+        UtilityFunctions::print("Tool HTTP request returned error code: ", response_code);
+    }
+}
+
 Dictionary IPCClient::execute_tool_sync(const String& tool_name, const Dictionary& params,
                                         const String& agent_id, uint64_t tick) {
     Dictionary result;
@@ -532,12 +582,12 @@ Dictionary IPCClient::execute_tool_sync(const String& tool_name, const Dictionar
 
     String json_str = JSON::stringify(request_dict);
 
-    // Send POST request using main http_request
+    // Send POST request using separate http_request_tool to avoid conflicts
     String url = server_url + "/tools/execute";
     PackedStringArray headers;
     headers.append("Content-Type: application/json");
 
-    Error err = http_request->request(url, headers, HTTPClient::METHOD_POST, json_str);
+    Error err = http_request_tool->request(url, headers, HTTPClient::METHOD_POST, json_str);
 
     if (err != OK) {
         UtilityFunctions::print("Error sending tool execution request: ", err);

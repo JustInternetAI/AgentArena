@@ -27,11 +27,22 @@ class LlamaCppBackend(BaseBackend):
 
             logger.info(f"Loading model from {self.config.model_path}")
 
+            # Use GPU layers from config
+            n_gpu_layers = getattr(self.config, 'n_gpu_layers', 0)
+
+            if n_gpu_layers > 0:
+                logger.info(f"Offloading {n_gpu_layers} layers to GPU")
+            elif n_gpu_layers == -1:
+                logger.info("Offloading all layers to GPU")
+            else:
+                logger.info("Using CPU only (no GPU offload)")
+
             self.llm = Llama(
                 model_path=self.config.model_path,
                 n_ctx=4096,  # Context window
                 n_threads=8,  # CPU threads
-                n_gpu_layers=0,  # GPU layers (0 = CPU only)
+                n_gpu_layers=n_gpu_layers,  # GPU layers (0 = CPU only, -1 = all)
+                verbose=False,  # Reduce output noise
             )
 
             logger.info("Model loaded successfully")
