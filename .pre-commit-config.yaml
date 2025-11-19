@@ -10,7 +10,7 @@ repos:
       - id: end-of-file-fixer
       - id: check-yaml
       - id: check-added-large-files
-        args: ['--maxkb=1000']
+        args: ['--maxkb=5000']  # Allow larger 3D model files
       - id: check-merge-conflict
 
   - repo: https://github.com/psf/black
