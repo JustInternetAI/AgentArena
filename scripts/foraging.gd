@@ -42,6 +42,9 @@ func _ready():
 	agent.agent_id = "foraging_agent_001"
 	last_position = agent.global_position
 
+	# Create visual representation for agent
+	_create_agent_visual(agent, "Forager", Color(0.3, 0.8, 0.3))  # Green color
+
 	# Connect tool system (IPCClient → ToolRegistry → Agent)
 	if ipc_client != null and tool_registry != null and agent != null:
 		tool_registry.set_ipc_client(ipc_client)
@@ -378,6 +381,23 @@ Press S to step" % [
 		elapsed_time,
 		_calculate_efficiency_score()
 	]
+
+func _create_agent_visual(agent_node: Node, agent_name: String, color: Color):
+	"""Create visual representation for an agent"""
+	var visual_scene = load("res://scenes/agent_visual.tscn")
+	if visual_scene == null:
+		push_warning("Could not load agent_visual.tscn")
+		return
+
+	var visual_instance = visual_scene.instantiate()
+	agent_node.add_child(visual_instance)
+
+	if visual_instance.has_method("set_team_color"):
+		visual_instance.set_team_color(color)
+	if visual_instance.has_method("set_agent_name"):
+		visual_instance.set_agent_name(agent_name)
+
+	print("✓ Created visual for: ", agent_name)
 
 func _reset_scene():
 	"""Reset the scene to initial state"""

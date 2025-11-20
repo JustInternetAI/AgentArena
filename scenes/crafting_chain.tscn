@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3 uid="uid://b6w2wbpm323nc"]
+[gd_scene load_steps=10 format=3 uid="uid://b6w2wbpm323nc"]
 
 [ext_resource type="Script" uid="uid://b5jfvj0m2vh0m" path="res://scripts/crafting_chain.gd" id="1_crafting"]
 [ext_resource type="PackedScene" uid="uid://ds214tpdao70a" path="res://scenes/resources/iron_ore.tscn" id="2_pxew1"]
@@ -6,13 +6,14 @@
 [ext_resource type="PackedScene" uid="uid://b6a6y5yl011cr" path="res://scenes/stations/anvil.tscn" id="4_d1mqj"]
 [ext_resource type="PackedScene" uid="uid://5pkkwbyi8esy" path="res://scenes/stations/furnace.tscn" id="5_mp2gt"]
 [ext_resource type="PackedScene" uid="uid://lmo3kerl5nym" path="res://scenes/stations/workbench.tscn" id="6_8dtr0"]
+[ext_resource type="PackedScene" path="res://scenes/agent_visual.tscn" id="7_mp2gt"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ground"]
 albedo_color = Color(0.5, 0.5, 0.5, 1)
 
 [sub_resource type="BoxMesh" id="BoxMesh_ground"]
-size = Vector3(40, 0.5, 40)
 material = SubResource("StandardMaterial3D_ground")
+size = Vector3(40, 0.5, 40)
 
 [node name="CraftingChainScene" type="Node3D"]
 script = ExtResource("1_crafting")
@@ -24,7 +25,6 @@ script = ExtResource("1_crafting")
 [node name="ToolRegistry" type="ToolRegistry" parent="."]
 
 [node name="IPCClient" type="IPCClient" parent="."]
-server_url = "http://127.0.0.1:5000"
 
 [node name="Environment" type="Node3D" parent="."]
 
@@ -57,9 +57,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0.5, 5)
 
 [node name="Agents" type="Node3D" parent="."]
 
-[node name="Agent1" type="Agent" parent="Agents"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
-agent_id = "agent_9033"
+[node name="AgentVisual" parent="Agents" instance=ExtResource("7_mp2gt")]
 
 [node name="Camera3D" type="Camera3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 20, 20)

@@ -1,23 +1,16 @@
 [gd_scene load_steps=4 format=3 uid="uid://lmo3kerl5nym"]
 
 [ext_resource type="Script" uid="uid://d4k8tuntpxk7b" path="res://scripts/stations/workbench.gd" id="1_rl4sw"]
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_workbench"]
-albedo_color = Color(0.7, 0.6, 0.4, 1)
-roughness = 0.7
-
-[sub_resource type="BoxMesh" id="BoxMesh_workbench"]
-size = Vector3(2, 1, 1.5)
-material = SubResource("StandardMaterial3D_workbench")
+[ext_resource type="PackedScene" uid="uid://xk4v07abl27b" path="res://assets/models/FantasyProp/Exports/glTF/Workbench.gltf" id="2_workbench"]
 
 [sub_resource type="BoxShape3D" id="BoxShape_workbench"]
-size = Vector3(2, 1, 1.5)
+size = Vector3(1.7480469, 0.90631104, 1.1635742)
 
 [node name="Workbench" type="Area3D"]
 script = ExtResource("1_rl4sw")
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
-mesh = SubResource("BoxMesh_workbench")
+[node name="WorkbenchModel" parent="." instance=ExtResource("2_workbench")]
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(0.9995378, 0, 0.030398952, 0, 1, 0, -0.030398952, 0, 0.9995378, 0.13103184, 0.6163025, 0.1643056)
 shape = SubResource("BoxShape_workbench")

@@ -1,7 +1,8 @@
-[gd_scene load_steps=4 format=3 uid="uid://team_capture_scene"]
+[gd_scene load_steps=5 format=3 uid="uid://dm4lbgx43dnag"]
 
-[ext_resource type="Script" path="res://scripts/team_capture.gd" id="1_team_capture"]
-[ext_resource type="PackedScene" uid="uid://capture_point_scene" path="res://scenes/capture_point.tscn" id="2_capture_point"]
+[ext_resource type="Script" uid="uid://bleomj5dy008u" path="res://scripts/team_capture.gd" id="1_team_capture"]
+[ext_resource type="PackedScene" path="res://scenes/capture_point.tscn" id="2_capture_point"]
+[ext_resource type="PackedScene" path="res://scenes/agent_visual.tscn" id="3_0ydxa"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_ground"]
 size = Vector3(60, 0.5, 60)
@@ -16,11 +17,11 @@ script = ExtResource("1_team_capture")
 [node name="ToolRegistry" type="ToolRegistry" parent="."]
 
 [node name="IPCClient" type="IPCClient" parent="."]
-server_url = "http://127.0.0.1:5000"
 
 [node name="Environment" type="Node3D" parent="."]
 
 [node name="Ground" type="MeshInstance3D" parent="Environment"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6.8584404, 0, 0)
 mesh = SubResource("BoxMesh_ground")
 skeleton = NodePath("../..")
 
@@ -39,7 +40,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 0.5, -15)
 point_name = "Point B"
 
 [node name="PointC" parent="CapturePoints" instance=ExtResource("2_capture_point")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.279401, 0.3538655, -0.2763337)
 point_name = "Center"
 
 [node name="PointD" parent="CapturePoints" instance=ExtResource("2_capture_point")]
@@ -51,26 +52,30 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 0.5, 15)
 point_name = "Point E"
 
 [node name="TeamBlue" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0007363558, 0.026730657, 0)
 
-[node name="BlueAgent1" type="Agent" parent="TeamBlue"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 1, -20)
+[node name="AgentVisual" parent="TeamBlue" instance=ExtResource("3_0ydxa")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6.462851, -1.1276251, -1.6723747)
+agent_name = "Agent1b"
 
-[node name="BlueAgent2" type="Agent" parent="TeamBlue"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -22, 1, -18)
+[node name="AgentVisual2" parent="TeamBlue" instance=ExtResource("3_0ydxa")]
+transform = Transform3D(0.9967113, -0.08008222, -0.012383072, 0.08103396, 0.985005, 0.1523108, 0, -0.15281336, 0.9882551, 0, -0.48862177, 0)
 
-[node name="BlueAgent3" type="Agent" parent="TeamBlue"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -18, 1, -22)
+[node name="AgentVisual3" parent="TeamBlue" instance=ExtResource("3_0ydxa")]
+transform = Transform3D(0.98679644, -0.16196552, 0, 0.15963376, 0.97258985, 0.16907427, -0.027384201, -0.16684188, 0.98560333, 0, 0.005530596, 0)
+
+[node name="AgentVisual" parent="." instance=ExtResource("3_0ydxa")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.1110213, 0, -3.341254)
 
 [node name="TeamRed" type="Node3D" parent="."]
 
-[node name="RedAgent1" type="Agent" parent="TeamRed"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 1, 20)
+[node name="AgentVisual" parent="TeamRed" instance=ExtResource("3_0ydxa")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.1864059, -3.2575955)
+team_color = Color(1, 0, 0, 1)
 
-[node name="RedAgent2" type="Agent" parent="TeamRed"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 22, 1, 18)
-
-[node name="RedAgent3" type="Agent" parent="TeamRed"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 18, 1, 22)
+[node name="AgentVisual2" parent="TeamRed" instance=ExtResource("3_0ydxa")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.03809631, 7.154466)
+team_color = Color(1, 0, 0, 1)
 
 [node name="Camera3D" type="Camera3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 30, 30)
