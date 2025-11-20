@@ -1,0 +1,36 @@
+# CI-specific requirements (excludes dependencies that require compilation)
+# Core dependencies
+numpy>=1.24.0
+pydantic>=2.0.0
+msgpack>=1.0.5
+hydra-core>=1.3.0
+omegaconf>=2.3.0
+
+# IPC Server
+fastapi>=0.104.0
+uvicorn>=0.24.0
+
+# LLM backends (lightweight only - exclude llama-cpp-python and torch)
+openai>=1.0.0  # For OpenAI-compatible APIs
+requests>=2.31.0
+huggingface-hub>=0.20.0  # For downloading models from HuggingFace Hub
+
+# Testing and development
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+black>=23.0.0
+ruff>=0.1.0
+mypy>=1.5.0
+
+# Utilities
+python-dotenv>=1.0.0
+tenacity>=8.2.0  # Retry logic
+aiohttp>=3.9.0  # Async HTTP
+tqdm>=4.66.0  # Progress bars
+rich>=13.7.0  # Pretty console output
+pyyaml>=6.0.0  # YAML configuration files
+
+# Logging and monitoring
+structlog>=23.2.0
+python-json-logger>=2.0.7
