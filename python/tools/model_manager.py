@@ -6,17 +6,14 @@ from Hugging Face Hub for use with different backends (llama.cpp, vLLM, etc.).
 """
 
 import hashlib
-import json
 import logging
-import os
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
-import yaml
-from huggingface_hub import hf_hub_download, list_repo_files
-from tqdm import tqdm
+import yaml  # type: ignore[import-untyped]
+from huggingface_hub import hf_hub_download  # type: ignore[import-untyped]
 
 logger = logging.getLogger(__name__)
 
@@ -28,16 +25,16 @@ class ModelInfo:
     name: str
     huggingface_id: str
     format: str
-    quantization: Optional[str] = None
-    filename: Optional[str] = None
-    sha256: Optional[str] = None
-    size_bytes: Optional[int] = None
+    quantization: str | None = None
+    filename: str | None = None
+    sha256: str | None = None
+    size_bytes: int | None = None
 
 
 class ModelManager:
     """Manages model downloads, verification, and caching."""
 
-    def __init__(self, models_dir: Optional[Path] = None, config_path: Optional[Path] = None):
+    def __init__(self, models_dir: Path | None = None, config_path: Path | None = None):
         """
         Initialize the ModelManager.
 
@@ -82,19 +79,19 @@ class ModelManager:
             return {"models": {}}
 
         try:
-            with open(self.config_path, "r") as f:
+            with open(self.config_path) as f:
                 config = yaml.safe_load(f)
                 return config or {"models": {}}
         except Exception as e:
             logger.error(f"Failed to load model registry: {e}")
             return {"models": {}}
 
-    def _get_model_dir(self, model_id: str, format: str, quantization: Optional[str] = None) -> Path:
+    def _get_model_dir(self, model_id: str, format: str, quantization: str | None = None) -> Path:
         """Get the directory path for a specific model."""
-        parts = [self.models_dir, model_id, format]
+        model_dir = self.models_dir / model_id / format
         if quantization:
-            parts.append(quantization)
-        return Path(*parts)
+            model_dir = model_dir / quantization
+        return model_dir
 
     def _calculate_sha256(self, file_path: Path, chunk_size: int = 8192) -> str:
         """Calculate SHA256 checksum of a file."""
@@ -104,7 +101,7 @@ class ModelManager:
                 sha256_hash.update(chunk)
         return sha256_hash.hexdigest()
 
-    def verify_model(self, model_path: Path, expected_sha256: Optional[str] = None) -> bool:
+    def verify_model(self, model_path: Path, expected_sha256: str | None = None) -> bool:
         """
         Verify model file integrity.
 
@@ -139,9 +136,9 @@ class ModelManager:
         self,
         model_id: str,
         format: str = "gguf",
-        quantization: Optional[str] = None,
+        quantization: str | None = None,
         force: bool = False,
-    ) -> Optional[Path]:
+    ) -> Path | None:
         """
         Download a model from Hugging Face Hub.
 
@@ -202,7 +199,7 @@ class ModelManager:
             logger.info(f"Model already exists at {model_path}")
             if self.verify_model(model_path, expected_sha256):
                 logger.info("Existing model is valid, skipping download")
-                return model_path
+                return Path(model_path)
             else:
                 logger.warning("Existing model is invalid, re-downloading...")
 
@@ -215,7 +212,7 @@ class ModelManager:
         logger.info(f"File: {filename}")
 
         try:
-            downloaded_path = hf_hub_download(
+            downloaded_path_str: str = hf_hub_download(
                 repo_id=huggingface_id,
                 filename=filename,
                 local_dir=model_dir,
@@ -224,7 +221,7 @@ class ModelManager:
             )
 
             # Move file to expected location if needed
-            downloaded_path = Path(downloaded_path)
+            downloaded_path = Path(downloaded_path_str)
             if downloaded_path != model_path:
                 shutil.move(str(downloaded_path), str(model_path))
 
@@ -236,13 +233,13 @@ class ModelManager:
                     logger.error("Checksum verification failed!")
                     return None
 
-            return model_path
+            return Path(model_path)
 
         except Exception as e:
             logger.error(f"Download failed: {e}")
             return None
 
-    def list_models(self, format_filter: Optional[str] = None) -> list[dict[str, Any]]:
+    def list_models(self, format_filter: str | None = None) -> list[dict[str, Any]]:
         """
         List all cached models.
 
@@ -252,7 +249,7 @@ class ModelManager:
         Returns:
             List of model information dictionaries
         """
-        cached_models = []
+        cached_models: list[dict[str, Any]] = []
 
         if not self.models_dir.exists():
             return cached_models
@@ -310,8 +307,8 @@ class ModelManager:
         return cached_models
 
     def get_model_path(
-        self, model_id: str, format: str = "gguf", quantization: Optional[str] = None
-    ) -> Optional[Path]:
+        self, model_id: str, format: str = "gguf", quantization: str | None = None
+    ) -> Path | None:
         """
         Get the local path to a cached model.
 
@@ -336,7 +333,7 @@ class ModelManager:
         return None
 
     def remove_model(
-        self, model_id: str, format: Optional[str] = None, quantization: Optional[str] = None
+        self, model_id: str, format: str | None = None, quantization: str | None = None
     ) -> bool:
         """
         Remove a cached model.
@@ -381,9 +378,7 @@ class ModelManager:
         quant_dir = format_dir / quantization
 
         if not quant_dir.exists():
-            logger.warning(
-                f"Quantization '{quantization}' not found for {model_id}/{format}"
-            )
+            logger.warning(f"Quantization '{quantization}' not found for {model_id}/{format}")
             return False
 
         # Remove quantization directory
@@ -411,9 +406,7 @@ def main():
     # Download command
     download_parser = subparsers.add_parser("download", help="Download a model")
     download_parser.add_argument("model_id", help="Model identifier")
-    download_parser.add_argument(
-        "--format", default="gguf", help="Model format (default: gguf)"
-    )
+    download_parser.add_argument("--format", default="gguf", help="Model format (default: gguf)")
     download_parser.add_argument(
         "--quant", "--quantization", dest="quantization", help="Quantization type (e.g., q4_k_m)"
     )
@@ -458,7 +451,7 @@ def main():
             force=args.force,
         )
         if model_path:
-            print(f"\n[SUCCESS] Model downloaded successfully!")
+            print("\n[SUCCESS] Model downloaded successfully!")
             print(f"Path: {model_path}")
         else:
             print("\n[FAILED] Download failed")
@@ -514,9 +507,9 @@ def main():
 
     elif args.command == "remove":
         if manager.remove_model(args.model_id, format=args.format, quantization=args.quantization):
-            print(f"[SUCCESS] Model removed successfully")
+            print("[SUCCESS] Model removed successfully")
         else:
-            print(f"[FAILED] Failed to remove model")
+            print("[FAILED] Failed to remove model")
             exit(1)
 
     elif args.command == "info":
