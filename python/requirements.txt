@@ -22,6 +22,7 @@ chromadb>=0.4.0  # Alternative lightweight vector store
 # ML/AI (optional)
 torch>=2.0.0  # PyTorch for model training
 transformers>=4.35.0  # HuggingFace transformers
+huggingface-hub>=0.20.0  # For downloading models from HuggingFace Hub
 
 # Testing and development
 pytest>=7.4.0
@@ -37,6 +38,7 @@ tenacity>=8.2.0  # Retry logic
 aiohttp>=3.9.0  # Async HTTP
 tqdm>=4.66.0  # Progress bars
 rich>=13.7.0  # Pretty console output
+pyyaml>=6.0.0  # YAML configuration files
 
 # Logging and monitoring
 structlog>=23.2.0
