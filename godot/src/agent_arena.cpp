@@ -42,7 +42,7 @@ void SimulationManager::_ready() {
     if (parent) {
         event_bus = Object::cast_to<EventBus>(parent->get_node_or_null("EventBus"));
         if (event_bus) {
-            UtilityFunctions::print("SimulationManager: EventBus connected");
+            UtilityFunctions::print("c++ SimulationManager: EventBus connected");
         }
         // Note: EventBus is optional - scenes without it will simply not record events
     }
@@ -65,7 +65,7 @@ void SimulationManager::start_simulation() {
         event_bus->start_recording();
     }
     emit_signal("simulation_started");
-    UtilityFunctions::print("Simulation started at tick ", current_tick);
+    UtilityFunctions::print("c++ Simulation started at tick ", current_tick);
 }
 
 void SimulationManager::stop_simulation() {
@@ -74,7 +74,7 @@ void SimulationManager::stop_simulation() {
         event_bus->stop_recording();
     }
     emit_signal("simulation_stopped");
-    UtilityFunctions::print("Simulation stopped at tick ", current_tick);
+    UtilityFunctions::print("c++ Simulation stopped at tick ", current_tick);
 }
 
 void SimulationManager::step_simulation() {
@@ -96,7 +96,7 @@ void SimulationManager::reset_simulation() {
     if (event_bus) {
         event_bus->clear_events();
     }
-    UtilityFunctions::print("Simulation reset");
+    UtilityFunctions::print("c++ Simulation reset");
 }
 
 void SimulationManager::set_tick_rate(double rate) {
@@ -105,7 +105,7 @@ void SimulationManager::set_tick_rate(double rate) {
 
 void SimulationManager::set_seed(uint64_t seed) {
     // Set RNG seed for deterministic simulation
-    UtilityFunctions::print("Simulation seed set to ", seed);
+    UtilityFunctions::print("c++ Simulation seed set to ", seed);
 }
 
 // ============================================================================
@@ -149,12 +149,12 @@ void EventBus::clear_events() {
 
 void EventBus::start_recording() {
     recording = true;
-    UtilityFunctions::print("Event recording started");
+    UtilityFunctions::print("c++ Event recording started");
 }
 
 void EventBus::stop_recording() {
     recording = false;
-    UtilityFunctions::print("Event recording stopped");
+    UtilityFunctions::print("c++ Event recording stopped");
 }
 
 Array EventBus::export_recording() {
@@ -163,7 +163,7 @@ Array EventBus::export_recording() {
 
 void EventBus::load_recording(const Array& events) {
     event_queue = events.duplicate();
-    UtilityFunctions::print("Loaded ", events.size(), " events");
+    UtilityFunctions::print("c++ Loaded ", events.size(), " events");
 }
 
 // ============================================================================
@@ -204,10 +204,10 @@ void Agent::_ready() {
     if (parent) {
         tool_registry = Object::cast_to<ToolRegistry>(parent->get_node_or_null("ToolRegistry"));
         if (tool_registry) {
-            UtilityFunctions::print("Agent ", agent_id, " connected to ToolRegistry");
+            UtilityFunctions::print("c++ Agent ", agent_id, " connected to ToolRegistry");
         }
     }
-    UtilityFunctions::print("Agent ", agent_id, " ready");
+    UtilityFunctions::print("c++ Agent ", agent_id, " ready");
 }
 
 void Agent::_process(double delta) {
@@ -232,7 +232,7 @@ Dictionary Agent::decide_action() {
 
 void Agent::execute_action(const Dictionary& action) {
     action_history.append(action);
-    UtilityFunctions::print("Agent ", agent_id, " executing action: ", action["type"]);
+    UtilityFunctions::print("c++ Agent ", agent_id, " executing action: ", action["type"]);
 }
 
 void Agent::store_memory(const String& key, const Variant& value) {
@@ -255,11 +255,11 @@ Dictionary Agent::call_tool(const String& tool_name, const Dictionary& params) {
 
     if (tool_registry) {
         result = tool_registry->execute_tool(tool_name, params);
-        UtilityFunctions::print("Agent ", agent_id, " called tool '", tool_name, "'");
+        UtilityFunctions::print("c++ Agent ", agent_id, " called tool '", tool_name, "'");
     } else {
         result["success"] = false;
         result["error"] = "No ToolRegistry available";
-        UtilityFunctions::print("Agent ", agent_id, " error: No ToolRegistry for tool '", tool_name, "'");
+        UtilityFunctions::print("c++ Agent ", agent_id, " error: No ToolRegistry for tool '", tool_name, "'");
     }
 
     return result;
@@ -268,7 +268,7 @@ Dictionary Agent::call_tool(const String& tool_name, const Dictionary& params) {
 void Agent::set_tool_registry(ToolRegistry* registry) {
     tool_registry = registry;
     if (registry) {
-        UtilityFunctions::print("Agent ", agent_id, ": ToolRegistry set");
+        UtilityFunctions::print("c++ Agent ", agent_id, ": ToolRegistry set");
     }
 }
 
@@ -296,22 +296,22 @@ void ToolRegistry::_ready() {
     if (parent) {
         ipc_client = Object::cast_to<IPCClient>(parent->get_node_or_null("IPCClient"));
         if (ipc_client) {
-            UtilityFunctions::print("ToolRegistry: IPCClient connected");
+            UtilityFunctions::print("c++ ToolRegistry: IPCClient connected");
         } else {
-            UtilityFunctions::print("ToolRegistry: Warning - No IPCClient found. Tools will not execute.");
+            UtilityFunctions::print("c++ ToolRegistry: Warning - No IPCClient found. Tools will not execute.");
         }
     }
 }
 
 void ToolRegistry::register_tool(const String& name, const Dictionary& schema) {
     registered_tools[name] = schema;
-    UtilityFunctions::print("Registered tool: ", name);
+    UtilityFunctions::print("c++ Registered tool: ", name);
 }
 
 void ToolRegistry::unregister_tool(const String& name) {
     if (registered_tools.has(name)) {
         registered_tools.erase(name);
-        UtilityFunctions::print("Unregistered tool: ", name);
+        UtilityFunctions::print("c++ Unregistered tool: ", name);
     }
 }
 
@@ -338,11 +338,11 @@ Dictionary ToolRegistry::execute_tool(const String& name, const Dictionary& para
     // Execute tool via IPC if available
     if (ipc_client) {
         result = ipc_client->execute_tool_sync(name, params);
-        UtilityFunctions::print("Executed tool '", name, "' via IPC");
+        UtilityFunctions::print("c++ Executed tool '", name, "' via IPC");
     } else {
         result["success"] = false;
         result["error"] = "No IPC client available for tool execution";
-        UtilityFunctions::print("Error: Cannot execute tool '", name, "' - no IPC client");
+        UtilityFunctions::print("c++ Error: Cannot execute tool '", name, "' - no IPC client");
     }
 
     return result;
@@ -351,7 +351,7 @@ Dictionary ToolRegistry::execute_tool(const String& name, const Dictionary& para
 void ToolRegistry::set_ipc_client(IPCClient* client) {
     ipc_client = client;
     if (client) {
-        UtilityFunctions::print("ToolRegistry: IPC client set");
+        UtilityFunctions::print("c++ ToolRegistry: IPC client set");
     }
 }
 
@@ -369,12 +369,7 @@ IPCClient::IPCClient()
 }
 
 IPCClient::~IPCClient() {
-    if (http_request != nullptr) {
-        http_request->queue_free();
-    }
-    if (http_request_tool != nullptr) {
-        http_request_tool->queue_free();
-    }
+
 }
 
 void IPCClient::_bind_methods() {
@@ -406,7 +401,18 @@ void IPCClient::_bind_methods() {
 void IPCClient::_ready() {
     // Create HTTPRequest node for general requests (health check, tick)
     http_request = memnew(HTTPRequest);
-    add_child(http_request);
+    http_request->set_timeout(30.0);  // 30 second timeout
+    http_request->set_use_threads(false);  // DISABLED threading - was causing scene termination
+
+    // IMPORTANT: Set the HTTPRequest's name before adding as child
+    http_request->set_name("HTTPRequestMain");
+
+    add_child(http_request, false, Node::INTERNAL_MODE_DISABLED);
+
+    // Force the node to be owned by the scene tree
+    http_request->set_owner(this);
+
+    UtilityFunctions::print("c++ HTTPRequest created - timeout: ", http_request->get_timeout());
 
     // Connect signal
     http_request->connect("request_completed",
@@ -414,13 +420,25 @@ void IPCClient::_ready() {
 
     // Create separate HTTPRequest node for tool execution
     http_request_tool = memnew(HTTPRequest);
-    add_child(http_request_tool);
+    http_request_tool->set_timeout(30.0);  // 30 second timeout
+    http_request_tool->set_use_threads(false);  // DISABLED threading - was causing scene termination
+
+    // Set name for debugging
+    http_request_tool->set_name("HTTPRequestTool");
+
+    add_child(http_request_tool, false, Node::INTERNAL_MODE_DISABLED);
+
+    // Force the node to be owned by the scene tree
+    http_request_tool->set_owner(this);
 
     // Connect signal for tool requests
     http_request_tool->connect("request_completed",
                                Callable(this, "_on_tool_request_completed"));
 
-    UtilityFunctions::print("IPCClient initialized with server URL: ", server_url);
+    UtilityFunctions::print("c++ IPCClient initialized with server URL: ", server_url);
+    UtilityFunctions::print("c++ HTTPRequest nodes created: 2");
+    UtilityFunctions::print("c++ HTTPRequest main path: ", http_request->get_path());
+    UtilityFunctions::print("c++ HTTPRequest tool path: ", http_request_tool->get_path());
 }
 
 void IPCClient::_process(double delta) {
@@ -430,23 +448,51 @@ void IPCClient::_process(double delta) {
 void IPCClient::connect_to_server(const String& url) {
     server_url = url;
 
+    // Verify http_request exists
+    if (http_request == nullptr) {
+        UtilityFunctions::print("c++ ERROR: http_request is null! IPCClient not properly initialized.");
+        emit_signal("connection_failed", "HTTPRequest not initialized");
+        is_connected = false;
+        return;
+    }
+
+    // Verify http_request is in the scene tree and ready
+    if (!http_request->is_inside_tree()) {
+        UtilityFunctions::print("c++ ERROR: http_request is not in scene tree yet! Waiting for node to be ready.");
+        emit_signal("connection_failed", "HTTPRequest not ready");
+        is_connected = false;
+        return;
+    }
+
+    // Check if http_request is already processing a request
+    HTTPClient::Status status = http_request->get_http_client_status();
+    UtilityFunctions::print("c++ HTTPRequest status before request: ", (int)status);
+
+    if (status != HTTPClient::STATUS_DISCONNECTED) {
+        UtilityFunctions::print("c++ Warning: HTTPRequest is busy (status=", (int)status, "), cancelling previous request");
+        http_request->cancel_request();
+        // Give it a moment to cancel
+        // Note: In a real scenario, we might want to retry this call after a delay
+    }
+
     // Test connection with health check
     String health_url = server_url + "/health";
+    UtilityFunctions::print("c++ Attempting HTTP request to: ", health_url);
     Error err = http_request->request(health_url);
 
     if (err != OK) {
-        UtilityFunctions::print("Failed to connect to server: ", server_url);
+        UtilityFunctions::print("c++ Failed to connect to server: ", server_url, " Error code: ", err);
         emit_signal("connection_failed", "HTTP request failed");
         is_connected = false;
     } else {
-        UtilityFunctions::print("Connecting to IPC server: ", server_url);
+        UtilityFunctions::print("c++ Connecting to IPC server: ", server_url);
     }
 }
 
 void IPCClient::disconnect_from_server() {
     is_connected = false;
     http_request->cancel_request();
-    UtilityFunctions::print("Disconnected from IPC server");
+    UtilityFunctions::print("c++ Disconnected from IPC server");
 }
 
 void IPCClient::set_server_url(const String& url) {
@@ -455,7 +501,7 @@ void IPCClient::set_server_url(const String& url) {
 
 void IPCClient::send_tick_request(uint64_t tick, const Array& perceptions) {
     if (!is_connected) {
-        UtilityFunctions::print("Warning: Sending request while not connected");
+        UtilityFunctions::print("c++ Warning: Sending request while not connected");
     }
 
     current_tick = tick;
@@ -477,7 +523,7 @@ void IPCClient::send_tick_request(uint64_t tick, const Array& perceptions) {
     Error err = http_request->request(url, headers, HTTPClient::METHOD_POST, json);
 
     if (err != OK) {
-        UtilityFunctions::print("Error sending tick request: ", err);
+        UtilityFunctions::print("c++ Error sending tick request: ", err);
     }
 }
 
@@ -492,8 +538,10 @@ Dictionary IPCClient::get_tick_response() {
 void IPCClient::_on_request_completed(int result, int response_code,
                                       const PackedStringArray& headers,
                                       const PackedByteArray& body) {
+    UtilityFunctions::print("c++ [C++] _on_request_completed called! result=", result, " response_code=", response_code);
+
     if (result != HTTPRequest::RESULT_SUCCESS) {
-        UtilityFunctions::print("HTTP Request failed with result: ", result);
+        UtilityFunctions::print("c++ HTTP Request failed with result: ", result);
         emit_signal("connection_failed", "Request failed");
         is_connected = false;
         return;
@@ -503,12 +551,13 @@ void IPCClient::_on_request_completed(int result, int response_code,
         // Parse JSON response
         String body_string = body.get_string_from_utf8();
 
-        // Parse JSON
-        JSON json;
-        Error err = json.parse(body_string);
+        // Parse JSON using Ref<JSON> (required in Godot 4)
+        Ref<JSON> json;
+        json.instantiate();
+        Error err = json->parse(body_string);
 
         if (err == OK) {
-            Variant data = json.get_data();
+            Variant data = json->get_data();
             if (data.get_type() == Variant::DICTIONARY) {
                 pending_response = data;
                 response_received = true;
@@ -516,15 +565,15 @@ void IPCClient::_on_request_completed(int result, int response_code,
 
                 emit_signal("response_received", pending_response);
 
-                UtilityFunctions::print("Received tick response for tick ", current_tick);
+                UtilityFunctions::print("c++ Received tick response for tick ", current_tick);
             } else {
-                UtilityFunctions::print("Invalid JSON response format");
+                UtilityFunctions::print("c++ Invalid JSON response format");
             }
         } else {
-            UtilityFunctions::print("Failed to parse JSON response");
+            UtilityFunctions::print("c++ Failed to parse JSON response");
         }
     } else {
-        UtilityFunctions::print("HTTP request returned error code: ", response_code);
+        UtilityFunctions::print("c++ HTTP request returned error code: ", response_code);
         is_connected = false;
     }
 }
@@ -532,10 +581,10 @@ void IPCClient::_on_request_completed(int result, int response_code,
 void IPCClient::_on_tool_request_completed(int result, int response_code,
                                            const PackedStringArray& headers,
                                            const PackedByteArray& body) {
-    UtilityFunctions::print("[C++] Tool request callback triggered - result: ", result, ", code: ", response_code);
+    UtilityFunctions::print("c++ [C++] Tool request callback triggered - result: ", result, ", code: ", response_code);
 
     if (result != HTTPRequest::RESULT_SUCCESS) {
-        UtilityFunctions::print("Tool HTTP Request failed with result: ", result);
+        UtilityFunctions::print("c++ Tool HTTP Request failed with result: ", result);
         return;
     }
 
@@ -543,25 +592,26 @@ void IPCClient::_on_tool_request_completed(int result, int response_code,
         // Parse JSON response
         String body_string = body.get_string_from_utf8();
 
-        // Parse JSON
-        JSON json;
-        Error err = json.parse(body_string);
+        // Parse JSON using Ref<JSON> (required in Godot 4)
+        Ref<JSON> json;
+        json.instantiate();
+        Error err = json->parse(body_string);
 
         if (err == OK) {
-            Variant data = json.get_data();
+            Variant data = json->get_data();
             if (data.get_type() == Variant::DICTIONARY) {
                 Dictionary tool_response = data;
-                UtilityFunctions::print("Tool execution response received: ", tool_response);
+                UtilityFunctions::print("c++ Tool execution response received: ", tool_response);
                 // Could emit a signal here for async handling
                 emit_signal("response_received", tool_response);
             } else {
-                UtilityFunctions::print("Invalid tool response JSON format");
+                UtilityFunctions::print("c++ Invalid tool response JSON format");
             }
         } else {
-            UtilityFunctions::print("Failed to parse tool response JSON");
+            UtilityFunctions::print("c++ Failed to parse tool response JSON");
         }
     } else {
-        UtilityFunctions::print("Tool HTTP request returned error code: ", response_code);
+        UtilityFunctions::print("c++ Tool HTTP request returned error code: ", response_code);
     }
 }
 
@@ -570,7 +620,7 @@ Dictionary IPCClient::execute_tool_sync(const String& tool_name, const Dictionar
     Dictionary result;
 
     if (!is_connected) {
-        UtilityFunctions::print("Warning: Tool execution while not connected to server");
+        UtilityFunctions::print("c++ Warning: Tool execution while not connected to server");
     }
 
     // Build request JSON
@@ -590,7 +640,7 @@ Dictionary IPCClient::execute_tool_sync(const String& tool_name, const Dictionar
     Error err = http_request_tool->request(url, headers, HTTPClient::METHOD_POST, json_str);
 
     if (err != OK) {
-        UtilityFunctions::print("Error sending tool execution request: ", err);
+        UtilityFunctions::print("c++ Error sending tool execution request: ", err);
         result["success"] = false;
         result["error"] = "Failed to send HTTP request";
         return result;
@@ -599,7 +649,7 @@ Dictionary IPCClient::execute_tool_sync(const String& tool_name, const Dictionar
     // NOTE: This is a simplified implementation that returns immediately
     // In a real scenario, you'd want to wait for the response or use callbacks
     // For now, we'll use the pending_response mechanism
-    UtilityFunctions::print("Tool execution request sent for '", tool_name, "'");
+    UtilityFunctions::print("c++ Tool execution request sent for '", tool_name, "'");
 
     // Return a pending status - the actual response will come through the signal
     result["success"] = true;
