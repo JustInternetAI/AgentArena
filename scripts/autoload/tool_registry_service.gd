@@ -131,12 +131,15 @@ func execute_tool(agent_id: String, tool_name: String, parameters: Dictionary) -
 		push_error("ToolRegistry not initialized!")
 		return {"success": false, "error": "Registry not initialized"}
 
-	# Add agent_id to parameters
-	var params_with_agent = parameters.duplicate()
-	params_with_agent["agent_id"] = agent_id
+	# Get IPC client to call execute_tool_sync with agent_id at top level
+	var ipc_client = tool_registry.get_ipc_client()
+	if not ipc_client:
+		push_error("No IPC client available!")
+		return {"success": false, "error": "No IPC client"}
 
-	# Execute through ToolRegistry (which uses IPCClient internally)
-	var result = tool_registry.execute_tool(tool_name, params_with_agent)
+	# Call IPCClient directly with agent_id as separate parameter
+	# This ensures agent_id is at top level of request, not inside params
+	var result = ipc_client.execute_tool_sync(tool_name, parameters, agent_id, 0)
 
 	tool_executed.emit(agent_id, tool_name)
 	return result

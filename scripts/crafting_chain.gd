@@ -6,8 +6,6 @@ extends Node3D
 
 @onready var simulation_manager = $SimulationManager
 @onready var event_bus = $EventBus
-@onready var tool_registry = $ToolRegistry
-@onready var ipc_client = $IPCClient
 @onready var agent = $Agents/Agent1
 @onready var metrics_label = $UI/MetricsLabel
 
@@ -68,83 +66,24 @@ func _ready():
 		push_error("GDExtension nodes not found!")
 		return
 
-	# Initialize agent
-	agent.agent_id = "crafting_agent_001"
-
+	# Agent is now a SimpleAgent (auto-connects to services)
 	# Create visual representation for agent
 	_create_agent_visual(agent, "Crafter", Color(1.0, 0.7, 0.2))  # Orange/gold color
 
-	# Connect tool system (IPCClient → ToolRegistry → Agent)
-	if ipc_client != null and tool_registry != null and agent != null:
-		tool_registry.set_ipc_client(ipc_client)
-		agent.set_tool_registry(tool_registry)
-		print("✓ Tool execution system connected!")
-	else:
-		push_warning("Tool execution system not fully available")
+	print("✓ SimpleAgent will use autoload services (IPCService and ToolRegistryService)")
 
 	# Connect signals
 	simulation_manager.simulation_started.connect(_on_simulation_started)
 	simulation_manager.simulation_stopped.connect(_on_simulation_stopped)
 	simulation_manager.tick_advanced.connect(_on_tick_advanced)
-	agent.action_decided.connect(_on_agent_action_decided)
+	agent.tool_completed.connect(_on_tool_completed)
 
-	# Register tools
-	_register_tools()
-
-	# Initialize scene
+	# Initialize scene (tools already registered by ToolRegistryService)
 	_initialize_scene()
 
 	print("Base resources: ", base_resources.size())
 	print("Crafting stations: ", crafting_stations.size())
 	print("Recipes available: ", RECIPES.keys())
-
-func _register_tools():
-	"""Register available tools for the agent"""
-	if tool_registry == null:
-		return
-
-	# Movement
-	tool_registry.register_tool("move_to", {
-		"name": "move_to",
-		"description": "Move to a target position",
-		"parameters": {
-			"target_x": {"type": "float"},
-			"target_y": {"type": "float"},
-			"target_z": {"type": "float"}
-		}
-	})
-
-	# Collection
-	tool_registry.register_tool("collect", {
-		"name": "collect",
-		"description": "Collect a nearby resource",
-		"parameters": {
-			"resource_name": {"type": "string"}
-		}
-	})
-
-	# Crafting
-	tool_registry.register_tool("craft", {
-		"name": "craft",
-		"description": "Craft an item at a nearby station",
-		"parameters": {
-			"item_name": {"type": "string"},
-			"station_name": {"type": "string"}
-		}
-	})
-
-	# Query
-	tool_registry.register_tool("query_inventory", {
-		"name": "query_inventory",
-		"description": "Check current inventory",
-		"parameters": {}
-	})
-
-	tool_registry.register_tool("query_recipes", {
-		"name": "query_recipes",
-		"description": "Get available crafting recipes",
-		"parameters": {}
-	})
 
 func _initialize_scene():
 	"""Initialize resources and stations"""
@@ -403,14 +342,9 @@ func _send_perception_to_agent():
 
 	agent.perceive(observations)
 
-func _on_agent_action_decided(action):
-	"""Handle agent action"""
-	if action is Dictionary and action.has("tool"):
-		var tool_name = action.tool
-		var params = action.get("params", {})
-
-		if tool_name == "craft":
-			craft_item(params.get("item_name", ""), params.get("station_name", ""))
+func _on_tool_completed(tool_name: String, response: Dictionary):
+	"""Handle tool execution completion from SimpleAgent"""
+	print("Tool '", tool_name, "' completed: ", response)
 
 func _complete_scene():
 	"""Complete the benchmark"""

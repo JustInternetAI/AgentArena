@@ -6,8 +6,6 @@ extends Node3D
 
 @onready var simulation_manager = $SimulationManager
 @onready var event_bus = $EventBus
-@onready var tool_registry = $ToolRegistry
-@onready var ipc_client = $IPCClient
 @onready var metrics_label = $UI/MetricsLabel
 
 # Scene configuration
@@ -44,75 +42,20 @@ func _ready():
 		push_error("GDExtension nodes not found!")
 		return
 
-	# Connect tool system (IPCClient → ToolRegistry → Agents)
-	if ipc_client != null and tool_registry != null:
-		tool_registry.set_ipc_client(ipc_client)
-		print("✓ Tool execution system connected!")
-	else:
-		push_warning("Tool execution system not fully available")
+	# Agents automatically discover ToolRegistryService on first tool call
+	print("✓ Agents will use autoload services (IPCService and ToolRegistryService)")
 
 	# Connect simulation signals
 	simulation_manager.simulation_started.connect(_on_simulation_started)
 	simulation_manager.simulation_stopped.connect(_on_simulation_stopped)
 	simulation_manager.tick_advanced.connect(_on_tick_advanced)
 
-	# Register tools
-	_register_tools()
-
-	# Initialize teams and capture points
+	# Initialize teams and capture points (tools already registered by ToolRegistryService)
 	_initialize_scene()
 
 	print("Blue team agents: ", blue_team.size())
 	print("Red team agents: ", red_team.size())
 	print("Capture points: ", capture_points.size())
-
-func _register_tools():
-	"""Register available tools for agents"""
-	if tool_registry == null:
-		return
-
-	# Movement
-	tool_registry.register_tool("move_to", {
-		"name": "move_to",
-		"description": "Move to a target position",
-		"parameters": {
-			"target_x": {"type": "float"},
-			"target_y": {"type": "float"},
-			"target_z": {"type": "float"}
-		}
-	})
-
-	# Capture
-	tool_registry.register_tool("capture_point", {
-		"name": "capture_point",
-		"description": "Attempt to capture a nearby point",
-		"parameters": {
-			"point_name": {"type": "string"}
-		}
-	})
-
-	# Communication
-	tool_registry.register_tool("send_message", {
-		"name": "send_message",
-		"description": "Send a message to nearby teammates",
-		"parameters": {
-			"message": {"type": "string"},
-			"target_agent": {"type": "string"}
-		}
-	})
-
-	# Query
-	tool_registry.register_tool("query_team", {
-		"name": "query_team",
-		"description": "Get information about teammates",
-		"parameters": {}
-	})
-
-	tool_registry.register_tool("query_objectives", {
-		"name": "query_objectives",
-		"description": "Get status of capture points",
-		"parameters": {}
-	})
 
 func _initialize_scene():
 	"""Initialize teams and capture points"""
@@ -125,13 +68,9 @@ func _initialize_scene():
 	# Initialize Blue Team
 	var blue_team_node = $TeamBlue
 	for child in blue_team_node.get_children():
-		if child.get_class() == "Agent":
-			child.agent_id = "blue_%s" % child.name
+		if child.has_method("call_tool"):  # SimpleAgent check
 			# Create visual representation
 			_create_agent_visual(child, child.name, Color(0.2, 0.4, 0.9))  # Blue color
-			# Connect agent to tool registry
-			if tool_registry != null:
-				child.set_tool_registry(tool_registry)
 			blue_team.append({
 				"agent": child,
 				"id": child.agent_id,
@@ -143,19 +82,15 @@ func _initialize_scene():
 				"assists": 0,
 				"messages_sent": 0
 			}
-			# Connect agent signals
-			child.action_decided.connect(_on_agent_action_decided.bind(child.agent_id))
+			# Connect SimpleAgent signals
+			child.tool_completed.connect(_on_tool_completed.bind(child.agent_id))
 
 	# Initialize Red Team
 	var red_team_node = $TeamRed
 	for child in red_team_node.get_children():
-		if child.get_class() == "Agent":
-			child.agent_id = "red_%s" % child.name
+		if child.has_method("call_tool"):  # SimpleAgent check
 			# Create visual representation
 			_create_agent_visual(child, child.name, Color(0.9, 0.2, 0.2))  # Red color
-			# Connect agent to tool registry
-			if tool_registry != null:
-				child.set_tool_registry(tool_registry)
 			red_team.append({
 				"agent": child,
 				"id": child.agent_id,
@@ -167,8 +102,8 @@ func _initialize_scene():
 				"assists": 0,
 				"messages_sent": 0
 			}
-			# Connect agent signals
-			child.action_decided.connect(_on_agent_action_decided.bind(child.agent_id))
+			# Connect SimpleAgent signals
+			child.tool_completed.connect(_on_tool_completed.bind(child.agent_id))
 
 	# Initialize Capture Points
 	var points_node = $CapturePoints
@@ -401,11 +336,9 @@ func _build_agent_observation(agent_data: Dictionary, allies: Array, enemies: Ar
 		"tick": simulation_manager.current_tick
 	}
 
-func _on_agent_action_decided(action, agent_id: String):
-	"""Handle agent action decisions"""
-	# Actions are handled through the tool system
-	# This is just for logging/debugging
-	pass
+func _on_tool_completed(tool_name: String, response: Dictionary, agent_id: String):
+	"""Handle tool execution completion from SimpleAgent"""
+	print("Agent '", agent_id, "' completed tool '", tool_name, "': ", response)
 
 func _complete_scene():
 	"""Complete the benchmark"""

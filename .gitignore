@@ -76,3 +76,4 @@ tmp/
 # GitHub automation scripts (used for setup, not needed in repo)
 scripts/create_github_*.bat
 scripts/create_github_*.sh
+nul

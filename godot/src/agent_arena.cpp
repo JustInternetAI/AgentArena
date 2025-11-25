@@ -170,7 +170,9 @@ void EventBus::load_recording(const Array& events) {
 // Agent Implementation
 // ============================================================================
 
-Agent::Agent() : is_active(true), tool_registry(nullptr) {
+Agent::Agent()
+    : is_active(true),
+      tool_registry(nullptr) {
     agent_id = "agent_" + String::num_int64(Time::get_singleton()->get_ticks_msec());
 }
 
@@ -253,14 +255,17 @@ void Agent::clear_short_term_memory() {
 Dictionary Agent::call_tool(const String& tool_name, const Dictionary& params) {
     Dictionary result;
 
+    // Use manually set tool_registry (for testing only - production code should use SimpleAgent)
     if (tool_registry) {
         result = tool_registry->execute_tool(tool_name, params);
-        UtilityFunctions::print("c++ Agent ", agent_id, " called tool '", tool_name, "'");
-    } else {
-        result["success"] = false;
-        result["error"] = "No ToolRegistry available";
-        UtilityFunctions::print("c++ Agent ", agent_id, " error: No ToolRegistry for tool '", tool_name, "'");
+        UtilityFunctions::print("c++ Agent ", agent_id, " called tool '", tool_name, "' via manual ToolRegistry");
+        return result;
     }
+
+    // No tool registry available - agent should be wrapped in SimpleAgent for production use
+    result["success"] = false;
+    result["error"] = "No ToolRegistry set. Use SimpleAgent wrapper for production code.";
+    UtilityFunctions::print("c++ Agent ", agent_id, " error: No ToolRegistry set for '", tool_name, "'. Consider using SimpleAgent wrapper.");
 
     return result;
 }
@@ -365,7 +370,8 @@ IPCClient::IPCClient()
       http_request_tool(nullptr),
       is_connected(false),
       current_tick(0),
-      response_received(false) {
+      response_received(false),
+      tool_request_in_progress(false) {
 }
 
 IPCClient::~IPCClient() {
@@ -402,7 +408,7 @@ void IPCClient::_ready() {
     // Create HTTPRequest node for general requests (health check, tick)
     http_request = memnew(HTTPRequest);
     http_request->set_timeout(30.0);  // 30 second timeout
-    http_request->set_use_threads(false);  // DISABLED threading - was causing scene termination
+    http_request->set_use_threads(true);  // Enable threading for async requests
 
     // IMPORTANT: Set the HTTPRequest's name before adding as child
     http_request->set_name("HTTPRequestMain");
@@ -421,7 +427,7 @@ void IPCClient::_ready() {
     // Create separate HTTPRequest node for tool execution
     http_request_tool = memnew(HTTPRequest);
     http_request_tool->set_timeout(30.0);  // 30 second timeout
-    http_request_tool->set_use_threads(false);  // DISABLED threading - was causing scene termination
+    http_request_tool->set_use_threads(true);  // Enable threading for async requests
 
     // Set name for debugging
     http_request_tool->set_name("HTTPRequestTool");
@@ -583,8 +589,13 @@ void IPCClient::_on_tool_request_completed(int result, int response_code,
                                            const PackedByteArray& body) {
     UtilityFunctions::print("c++ [C++] Tool request callback triggered - result: ", result, ", code: ", response_code);
 
+    // Mark request as no longer in progress
+    tool_request_in_progress = false;
+
     if (result != HTTPRequest::RESULT_SUCCESS) {
         UtilityFunctions::print("c++ Tool HTTP Request failed with result: ", result);
+        // Process next request even on failure
+        _process_next_tool_request();
         return;
     }
 
@@ -602,7 +613,13 @@ void IPCClient::_on_tool_request_completed(int result, int response_code,
             if (data.get_type() == Variant::DICTIONARY) {
                 Dictionary tool_response = data;
                 UtilityFunctions::print("c++ Tool execution response received: ", tool_response);
-                // Could emit a signal here for async handling
+
+                // Add request context to response for routing
+                tool_response["agent_id"] = current_tool_request.get("agent_id", "");
+                tool_response["tool_name"] = current_tool_request.get("tool_name", "");
+                tool_response["tick"] = current_tool_request.get("tick", 0);
+
+                // Emit signal for async handling
                 emit_signal("response_received", tool_response);
             } else {
                 UtilityFunctions::print("c++ Invalid tool response JSON format");
@@ -613,6 +630,9 @@ void IPCClient::_on_tool_request_completed(int result, int response_code,
     } else {
         UtilityFunctions::print("c++ Tool HTTP request returned error code: ", response_code);
     }
+
+    // Process next request in queue
+    _process_next_tool_request();
 }
 
 Dictionary IPCClient::execute_tool_sync(const String& tool_name, const Dictionary& params,
@@ -623,16 +643,63 @@ Dictionary IPCClient::execute_tool_sync(const String& tool_name, const Dictionar
         UtilityFunctions::print("c++ Warning: Tool execution while not connected to server");
     }
 
-    // Build request JSON
+    // Build request dictionary
     Dictionary request_dict;
     request_dict["tool_name"] = tool_name;
     request_dict["params"] = params;
     request_dict["agent_id"] = agent_id;
     request_dict["tick"] = tick;
 
+    // Add request to queue
+    tool_request_queue.append(request_dict);
+    UtilityFunctions::print("c++ Tool execution request queued for '", tool_name, "' (queue size: ", tool_request_queue.size(), ")");
+
+    // If no request is in progress, start processing
+    if (!tool_request_in_progress) {
+        _process_next_tool_request();
+    }
+
+    // Return a pending status - the actual response will come through the signal
+    result["success"] = true;
+    result["result"] = Dictionary();
+    result["note"] = "Tool execution initiated - check response signal";
+
+    return result;
+}
+
+void IPCClient::_process_next_tool_request() {
+    // Check if queue is empty
+    if (tool_request_queue.size() == 0) {
+        UtilityFunctions::print("c++ Tool request queue empty");
+        return;
+    }
+
+    // Check if already processing a request
+    if (tool_request_in_progress) {
+        UtilityFunctions::print("c++ Tool request already in progress, waiting...");
+        return;
+    }
+
+    // Get next request from queue
+    Dictionary request_dict = tool_request_queue[0];
+    tool_request_queue.remove_at(0);
+
+    // Store current request for context in response
+    current_tool_request = request_dict;
+
+    // Mark as in progress
+    tool_request_in_progress = true;
+
+    // Extract request data
+    String tool_name = request_dict["tool_name"];
+    Dictionary params = request_dict["params"];
+    String agent_id = request_dict.get("agent_id", "");
+    uint64_t tick = request_dict.get("tick", 0);
+
+    // Build JSON
     String json_str = JSON::stringify(request_dict);
 
-    // Send POST request using separate http_request_tool to avoid conflicts
+    // Send POST request
     String url = server_url + "/tools/execute";
     PackedStringArray headers;
     headers.append("Content-Type: application/json");
@@ -641,20 +708,11 @@ Dictionary IPCClient::execute_tool_sync(const String& tool_name, const Dictionar
 
     if (err != OK) {
         UtilityFunctions::print("c++ Error sending tool execution request: ", err);
-        result["success"] = false;
-        result["error"] = "Failed to send HTTP request";
-        return result;
+        tool_request_in_progress = false;
+        // Try next request
+        _process_next_tool_request();
+        return;
     }
 
-    // NOTE: This is a simplified implementation that returns immediately
-    // In a real scenario, you'd want to wait for the response or use callbacks
-    // For now, we'll use the pending_response mechanism
-    UtilityFunctions::print("c++ Tool execution request sent for '", tool_name, "'");
-
-    // Return a pending status - the actual response will come through the signal
-    result["success"] = true;
-    result["result"] = Dictionary();
-    result["note"] = "Tool execution initiated - check response signal";
-
-    return result;
+    UtilityFunctions::print("c++ Tool execution request sent for '", tool_name, "' (", tool_request_queue.size(), " remaining in queue)");
 }
