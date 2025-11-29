@@ -1,12 +1,8 @@
-extends Node3D
+extends SceneController
 
 ## Team Capture Benchmark Scene
 ## Goal: Multi-agent teams compete to capture and hold objectives
 ## Metrics: Objectives captured, team coordination, individual contribution, win rate
-
-@onready var simulation_manager = $SimulationManager
-@onready var event_bus = $EventBus
-@onready var metrics_label = $UI/MetricsLabel
 
 # Scene configuration
 const CAPTURE_RADIUS = 3.0
@@ -16,94 +12,47 @@ const POINTS_PER_HOLD_TICK = 1
 const MAX_POINTS = 100
 const COMMUNICATION_RADIUS = 15.0
 
-# Teams
-var blue_team = []
-var red_team = []
-
 # Capture points
 var capture_points = []
 
-# Metrics
+# Metrics (inherits start_time and scene_completed from SceneController)
 var blue_score = 0
 var red_score = 0
 var objectives_captured = {"blue": 0, "red": 0}
 var total_captures = 0
 var team_blue_contributions = {}
 var team_red_contributions = {}
-var start_time = 0.0
-var scene_completed = false
 var winning_team = ""
 
-func _ready():
+func _on_scene_ready():
+	"""Called after SceneController setup is complete"""
 	print("Team Capture Benchmark Scene Ready!")
 
-	# Verify C++ nodes
-	if simulation_manager == null:
-		push_error("GDExtension nodes not found!")
-		return
+	# Initialize contributions for all agents
+	for agent_data in get_agents_by_team("blue"):
+		team_blue_contributions[agent_data.id] = {
+			"captures": 0,
+			"assists": 0,
+			"messages_sent": 0
+		}
 
-	# Agents automatically discover ToolRegistryService on first tool call
-	print("✓ Agents will use autoload services (IPCService and ToolRegistryService)")
+	for agent_data in get_agents_by_team("red"):
+		team_red_contributions[agent_data.id] = {
+			"captures": 0,
+			"assists": 0,
+			"messages_sent": 0
+		}
 
-	# Connect simulation signals
-	simulation_manager.simulation_started.connect(_on_simulation_started)
-	simulation_manager.simulation_stopped.connect(_on_simulation_stopped)
-	simulation_manager.tick_advanced.connect(_on_tick_advanced)
+	# Initialize capture points
+	_initialize_capture_points()
 
-	# Initialize teams and capture points (tools already registered by ToolRegistryService)
-	_initialize_scene()
-
-	print("Blue team agents: ", blue_team.size())
-	print("Red team agents: ", red_team.size())
+	print("Blue team agents: ", get_agents_by_team("blue").size())
+	print("Red team agents: ", get_agents_by_team("red").size())
 	print("Capture points: ", capture_points.size())
 
-func _initialize_scene():
-	"""Initialize teams and capture points"""
-	blue_team.clear()
-	red_team.clear()
+func _initialize_capture_points():
+	"""Initialize capture points"""
 	capture_points.clear()
-	team_blue_contributions.clear()
-	team_red_contributions.clear()
-
-	# Initialize Blue Team
-	var blue_team_node = $TeamBlue
-	for child in blue_team_node.get_children():
-		if child.has_method("call_tool"):  # SimpleAgent check
-			# Create visual representation
-			_create_agent_visual(child, child.name, Color(0.2, 0.4, 0.9))  # Blue color
-			blue_team.append({
-				"agent": child,
-				"id": child.agent_id,
-				"position": child.global_position,
-				"team": "blue"
-			})
-			team_blue_contributions[child.agent_id] = {
-				"captures": 0,
-				"assists": 0,
-				"messages_sent": 0
-			}
-			# Connect SimpleAgent signals
-			child.tool_completed.connect(_on_tool_completed.bind(child.agent_id))
-
-	# Initialize Red Team
-	var red_team_node = $TeamRed
-	for child in red_team_node.get_children():
-		if child.has_method("call_tool"):  # SimpleAgent check
-			# Create visual representation
-			_create_agent_visual(child, child.name, Color(0.9, 0.2, 0.2))  # Red color
-			red_team.append({
-				"agent": child,
-				"id": child.agent_id,
-				"position": child.global_position,
-				"team": "red"
-			})
-			team_red_contributions[child.agent_id] = {
-				"captures": 0,
-				"assists": 0,
-				"messages_sent": 0
-			}
-			# Connect SimpleAgent signals
-			child.tool_completed.connect(_on_tool_completed.bind(child.agent_id))
 
 	# Initialize Capture Points
 	var points_node = $CapturePoints
@@ -133,39 +82,89 @@ func _input(event):
 		elif event.keycode == KEY_M:
 			_print_detailed_metrics()
 
-func _on_simulation_started():
+func _on_scene_started():
+	"""Called when simulation starts"""
 	print("✓ Team capture benchmark started!")
-	start_time = Time.get_ticks_msec() / 1000.0
-	scene_completed = false
 
-func _on_simulation_stopped():
+func _on_scene_stopped():
+	"""Called when simulation stops"""
 	print("✓ Team capture benchmark stopped!")
 	_print_final_metrics()
 
-func _on_tick_advanced(tick: int):
-	# Update agent positions
-	_update_agent_positions()
-
+func _on_scene_tick(tick: int):
+	"""Called each simulation tick after observations sent"""
 	# Update capture point status
 	_update_capture_points(1.0 / 60.0)  # Assuming 60 ticks per second
 
 	# Award points for holding objectives
 	_award_holding_points()
 
-	# Send perception to all agents
-	_send_perception_to_agents()
-
 	# Check win condition
 	if blue_score >= MAX_POINTS or red_score >= MAX_POINTS:
 		_complete_scene()
 
-func _update_agent_positions():
-	"""Update stored agent positions"""
-	for agent_data in blue_team:
-		agent_data.position = agent_data.agent.global_position
+func _build_observations_for_agent(agent_data: Dictionary) -> Dictionary:
+	"""Build team capture observations for an agent"""
+	var agent_pos = agent_data.position
+	var team = agent_data.team
 
-	for agent_data in red_team:
-		agent_data.position = agent_data.agent.global_position
+	# Get allies and enemies based on team
+	var allies = get_agents_by_team(team)
+	var enemies = get_agents_by_team("red" if team == "blue" else "blue")
+
+	# Find nearby allies
+	var nearby_allies = []
+	for ally in allies:
+		if ally.id == agent_data.id:
+			continue
+		var dist = agent_pos.distance_to(ally.position)
+		if dist <= COMMUNICATION_RADIUS:
+			nearby_allies.append({
+				"id": ally.id,
+				"position": ally.position,
+				"distance": dist
+			})
+
+	# Find visible enemies (simplified - just distance check)
+	var nearby_enemies = []
+	for enemy in enemies:
+		var dist = agent_pos.distance_to(enemy.position)
+		if dist <= 20.0:  # Vision range
+			nearby_enemies.append({
+				"id": enemy.id,
+				"position": enemy.position,
+				"distance": dist
+			})
+
+	# Capture point status
+	var objectives = []
+	for point in capture_points:
+		var dist = agent_pos.distance_to(point.position)
+		objectives.append({
+			"name": point.name,
+			"position": point.position,
+			"owner": point.owner,
+			"capturing_team": point.capturing_team,
+			"capture_progress": point.capture_progress,
+			"distance": dist
+		})
+
+	return {
+		"agent_id": agent_data.id,
+		"team": team,
+		"position": agent_pos,
+		"team_score": blue_score if team == "blue" else red_score,
+		"enemy_score": red_score if team == "blue" else blue_score,
+		"nearby_allies": nearby_allies,
+		"nearby_enemies": nearby_enemies,
+		"objectives": objectives,
+		"tick": simulation_manager.current_tick
+	}
+
+func _on_agent_tool_completed(agent_data: Dictionary, tool_name: String, response: Dictionary):
+	"""Handle tool execution completion from agent"""
+	print("TeamCapture: Agent '%s' (%s) completed tool '%s': %s" %
+		[agent_data.id, agent_data.team, tool_name, response])
 
 func _update_capture_points(delta: float):
 	"""Update capture progress for all points"""
@@ -175,13 +174,13 @@ func _update_capture_points(delta: float):
 		var blue_count = 0
 		var red_count = 0
 
-		for agent_data in blue_team:
+		for agent_data in get_agents_by_team("blue"):
 			var dist = agent_data.position.distance_to(point.position)
 			if dist <= CAPTURE_RADIUS:
 				point.agents_present.append(agent_data)
 				blue_count += 1
 
-		for agent_data in red_team:
+		for agent_data in get_agents_by_team("red"):
 			var dist = agent_data.position.distance_to(point.position)
 			if dist <= CAPTURE_RADIUS:
 				point.agents_present.append(agent_data)
@@ -252,8 +251,7 @@ func _capture_point(point: Dictionary, team: String):
 
 	# Record event
 	if event_bus != null:
-		event_bus.emit_event({
-			"type": "point_captured",
+		event_bus.emit_event("point_captured", {
 			"point_name": point.name,
 			"team": team,
 			"previous_owner": previous_owner,
@@ -270,75 +268,6 @@ func _award_holding_points():
 			blue_score += POINTS_PER_HOLD_TICK
 		elif point.owner == "red":
 			red_score += POINTS_PER_HOLD_TICK
-
-func _send_perception_to_agents():
-	"""Send observations to all agents"""
-	# Blue team perception
-	for agent_data in blue_team:
-		var obs = _build_agent_observation(agent_data, blue_team, red_team)
-		agent_data.agent.perceive(obs)
-
-	# Red team perception
-	for agent_data in red_team:
-		var obs = _build_agent_observation(agent_data, red_team, blue_team)
-		agent_data.agent.perceive(obs)
-
-func _build_agent_observation(agent_data: Dictionary, allies: Array, enemies: Array) -> Dictionary:
-	"""Build observation for an agent"""
-	var agent_pos = agent_data.position
-
-	# Find nearby allies
-	var nearby_allies = []
-	for ally in allies:
-		if ally.id == agent_data.id:
-			continue
-		var dist = agent_pos.distance_to(ally.position)
-		if dist <= COMMUNICATION_RADIUS:
-			nearby_allies.append({
-				"id": ally.id,
-				"position": ally.position,
-				"distance": dist
-			})
-
-	# Find visible enemies (simplified - just distance check)
-	var nearby_enemies = []
-	for enemy in enemies:
-		var dist = agent_pos.distance_to(enemy.position)
-		if dist <= 20.0:  # Vision range
-			nearby_enemies.append({
-				"id": enemy.id,
-				"position": enemy.position,
-				"distance": dist
-			})
-
-	# Capture point status
-	var objectives = []
-	for point in capture_points:
-		var dist = agent_pos.distance_to(point.position)
-		objectives.append({
-			"name": point.name,
-			"position": point.position,
-			"owner": point.owner,
-			"capturing_team": point.capturing_team,
-			"capture_progress": point.capture_progress,
-			"distance": dist
-		})
-
-	return {
-		"agent_id": agent_data.id,
-		"team": agent_data.team,
-		"position": agent_pos,
-		"team_score": blue_score if agent_data.team == "blue" else red_score,
-		"enemy_score": red_score if agent_data.team == "blue" else blue_score,
-		"nearby_allies": nearby_allies,
-		"nearby_enemies": nearby_enemies,
-		"objectives": objectives,
-		"tick": simulation_manager.current_tick
-	}
-
-func _on_tool_completed(tool_name: String, response: Dictionary, agent_id: String):
-	"""Handle tool execution completion from SimpleAgent"""
-	print("Agent '", agent_id, "' completed tool '", tool_name, "': ", response)
 
 func _complete_scene():
 	"""Complete the benchmark"""
@@ -364,7 +293,7 @@ func _complete_scene():
 
 func _print_final_metrics():
 	"""Print final benchmark metrics"""
-	var elapsed_time = (Time.get_ticks_msec() / 1000.0) - start_time
+	var elapsed_time = get_elapsed_time()
 
 	print("\nFinal Metrics:")
 	print("  Final Score: Blue %d - Red %d" % [blue_score, red_score])
@@ -437,9 +366,7 @@ func _update_metrics_ui():
 	if metrics_label == null:
 		return
 
-	var elapsed_time = 0.0
-	if simulation_manager.is_running:
-		elapsed_time = (Time.get_ticks_msec() / 1000.0) - start_time
+	var elapsed_time = get_elapsed_time()
 
 	var status = "RUNNING" if simulation_manager.is_running else "STOPPED"
 	if scene_completed:
@@ -482,23 +409,6 @@ Press M for detailed metrics" % [
 		elapsed_time
 	]
 
-func _create_agent_visual(agent_node: Node, agent_name: String, color: Color):
-	"""Create visual representation for an agent"""
-	var visual_scene = load("res://scenes/agent_visual.tscn")
-	if visual_scene == null:
-		push_warning("Could not load agent_visual.tscn")
-		return
-
-	var visual_instance = visual_scene.instantiate()
-	agent_node.add_child(visual_instance)
-
-	if visual_instance.has_method("set_team_color"):
-		visual_instance.set_team_color(color)
-	if visual_instance.has_method("set_agent_name"):
-		visual_instance.set_agent_name(agent_name)
-
-	print("✓ Created visual for: ", agent_name, " (", color, ")")
-
 func _reset_scene():
 	"""Reset the scene"""
 	print("Resetting team capture scene...")
@@ -510,7 +420,6 @@ func _reset_scene():
 	red_score = 0
 	objectives_captured = {"blue": 0, "red": 0}
 	total_captures = 0
-	start_time = 0.0
 	scene_completed = false
 	winning_team = ""
 
@@ -542,13 +451,15 @@ func _reset_scene():
 
 	# Reset agent positions
 	var blue_spawn_positions = [Vector3(-20, 1, -20), Vector3(-22, 1, -18), Vector3(-18, 1, -22)]
-	for i in range(blue_team.size()):
+	var blue_agents = get_agents_by_team("blue")
+	for i in range(blue_agents.size()):
 		if i < blue_spawn_positions.size():
-			blue_team[i].agent.global_position = blue_spawn_positions[i]
+			blue_agents[i].agent.global_position = blue_spawn_positions[i]
 
 	var red_spawn_positions = [Vector3(20, 1, 20), Vector3(22, 1, 18), Vector3(18, 1, 22)]
-	for i in range(red_team.size()):
+	var red_agents = get_agents_by_team("red")
+	for i in range(red_agents.size()):
 		if i < red_spawn_positions.size():
-			red_team[i].agent.global_position = red_spawn_positions[i]
+			red_agents[i].agent.global_position = red_spawn_positions[i]
 
 	print("✓ Scene reset!")

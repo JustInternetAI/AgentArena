@@ -1,0 +1,36 @@
+[gd_scene load_steps=2 format=3 uid="uid://c4g5h6j7k8l9m0"]
+
+[ext_resource type="Script" path="res://scripts/tests/test_observation_loop.gd" id="1_observation_test"]
+
+[node name="ObservationLoopTest" type="Node"]
+script = ExtResource("1_observation_test")
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.866025, 0.5, 0, -0.5, 0.866025, 0, 5, 10)
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 5, 0)
+
+[node name="Label" type="Label" parent="."]
+offset_left = 20.0
+offset_top = 20.0
+offset_right = 900.0
+offset_bottom = 250.0
+theme_override_font_sizes/font_size = 18
+text = "Observation-Decision Loop Test
+
+This test validates the full pipeline:
+  Game → Observations → Python Backend → Mock Decision → Game
+
+Prerequisites:
+1. Start Python IPC server: START_IPC_SERVER.bat
+   (or: cd python && venv\\Scripts\\activate && python run_ipc_server.py)
+2. Wait for connection message in console
+3. Test runs automatically for 10 ticks
+
+Watch the console output for detailed results!
+
+Controls:
+  T - Run test again
+  Q - Quit
+"

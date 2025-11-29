@@ -1,13 +1,8 @@
-extends Node3D
+extends SceneController
 
 ## Foraging Benchmark Scene
 ## Goal: Collect resources (berries, wood, stone) while avoiding hazards (fire, pits)
 ## Metrics: Resources collected, damage taken, distance traveled, time to completion
-
-@onready var simulation_manager = $SimulationManager
-@onready var event_bus = $EventBus
-@onready var agent = $Agents/Agent1
-@onready var metrics_label = $UI/MetricsLabel
 
 # Scene configuration
 const MAX_RESOURCES = 7  # Total resources to collect
@@ -16,47 +11,29 @@ const PIT_DAMAGE = 25.0
 const COLLECTION_RADIUS = 2.0
 const HAZARD_RADIUS = 1.5
 
-# Metrics
+# Metrics (inherits start_time and scene_completed from SceneController)
 var resources_collected = 0
 var damage_taken = 0.0
 var distance_traveled = 0.0
-var start_time = 0.0
 var last_position = Vector3.ZERO
-var scene_completed = false
 
 # Resource tracking
 var active_resources = []
 var active_hazards = []
 
-func _ready():
+func _on_scene_ready():
+	"""Called after SceneController setup is complete"""
 	print("Foraging Benchmark Scene Ready!")
 
-	# Verify C++ nodes are loaded
-	if simulation_manager == null or agent == null:
-		push_error("GDExtension nodes not found! Extension may not be loaded.")
-		return
-
-	# Agent is now a SimpleAgent (auto-connects to services)
-	last_position = agent.global_position
-
-	# Create visual representation for agent
-	_create_agent_visual(agent, "Forager", Color(0.3, 0.8, 0.3))  # Green color
-
-	print("✓ SimpleAgent will use autoload services (IPCService and ToolRegistryService)")
-
-	# Connect simulation signals
-	simulation_manager.simulation_started.connect(_on_simulation_started)
-	simulation_manager.simulation_stopped.connect(_on_simulation_stopped)
-	simulation_manager.tick_advanced.connect(_on_tick_advanced)
-
-	# Connect SimpleAgent signals (note: these come from SimpleAgent, not the C++ core)
-	agent.tool_completed.connect(_on_tool_completed)
-
-	# Initialize resources and hazards (tools already registered by ToolRegistryService)
+	# Initialize scene-specific data
 	_initialize_scene()
 
 	print("Resources available: ", active_resources.size())
-	print("Hazards: ", active_resources.size())
+	print("Hazards: ", active_hazards.size())
+
+	# Store initial agent position for distance tracking
+	if agents.size() > 0:
+		last_position = agents[0].position
 
 func _initialize_scene():
 	"""Initialize resource and hazard tracking"""
@@ -89,7 +66,7 @@ func _initialize_scene():
 
 func _get_resource_type(resource_name: String) -> String:
 	"""Extract resource type from name"""
-	if "Berry" in resource_name:
+	if "Berry" in resource_name or "Apple" in resource_name:
 		return "berry"
 	elif "Wood" in resource_name:
 		return "wood"
@@ -124,20 +101,23 @@ func _input(event):
 		elif event.keycode == KEY_S:
 			simulation_manager.step_simulation()
 
-func _on_simulation_started():
+func _on_scene_started():
+	"""Called when simulation starts"""
 	print("✓ Foraging benchmark started!")
-	start_time = Time.get_ticks_msec() / 1000.0
-	scene_completed = false
+	# start_time is set by SceneController
 
-func _on_simulation_stopped():
+func _on_scene_stopped():
+	"""Called when simulation stops"""
 	print("✓ Foraging benchmark stopped!")
 	_print_final_metrics()
 
-func _on_tick_advanced(tick: int):
-	# Update distance traveled
-	var current_position = agent.global_position
-	distance_traveled += last_position.distance_to(current_position)
-	last_position = current_position
+func _on_scene_tick(tick: int):
+	"""Called each simulation tick after observations sent"""
+	# Update distance traveled (use first agent for single-agent scene)
+	if agents.size() > 0:
+		var current_position = agents[0].position
+		distance_traveled += last_position.distance_to(current_position)
+		last_position = current_position
 
 	# Check for resource collection
 	_check_resource_collection()
@@ -145,16 +125,58 @@ func _on_tick_advanced(tick: int):
 	# Check for hazard damage
 	_check_hazard_damage()
 
-	# Send perception to agent
-	_send_perception_to_agent()
-
 	# Check completion
 	if resources_collected >= MAX_RESOURCES:
 		_complete_scene()
 
+func _build_observations_for_agent(agent_data: Dictionary) -> Dictionary:
+	"""Build foraging-specific observations for an agent"""
+	var agent_pos = agent_data.position
+
+	# Find nearby resources
+	var nearby_resources = []
+	for resource in active_resources:
+		if not resource.collected:
+			var dist = agent_pos.distance_to(resource.position)
+			nearby_resources.append({
+				"name": resource.name,
+				"type": resource.type,
+				"position": resource.position,
+				"distance": dist
+			})
+
+	# Find nearby hazards
+	var nearby_hazards = []
+	for hazard in active_hazards:
+		var dist = agent_pos.distance_to(hazard.position)
+		nearby_hazards.append({
+			"name": hazard.name,
+			"type": hazard.type,
+			"position": hazard.position,
+			"distance": dist
+		})
+
+	# Build observation dictionary
+	return {
+		"position": agent_pos,
+		"resources_collected": resources_collected,
+		"resources_remaining": MAX_RESOURCES - resources_collected,
+		"damage_taken": damage_taken,
+		"nearby_resources": nearby_resources,
+		"nearby_hazards": nearby_hazards,
+		"tick": simulation_manager.current_tick
+	}
+
+func _on_agent_tool_completed(agent_data: Dictionary, tool_name: String, response: Dictionary):
+	"""Handle tool execution completion from agent"""
+	print("Foraging: Agent '%s' completed tool '%s': %s" % [agent_data.id, tool_name, response])
+
 func _check_resource_collection():
 	"""Check if agent is near any uncollected resources"""
-	var agent_pos = agent.global_position
+	if agents.size() == 0:
+		return
+
+	var agent_pos = agents[0].position
 
 	for resource in active_resources:
 		if resource.collected:
@@ -178,8 +200,7 @@ func _collect_resource(resource: Dictionary):
 
 	# Record event
 	if event_bus != null:
-		event_bus.emit_event({
-			"type": "resource_collected",
+		event_bus.emit_event("resource_collected", {
 			"resource_name": resource.name,
 			"resource_type": resource.type,
 			"position": resource.position,
@@ -190,7 +211,10 @@ func _collect_resource(resource: Dictionary):
 
 func _check_hazard_damage():
 	"""Check if agent is near any hazards and apply damage"""
-	var agent_pos = agent.global_position
+	if agents.size() == 0:
+		return
+
+	var agent_pos = agents[0].position
 
 	for hazard in active_hazards:
 		var dist = agent_pos.distance_to(hazard.position)
@@ -203,8 +227,7 @@ func _apply_hazard_damage(hazard: Dictionary):
 
 	# Record event
 	if event_bus != null:
-		event_bus.emit_event({
-			"type": "hazard_damage",
+		event_bus.emit_event("hazard_damage", {
 			"hazard_name": hazard.name,
 			"hazard_type": hazard.type,
 			"damage": hazard.damage,
@@ -213,50 +236,6 @@ func _apply_hazard_damage(hazard: Dictionary):
 		})
 
 	print("⚠ Took %d damage from %s! Total damage: %d" % [hazard.damage, hazard.name, damage_taken])
-
-func _send_perception_to_agent():
-	"""Send world observations to the agent"""
-	var agent_pos = agent.global_position
-
-	# Find nearby entities
-	var nearby_resources = []
-	for resource in active_resources:
-		if not resource.collected:
-			var dist = agent_pos.distance_to(resource.position)
-			nearby_resources.append({
-				"name": resource.name,
-				"type": resource.type,
-				"position": resource.position,
-				"distance": dist
-			})
-
-	var nearby_hazards = []
-	for hazard in active_hazards:
-		var dist = agent_pos.distance_to(hazard.position)
-		nearby_hazards.append({
-			"name": hazard.name,
-			"type": hazard.type,
-			"position": hazard.position,
-			"distance": dist
-		})
-
-	# Build observation dictionary
-	var observations = {
-		"position": agent_pos,
-		"resources_collected": resources_collected,
-		"resources_remaining": MAX_RESOURCES - resources_collected,
-		"damage_taken": damage_taken,
-		"nearby_resources": nearby_resources,
-		"nearby_hazards": nearby_hazards,
-		"tick": simulation_manager.current_tick
-	}
-
-	# Send to agent
-	agent.perceive(observations)
-
-func _on_tool_completed(tool_name: String, response: Dictionary):
-	"""Handle tool execution completion from SimpleAgent"""
-	print("Tool '", tool_name, "' completed: ", response)
 
 func _complete_scene():
 	"""Complete the benchmark scene"""
@@ -273,7 +252,7 @@ func _complete_scene():
 
 func _print_final_metrics():
 	"""Print final benchmark metrics"""
-	var elapsed_time = (Time.get_ticks_msec() / 1000.0) - start_time
+	var elapsed_time = get_elapsed_time()
 
 	print("\nFinal Metrics:")
 	print("  Resources Collected: %d/%d" % [resources_collected, MAX_RESOURCES])
@@ -299,9 +278,7 @@ func _update_metrics_ui():
 	if metrics_label == null:
 		return
 
-	var elapsed_time = 0.0
-	if simulation_manager.is_running:
-		elapsed_time = (Time.get_ticks_msec() / 1000.0) - start_time
+	var elapsed_time = get_elapsed_time()
 
 	var status = "RUNNING" if simulation_manager.is_running else "STOPPED"
 	if scene_completed:
@@ -328,23 +305,6 @@ Press S to step" % [
 		_calculate_efficiency_score()
 	]
 
-func _create_agent_visual(agent_node: Node, agent_name: String, color: Color):
-	"""Create visual representation for an agent"""
-	var visual_scene = load("res://scenes/agent_visual.tscn")
-	if visual_scene == null:
-		push_warning("Could not load agent_visual.tscn")
-		return
-
-	var visual_instance = visual_scene.instantiate()
-	agent_node.add_child(visual_instance)
-
-	if visual_instance.has_method("set_team_color"):
-		visual_instance.set_team_color(color)
-	if visual_instance.has_method("set_agent_name"):
-		visual_instance.set_agent_name(agent_name)
-
-	print("✓ Created visual for: ", agent_name)
-
 func _reset_scene():
 	"""Reset the scene to initial state"""
 	print("Resetting foraging scene...")
@@ -355,13 +315,13 @@ func _reset_scene():
 	resources_collected = 0
 	damage_taken = 0.0
 	distance_traveled = 0.0
-	start_time = 0.0
 	scene_completed = false
 
 	# Reset agent position
-	agent.global_position = Vector3.ZERO
-	agent.global_position.y = 1.0
-	last_position = agent.global_position
+	if agents.size() > 0:
+		agents[0].agent.global_position = Vector3.ZERO
+		agents[0].agent.global_position.y = 1.0
+		last_position = agents[0].agent.global_position
 
 	# Reset resources
 	for resource in active_resources:
