@@ -7,6 +7,7 @@
 [ext_resource type="PackedScene" uid="uid://5pkkwbyi8esy" path="res://scenes/stations/furnace.tscn" id="5_mp2gt"]
 [ext_resource type="PackedScene" uid="uid://lmo3kerl5nym" path="res://scenes/stations/workbench.tscn" id="6_8dtr0"]
 [ext_resource type="PackedScene" path="res://scenes/agent_visual.tscn" id="7_mp2gt"]
+[ext_resource type="Script" path="res://scripts/simple_agent.gd" id="8_simple_agent"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ground"]
 albedo_color = Color(0.5, 0.5, 0.5, 1)
@@ -21,10 +22,6 @@ script = ExtResource("1_crafting")
 [node name="SimulationManager" type="SimulationManager" parent="."]
 
 [node name="EventBus" type="EventBus" parent="."]
-
-[node name="ToolRegistry" type="ToolRegistry" parent="."]
-
-[node name="IPCClient" type="IPCClient" parent="."]
 
 [node name="Environment" type="Node3D" parent="."]
 
@@ -57,7 +54,10 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0.5, 5)
 
 [node name="Agents" type="Node3D" parent="."]
 
-[node name="AgentVisual" parent="Agents" instance=ExtResource("7_mp2gt")]
+[node name="Agent1" type="Node3D" parent="Agents"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+script = ExtResource("8_simple_agent")
+agent_id = "crafting_agent_001"
 
 [node name="Camera3D" type="Camera3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 20, 20)

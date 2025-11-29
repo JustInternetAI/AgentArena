@@ -107,7 +107,7 @@ private:
     godot::Dictionary short_term_memory;
     godot::Array action_history;
     bool is_active;
-    ToolRegistry* tool_registry;
+    ToolRegistry* tool_registry;  // Optional manual override (for testing)
 
 protected:
     static void _bind_methods();
@@ -186,8 +186,14 @@ private:
     godot::Dictionary pending_response;
     bool response_received;
 
+    // Request queue for tool execution
+    godot::Array tool_request_queue;  // Queue of pending tool requests
+    bool tool_request_in_progress;    // Is a tool request currently being processed
+    godot::Dictionary current_tool_request;  // The request currently being processed
+
     void _on_request_completed(int result, int response_code, const godot::PackedStringArray& headers, const godot::PackedByteArray& body);
     void _on_tool_request_completed(int result, int response_code, const godot::PackedStringArray& headers, const godot::PackedByteArray& body);
+    void _process_next_tool_request();  // Process next request in queue
 
 protected:
     static void _bind_methods();

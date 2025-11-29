@@ -1,15 +1,8 @@
-extends Node3D
+extends SceneController
 
 ## Crafting Chain Benchmark Scene
 ## Goal: Craft complex items from base resources using crafting stations
 ## Metrics: Items crafted, recipe efficiency, resource waste, crafting time
-
-@onready var simulation_manager = $SimulationManager
-@onready var event_bus = $EventBus
-@onready var tool_registry = $ToolRegistry
-@onready var ipc_client = $IPCClient
-@onready var agent = $Agents/Agent1
-@onready var metrics_label = $UI/MetricsLabel
 
 # Scene configuration
 const COLLECTION_RADIUS = 2.0
@@ -40,7 +33,7 @@ const RECIPES = {
 	}
 }
 
-# Metrics
+# Metrics (inherits start_time and scene_completed from SceneController)
 var items_crafted = {}  # Dict of item_name: count
 var total_items_crafted = 0
 var resources_collected = 0
@@ -48,9 +41,7 @@ var resources_used = 0
 var resources_wasted = 0
 var crafting_attempts = 0
 var successful_crafts = 0
-var start_time = 0.0
 var total_crafting_time = 0.0
-var scene_completed = false
 
 # Inventory
 var agent_inventory = {}
@@ -60,91 +51,16 @@ var base_resources = []
 var crafting_stations = []
 var current_craft = null  # Current crafting operation
 
-func _ready():
+func _on_scene_ready():
+	"""Called after SceneController setup is complete"""
 	print("Crafting Chain Benchmark Scene Ready!")
 
-	# Verify C++ nodes
-	if simulation_manager == null or agent == null:
-		push_error("GDExtension nodes not found!")
-		return
-
-	# Initialize agent
-	agent.agent_id = "crafting_agent_001"
-
-	# Create visual representation for agent
-	_create_agent_visual(agent, "Crafter", Color(1.0, 0.7, 0.2))  # Orange/gold color
-
-	# Connect tool system (IPCClient → ToolRegistry → Agent)
-	if ipc_client != null and tool_registry != null and agent != null:
-		tool_registry.set_ipc_client(ipc_client)
-		agent.set_tool_registry(tool_registry)
-		print("✓ Tool execution system connected!")
-	else:
-		push_warning("Tool execution system not fully available")
-
-	# Connect signals
-	simulation_manager.simulation_started.connect(_on_simulation_started)
-	simulation_manager.simulation_stopped.connect(_on_simulation_stopped)
-	simulation_manager.tick_advanced.connect(_on_tick_advanced)
-	agent.action_decided.connect(_on_agent_action_decided)
-
-	# Register tools
-	_register_tools()
-
-	# Initialize scene
+	# Initialize scene-specific data
 	_initialize_scene()
 
 	print("Base resources: ", base_resources.size())
 	print("Crafting stations: ", crafting_stations.size())
 	print("Recipes available: ", RECIPES.keys())
-
-func _register_tools():
-	"""Register available tools for the agent"""
-	if tool_registry == null:
-		return
-
-	# Movement
-	tool_registry.register_tool("move_to", {
-		"name": "move_to",
-		"description": "Move to a target position",
-		"parameters": {
-			"target_x": {"type": "float"},
-			"target_y": {"type": "float"},
-			"target_z": {"type": "float"}
-		}
-	})
-
-	# Collection
-	tool_registry.register_tool("collect", {
-		"name": "collect",
-		"description": "Collect a nearby resource",
-		"parameters": {
-			"resource_name": {"type": "string"}
-		}
-	})
-
-	# Crafting
-	tool_registry.register_tool("craft", {
-		"name": "craft",
-		"description": "Craft an item at a nearby station",
-		"parameters": {
-			"item_name": {"type": "string"},
-			"station_name": {"type": "string"}
-		}
-	})
-
-	# Query
-	tool_registry.register_tool("query_inventory", {
-		"name": "query_inventory",
-		"description": "Check current inventory",
-		"parameters": {}
-	})
-
-	tool_registry.register_tool("query_recipes", {
-		"name": "query_recipes",
-		"description": "Get available crafting recipes",
-		"parameters": {}
-	})
 
 func _initialize_scene():
 	"""Initialize resources and stations"""
@@ -210,29 +126,73 @@ func _input(event):
 		elif event.keycode == KEY_I:
 			_print_inventory()
 
-func _on_simulation_started():
+func _on_scene_started():
+	"""Called when simulation starts"""
 	print("✓ Crafting chain benchmark started!")
-	start_time = Time.get_ticks_msec() / 1000.0
-	scene_completed = false
 
-func _on_simulation_stopped():
+func _on_scene_stopped():
+	"""Called when simulation stops"""
 	print("✓ Crafting chain benchmark stopped!")
 	_print_final_metrics()
 
-func _on_tick_advanced(tick: int):
+func _on_scene_tick(tick: int):
+	"""Called each simulation tick after observations sent"""
 	# Check for resource collection
 	_check_resource_collection()
-
-	# Send perception to agent
-	_send_perception_to_agent()
 
 	# Check completion
 	if agent_inventory.get(TARGET_ITEM, 0) > 0:
 		_complete_scene()
 
+func _build_observations_for_agent(agent_data: Dictionary) -> Dictionary:
+	"""Build crafting-specific observations for an agent"""
+	var agent_pos = agent_data.position
+
+	# Find nearby resources
+	var nearby_resources = []
+	for resource in base_resources:
+		if not resource.collected:
+			var dist = agent_pos.distance_to(resource.position)
+			nearby_resources.append({
+				"name": resource.name,
+				"type": resource.type,
+				"position": resource.position,
+				"distance": dist
+			})
+
+	# Find nearby stations
+	var nearby_stations = []
+	for station in crafting_stations:
+		var dist = agent_pos.distance_to(station.position)
+		nearby_stations.append({
+			"name": station.name,
+			"type": station.type,
+			"position": station.position,
+			"distance": dist
+		})
+
+	# Build observation
+	return {
+		"position": agent_pos,
+		"inventory": agent_inventory.duplicate(),
+		"nearby_resources": nearby_resources,
+		"nearby_stations": nearby_stations,
+		"recipes": RECIPES,
+		"target_item": TARGET_ITEM,
+		"crafting": current_craft != null,
+		"tick": simulation_manager.current_tick
+	}
+
+func _on_agent_tool_completed(agent_data: Dictionary, tool_name: String, response: Dictionary):
+	"""Handle tool execution completion from agent"""
+	print("Crafting: Agent '%s' completed tool '%s': %s" % [agent_data.id, tool_name, response])
+
 func _check_resource_collection():
 	"""Auto-collect nearby resources"""
-	var agent_pos = agent.global_position
+	if agents.size() == 0:
+		return
+
+	var agent_pos = agents[0].position
 
 	for resource in base_resources:
 		if resource.collected:
@@ -260,8 +220,7 @@ func _collect_resource(resource: Dictionary):
 
 	# Record event
 	if event_bus != null:
-		event_bus.emit_event({
-			"type": "resource_collected",
+		event_bus.emit_event("resource_collected", {
 			"resource_name": resource.name,
 			"resource_type": resource.type,
 			"tick": simulation_manager.current_tick
@@ -281,7 +240,10 @@ func craft_item(item_name: String, station_name: String) -> bool:
 	var recipe = RECIPES[item_name]
 
 	# Check if at correct station
-	var agent_pos = agent.global_position
+	if agents.size() == 0:
+		return false
+
+	var agent_pos = agents[0].position
 	var at_station = false
 	for station in crafting_stations:
 		if station.name.to_lower() == station_name.to_lower():
@@ -352,8 +314,7 @@ func _complete_craft():
 
 	# Record event
 	if event_bus != null:
-		event_bus.emit_event({
-			"type": "item_crafted",
+		event_bus.emit_event("item_crafted", {
 			"item_name": item_name,
 			"tick": simulation_manager.current_tick
 		})
@@ -361,56 +322,6 @@ func _complete_craft():
 	print("✓ Crafted %s! (Inventory: %s)" % [item_name, str(agent_inventory)])
 
 	current_craft = null
-
-func _send_perception_to_agent():
-	"""Send world observations to agent"""
-	var agent_pos = agent.global_position
-
-	# Find nearby resources
-	var nearby_resources = []
-	for resource in base_resources:
-		if not resource.collected:
-			var dist = agent_pos.distance_to(resource.position)
-			nearby_resources.append({
-				"name": resource.name,
-				"type": resource.type,
-				"position": resource.position,
-				"distance": dist
-			})
-
-	# Find nearby stations
-	var nearby_stations = []
-	for station in crafting_stations:
-		var dist = agent_pos.distance_to(station.position)
-		nearby_stations.append({
-			"name": station.name,
-			"type": station.type,
-			"position": station.position,
-			"distance": dist
-		})
-
-	# Build observation
-	var observations = {
-		"position": agent_pos,
-		"inventory": agent_inventory.duplicate(),
-		"nearby_resources": nearby_resources,
-		"nearby_stations": nearby_stations,
-		"recipes": RECIPES,
-		"target_item": TARGET_ITEM,
-		"crafting": current_craft != null,
-		"tick": simulation_manager.current_tick
-	}
-
-	agent.perceive(observations)
-
-func _on_agent_action_decided(action):
-	"""Handle agent action"""
-	if action is Dictionary and action.has("tool"):
-		var tool_name = action.tool
-		var params = action.get("params", {})
-
-		if tool_name == "craft":
-			craft_item(params.get("item_name", ""), params.get("station_name", ""))
 
 func _complete_scene():
 	"""Complete the benchmark"""
@@ -427,7 +338,7 @@ func _complete_scene():
 
 func _print_final_metrics():
 	"""Print final benchmark metrics"""
-	var elapsed_time = (Time.get_ticks_msec() / 1000.0) - start_time
+	var elapsed_time = get_elapsed_time()
 
 	print("\nFinal Metrics:")
 	print("  Items Crafted:")
@@ -480,9 +391,7 @@ func _update_metrics_ui():
 	if metrics_label == null:
 		return
 
-	var elapsed_time = 0.0
-	if simulation_manager.is_running:
-		elapsed_time = (Time.get_ticks_msec() / 1000.0) - start_time
+	var elapsed_time = get_elapsed_time()
 
 	var status = "RUNNING" if simulation_manager.is_running else "STOPPED"
 	if scene_completed:
@@ -526,23 +435,6 @@ func _print_inventory():
 	for item in agent_inventory.keys():
 		print("  - %s: %d" % [item, agent_inventory[item]])
 
-func _create_agent_visual(agent_node: Node, agent_name: String, color: Color):
-	"""Create visual representation for an agent"""
-	var visual_scene = load("res://scenes/agent_visual.tscn")
-	if visual_scene == null:
-		push_warning("Could not load agent_visual.tscn")
-		return
-
-	var visual_instance = visual_scene.instantiate()
-	agent_node.add_child(visual_instance)
-
-	if visual_instance.has_method("set_team_color"):
-		visual_instance.set_team_color(color)
-	if visual_instance.has_method("set_agent_name"):
-		visual_instance.set_agent_name(agent_name)
-
-	print("✓ Created visual for: ", agent_name)
-
 func _reset_scene():
 	"""Reset the scene"""
 	print("Resetting crafting chain scene...")
@@ -557,7 +449,6 @@ func _reset_scene():
 	resources_wasted = 0
 	crafting_attempts = 0
 	successful_crafts = 0
-	start_time = 0.0
 	total_crafting_time = 0.0
 	scene_completed = false
 	current_craft = null
@@ -566,7 +457,8 @@ func _reset_scene():
 	agent_inventory.clear()
 
 	# Reset agent position
-	agent.global_position = Vector3(0, 1, 10)
+	if agents.size() > 0:
+		agents[0].agent.global_position = Vector3(0, 1, 10)
 
 	# Reset resources
 	for resource in base_resources:

@@ -13,9 +13,14 @@ config_version=5
 config/name="Agent Arena"
 config/description="AI Agent Benchmarking Platform"
 config/version="0.1.0"
-run/main_scene="res://scenes/test_arena.tscn"
+run/main_scene="uid://b4gce8h1w2nok"
 config/features=PackedStringArray("4.5", "Forward Plus")
 config/icon="res://icon.svg"
+
+[autoload]
+
+IPCService="*res://scripts/autoload/ipc_service.gd"
+ToolRegistryService="*res://scripts/autoload/tool_registry_service.gd"
 
 [display]
 

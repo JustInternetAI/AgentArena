@@ -261,6 +261,16 @@ else:
 - Issue #16: Connect tool execution system in Godot (assigned to Justin) - ✅ **COMPLETE**
   - See: `TESTING_TOOL_EXECUTION.md`, `TOOL_TESTING_FIXED.md` for details
   - Test scenes: `scenes/tests/` (use `test_tool_execution_simple.tscn` for quick verification)
+- Issue #22: **[HIGH PRIORITY]** Implement LLM request batching for concurrent agent decisions
+  - https://github.com/JustInternetAI/AgentArena/issues/22
+  - Current bottleneck: Each agent makes individual LLM calls
+  - Expected impact: 50-70% faster LLM inference with 4+ agents
+  - Files: `python/agent_runtime/runtime.py`, `python/backends/vllm_backend.py`
+- Issue #23: **[MEDIUM PRIORITY]** Convert tool execution to async for concurrent tool handling
+  - https://github.com/JustInternetAI/AgentArena/issues/23
+  - Make `ToolDispatcher` async-compatible
+  - Allows FastAPI to handle multiple tool requests concurrently
+  - Files: `python/agent_runtime/tool_dispatcher.py`, `python/ipc/server.py`
 - LLM backend integration (assigned to Andrew) - In Progress
 
 ## References

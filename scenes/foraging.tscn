@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3 uid="uid://dyr7xuv3evk0g"]
+[gd_scene load_steps=9 format=3 uid="uid://dyr7xuv3evk0g"]
 
 [ext_resource type="Script" uid="uid://cuvvv5nbixqy8" path="res://scripts/foraging.gd" id="1_foraging"]
 [ext_resource type="PackedScene" uid="uid://c3r4w5d6e7f8g" path="res://scenes/resources/apple.tscn" id="2_nlo2w"]
@@ -6,6 +6,7 @@
 [ext_resource type="PackedScene" uid="uid://0rkuoje480am" path="res://scenes/resources/wood.tscn" id="4_jq1ou"]
 [ext_resource type="PackedScene" uid="uid://bbgca5y0d2287" path="res://scenes/resources/pit.tscn" id="5_jrjj6"]
 [ext_resource type="PackedScene" path="res://scenes/agent_visual.tscn" id="6_qjgy7"]
+[ext_resource type="Script" uid="uid://qfek5votjo6m" path="res://scripts/simple_agent.gd" id="7_simple_agent"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_ground"]
 size = Vector3(50, 0.5, 50)
@@ -16,10 +17,6 @@ script = ExtResource("1_foraging")
 [node name="SimulationManager" type="SimulationManager" parent="."]
 
 [node name="EventBus" type="EventBus" parent="."]
-
-[node name="ToolRegistry" type="ToolRegistry" parent="."]
-
-[node name="IPCClient" type="IPCClient" parent="."]
 
 [node name="Environment" type="Node3D" parent="."]
 
@@ -62,9 +59,13 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.29249334, -0.09130466, -1.0
 
 [node name="Agents" type="Node3D" parent="."]
 
-[node name="AgentVisual" parent="Agents" instance=ExtResource("6_qjgy7")]
+[node name="Agent1" type="Node3D" parent="Agents"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.845533, -0.09066391, -1.6333704)
-agent_name = "Agent1"
+script = ExtResource("7_simple_agent")
+agent_id = "foraging_agent_001"
+
+[node name="AgentVisual" parent="Agents/Agent1" instance=ExtResource("6_qjgy7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.0728235, -0.57619524, -0.22739983)
 
 [node name="Camera3D" type="Camera3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 20, 20)
