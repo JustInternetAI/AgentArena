@@ -6,9 +6,10 @@ This script compares CPU vs GPU performance.
 
 import logging
 import time
-from backends import LlamaCppBackend, BackendConfig
 
-logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+from backends import BackendConfig, LlamaCppBackend
+
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -16,7 +17,7 @@ def test_inference(config: BackendConfig, test_name: str):
     """Test inference with given config."""
     print(f"\n{'='*60}")
     print(f"{test_name}")
-    print('='*60)
+    print("=" * 60)
 
     start_time = time.time()
     backend = LlamaCppBackend(config)
@@ -44,9 +45,9 @@ def test_inference(config: BackendConfig, test_name: str):
 
 
 def main():
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("GPU Acceleration Test for llama.cpp")
-    print("="*60)
+    print("=" * 60)
 
     model_path = "../models/llama-2-7b-chat.Q4_K_M.gguf"
 
@@ -81,13 +82,13 @@ def main():
     full_speed = test_inference(full_gpu_config, "Test 3: Full GPU (all layers)")
 
     # Summary
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Performance Summary")
-    print("="*60)
+    print("=" * 60)
     print(f"CPU only:      {cpu_speed:.2f} tokens/sec (baseline)")
     print(f"Partial GPU:   {partial_speed:.2f} tokens/sec ({partial_speed/cpu_speed:.2f}x speedup)")
     print(f"Full GPU:      {full_speed:.2f} tokens/sec ({full_speed/cpu_speed:.2f}x speedup)")
-    print("="*60)
+    print("=" * 60)
 
     if full_speed > cpu_speed * 2:
         print("\n✓ GPU acceleration is working! Significant speedup achieved.")

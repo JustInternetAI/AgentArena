@@ -1,0 +1,159 @@
+# Model Registry for Agent Arena
+# This file defines available models and their Hugging Face Hub sources
+
+models:
+  # Small models for development and testing
+  tinyllama-1.1b-chat:
+    huggingface_id: "TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF"
+    description: "Extremely fast, basic capabilities, great for testing"
+    size_class: "tiny"
+    formats:
+      gguf:
+        q4_k_m:
+          file: "tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf"
+          sha256: null  # Checksums can be added for verification
+        q5_k_m:
+          file: "tinyllama-1.1b-chat-v1.0.Q5_K_M.gguf"
+          sha256: null
+        q8_0:
+          file: "tinyllama-1.1b-chat-v1.0.Q8_0.gguf"
+          sha256: null
+
+  phi-2:
+    huggingface_id: "TheBloke/phi-2-GGUF"
+    description: "Fast, good reasoning for 2.7B size, excellent for development"
+    size_class: "small"
+    formats:
+      gguf:
+        q4_k_m:
+          file: "phi-2.Q4_K_M.gguf"
+          sha256: null
+        q5_k_m:
+          file: "phi-2.Q5_K_M.gguf"
+          sha256: null
+        q8_0:
+          file: "phi-2.Q8_0.gguf"
+          sha256: null
+
+  # Production-ready 7B models
+  llama-2-7b-chat:
+    huggingface_id: "TheBloke/Llama-2-7B-Chat-GGUF"
+    description: "Good balance of speed and quality, widely tested"
+    size_class: "medium"
+    formats:
+      gguf:
+        q4_k_m:
+          file: "llama-2-7b-chat.Q4_K_M.gguf"
+          sha256: null
+        q5_k_m:
+          file: "llama-2-7b-chat.Q5_K_M.gguf"
+          sha256: null
+        q8_0:
+          file: "llama-2-7b-chat.Q8_0.gguf"
+          sha256: null
+
+  mistral-7b-instruct-v0.2:
+    huggingface_id: "TheBloke/Mistral-7B-Instruct-v0.2-GGUF"
+    description: "High quality instruction following, fast inference"
+    size_class: "medium"
+    formats:
+      gguf:
+        q4_k_m:
+          file: "mistral-7b-instruct-v0.2.Q4_K_M.gguf"
+          sha256: null
+        q5_k_m:
+          file: "mistral-7b-instruct-v0.2.Q5_K_M.gguf"
+          sha256: null
+        q8_0:
+          file: "mistral-7b-instruct-v0.2.Q8_0.gguf"
+          sha256: null
+
+  llama-3-8b-instruct:
+    huggingface_id: "QuantFactory/Meta-Llama-3-8B-Instruct-GGUF"
+    description: "Latest Llama 3, best quality in 8B class"
+    size_class: "medium"
+    formats:
+      gguf:
+        q4_k_m:
+          file: "Meta-Llama-3-8B-Instruct.Q4_K_M.gguf"
+          sha256: null
+        q5_k_m:
+          file: "Meta-Llama-3-8B-Instruct.Q5_K_M.gguf"
+          sha256: null
+        q8_0:
+          file: "Meta-Llama-3-8B-Instruct.Q8_0.gguf"
+          sha256: null
+
+  # Larger models for high quality
+  llama-2-13b-chat:
+    huggingface_id: "TheBloke/Llama-2-13B-Chat-GGUF"
+    description: "Better reasoning and instruction following than 7B"
+    size_class: "large"
+    formats:
+      gguf:
+        q4_k_m:
+          file: "llama-2-13b-chat.Q4_K_M.gguf"
+          sha256: null
+        q5_k_m:
+          file: "llama-2-13b-chat.Q5_K_M.gguf"
+          sha256: null
+
+  mixtral-8x7b-instruct:
+    huggingface_id: "TheBloke/Mixtral-8x7B-Instruct-v0.1-GGUF"
+    description: "Mixture of Experts, excellent quality, 47B total parameters"
+    size_class: "xlarge"
+    formats:
+      gguf:
+        q4_k_m:
+          file: "mixtral-8x7b-instruct-v0.1.Q4_K_M.gguf"
+          sha256: null
+        q5_k_m:
+          file: "mixtral-8x7b-instruct-v0.1.Q5_K_M.gguf"
+          sha256: null
+
+# Quantization guide
+quantization_info:
+  q4_k_m:
+    description: "4-bit quantization, good balance of size and quality"
+    quality: "Medium"
+    speed: "Fast"
+    size_factor: 0.25  # Approx 1/4 of original size
+
+  q5_k_m:
+    description: "5-bit quantization, better quality than Q4"
+    quality: "Medium-High"
+    speed: "Medium-Fast"
+    size_factor: 0.31
+
+  q8_0:
+    description: "8-bit quantization, near original quality"
+    quality: "High"
+    speed: "Medium"
+    size_factor: 0.50
+
+# Size class reference (unquantized sizes)
+size_classes:
+  tiny:
+    description: "< 2B parameters"
+    ram_required: "2-4 GB"
+    use_case: "Testing, rapid iteration"
+
+  small:
+    description: "2-4B parameters"
+    ram_required: "4-8 GB"
+    use_case: "Development, basic tasks"
+
+  medium:
+    description: "7-8B parameters"
+    ram_required: "8-16 GB"
+    use_case: "Production, general purpose"
+
+  large:
+    description: "13-14B parameters"
+    ram_required: "16-32 GB"
+    use_case: "High quality tasks"
+
+  xlarge:
+    description: "30B+ parameters"
+    ram_required: "32+ GB"
+    use_case: "Highest quality, research"

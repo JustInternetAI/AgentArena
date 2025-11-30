@@ -85,6 +85,7 @@ def main():
         # Check if vLLM is installed
         try:
             import vllm
+
             logger.info(f"vLLM version: {vllm.__version__}")
         except ImportError:
             logger.error(
@@ -94,7 +95,6 @@ def main():
             sys.exit(1)
 
         # Import vLLM server
-        from vllm.entrypoints.openai.api_server import run_server
 
         logger.info(f"Starting vLLM server for model: {args.model}")
         logger.info(f"Server will be available at: http://{args.host}:{args.port}")
@@ -105,13 +105,20 @@ def main():
 
         # Build command-line arguments for vLLM
         vllm_args = [
-            "--model", args.model,
-            "--host", args.host,
-            "--port", str(args.port),
-            "--tensor-parallel-size", str(args.tensor_parallel_size),
-            "--gpu-memory-utilization", str(args.gpu_memory),
-            "--max-model-len", str(args.max_model_len),
-            "--dtype", args.dtype,
+            "--model",
+            args.model,
+            "--host",
+            args.host,
+            "--port",
+            str(args.port),
+            "--tensor-parallel-size",
+            str(args.tensor_parallel_size),
+            "--gpu-memory-utilization",
+            str(args.gpu_memory),
+            "--max-model-len",
+            str(args.max_model_len),
+            "--dtype",
+            args.dtype,
         ]
 
         if args.trust_remote_code:
@@ -129,9 +136,9 @@ def main():
 
         # Or start directly if vLLM supports it
         import subprocess
+
         subprocess.run(
-            ["python", "-m", "vllm.entrypoints.openai.api_server"] + vllm_args,
-            check=True
+            ["python", "-m", "vllm.entrypoints.openai.api_server"] + vllm_args, check=True
         )
 
     except KeyboardInterrupt:

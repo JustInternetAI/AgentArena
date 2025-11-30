@@ -6,12 +6,12 @@ for local development with a GGUF model.
 """
 
 import logging
-from backends import LlamaCppBackend, BackendConfig
+
+from backends import BackendConfig, LlamaCppBackend
 
 # Set up logging to see what's happening
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
 logger = logging.getLogger(__name__)
@@ -43,9 +43,9 @@ def main():
         logger.info("Backend loaded successfully!")
 
         # Test 1: Basic text generation
-        logger.info("\n" + "="*60)
+        logger.info("\n" + "=" * 60)
         logger.info("Test 1: Basic Text Generation")
-        logger.info("="*60)
+        logger.info("=" * 60)
 
         prompt = "Hello! My name is"
         logger.info(f"Prompt: '{prompt}'")
@@ -57,9 +57,9 @@ def main():
         logger.info(f"Finish reason: {result.finish_reason}")
 
         # Test 2: Tool calling
-        logger.info("\n" + "="*60)
+        logger.info("\n" + "=" * 60)
         logger.info("Test 2: Tool Calling (Function Calling)")
-        logger.info("="*60)
+        logger.info("=" * 60)
 
         tools = [
             {
@@ -90,7 +90,7 @@ def main():
                     },
                     "required": ["item_name"],
                 },
-            }
+            },
         ]
 
         prompt = "I need to pick up the sword and then move to coordinates (10, 20, 5)"
@@ -107,9 +107,9 @@ def main():
             logger.warning("Failed to parse tool call from response")
 
         # Test 3: Different temperatures
-        logger.info("\n" + "="*60)
+        logger.info("\n" + "=" * 60)
         logger.info("Test 3: Temperature Comparison")
-        logger.info("="*60)
+        logger.info("=" * 60)
 
         prompt = "The capital of France is"
 
@@ -119,9 +119,9 @@ def main():
             logger.info(f"Result: {result.text.strip()}")
 
         # Test 4: Conversation context
-        logger.info("\n" + "="*60)
+        logger.info("\n" + "=" * 60)
         logger.info("Test 4: Multi-turn Conversation")
-        logger.info("="*60)
+        logger.info("=" * 60)
 
         conversation = """<s>[INST] You are a helpful AI assistant. [/INST] I understand. I'm here to help!</s>
 [INST] What is the weather like today? [/INST]"""
@@ -129,9 +129,9 @@ def main():
         result = backend.generate(conversation, max_tokens=100)
         logger.info(f"Assistant: {result.text}")
 
-        logger.info("\n" + "="*60)
+        logger.info("\n" + "=" * 60)
         logger.info("All tests completed successfully!")
-        logger.info("="*60)
+        logger.info("=" * 60)
 
         # Clean up
         backend.unload()

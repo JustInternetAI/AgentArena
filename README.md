@@ -15,6 +15,7 @@ nMaintained by [JustInternetAI](https://github.com/JustInternetAI)
 ### Core
 - **Godot C++ Module**: Deterministic tick loop, event bus, navigation, sensors, stable replay logs
 - **Agent Runtime**: Adapters for llama.cpp, TensorRT-LLM, vLLM with function-calling tool API
+- **Model Management**: Automated LLM model downloading from Hugging Face Hub with caching and verification
 - **Tool System**: World querying (vision rays, inventories), pathfinding, crafting actions via JSON schemas
 - **Memory & RAG**: Short-term scratchpad + long-term vector store with episode summaries
 - **Benchmark Scenes**: 3 sandbox environments (foraging, crafting chain, team capture) with metrics

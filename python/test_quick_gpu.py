@@ -3,11 +3,12 @@ Quick GPU acceleration test.
 """
 
 import time
-from backends import LlamaCppBackend, BackendConfig
 
-print("\n" + "="*60)
+from backends import BackendConfig, LlamaCppBackend
+
+print("\n" + "=" * 60)
 print("Quick GPU Test")
-print("="*60 + "\n")
+print("=" * 60 + "\n")
 
 # Test with GPU
 config_gpu = BackendConfig(
@@ -46,4 +47,4 @@ else:
     print("\nWARNING: Speed seems slow - GPU may not be fully utilized.")
 
 backend.unload()
-print("\n" + "="*60)
+print("\n" + "=" * 60)
