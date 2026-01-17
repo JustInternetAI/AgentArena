@@ -113,6 +113,9 @@ func _on_scene_stopped():
 
 func _on_scene_tick(tick: int):
 	"""Called each simulation tick after observations sent"""
+	# Call base class to request backend decision
+	super._on_scene_tick(tick)
+
 	# Update distance traveled (use first agent for single-agent scene)
 	if agents.size() > 0:
 		var current_position = agents[0].position
@@ -284,6 +287,12 @@ func _update_metrics_ui():
 	if scene_completed:
 		status = "COMPLETED"
 
+	# Get last decision info
+	var last_decision_text = "None"
+	if backend_decisions.size() > 0:
+		var last_decision = backend_decisions[-1]
+		last_decision_text = "%s (tick %d)" % [last_decision.tool, last_decision.tick]
+
 	metrics_label.text = "Foraging Benchmark [%s]
 Tick: %d
 Resources Collected: %d/%d
@@ -291,6 +300,8 @@ Damage Taken: %.1f
 Distance Traveled: %.2f m
 Time Elapsed: %.2f s
 Efficiency Score: %.1f
+Last Backend Decision: %s
+Decisions: %d (Executed: %d, Skipped: %d)
 
 Press SPACE to start/stop
 Press R to reset
@@ -302,7 +313,11 @@ Press S to step" % [
 		damage_taken,
 		distance_traveled,
 		elapsed_time,
-		_calculate_efficiency_score()
+		_calculate_efficiency_score(),
+		last_decision_text,
+		backend_decisions.size(),
+		decisions_executed,
+		decisions_skipped
 	]
 
 func _reset_scene():
@@ -316,6 +331,9 @@ func _reset_scene():
 	damage_taken = 0.0
 	distance_traveled = 0.0
 	scene_completed = false
+
+	# Reset backend decision tracking (call base class method)
+	reset_backend_decisions()
 
 	# Reset agent position
 	if agents.size() > 0:

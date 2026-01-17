@@ -38,6 +38,33 @@ Test scenes for verifying different parts of the Agent Arena system.
 3. Press F6
 4. Watch console for results
 
+### test_mixamo_fixed.tscn ⭐ RECOMMENDED
+**Mixamo character animation test (WITH RETARGETING)**
+
+- **Purpose**: Test Mixamo character with proper animation retargeting
+- **Status**: Functional - properly handles separate FBX animation files
+- **Tests**: FBX imports, AnimationPlayer, skeleton retargeting
+- **Best for**: Testing Mixamo workflow for Agent Arena
+
+**How to run:**
+1. Open this scene in Godot
+2. Press F6
+3. Use WASD/Q/E to rotate/zoom camera
+4. Press 1/2/3 to load and play Idle/Walking/Running
+5. Press D for debug info
+
+**Key feature**: Automatically retargets animations from separate FBX files to match the character skeleton's bone structure.
+
+### test_mixamo_character.tscn
+**Mixamo character animation test (BASIC)**
+
+- **Purpose**: Basic test without retargeting
+- **Status**: Animations load but may not play visually
+- **Tests**: FBX imports, AnimationPlayer basics
+- **Best for**: Comparing with fixed version
+
+**Note**: Use test_mixamo_fixed.tscn instead for working animations.
+
 ### test_tool_execution.tscn
 **Full integration test**
 

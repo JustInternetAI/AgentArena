@@ -9,12 +9,16 @@ extends Node3D
 
 @onready var body: MeshInstance3D = $Body
 @onready var head: MeshInstance3D = $Head
+@onready var arms: MeshInstance3D = $Arms
+@onready var left_leg: MeshInstance3D = $Legs/LeftLeg
+@onready var right_leg: MeshInstance3D = $Legs/RightLeg
 @onready var direction_indicator: MeshInstance3D = $DirectionIndicator
 @onready var label: Label3D = $Label3D
 
 # Materials
 var body_material: StandardMaterial3D
 var head_material: StandardMaterial3D
+var limb_material: StandardMaterial3D
 var indicator_material: StandardMaterial3D
 
 func _ready():
@@ -23,16 +27,7 @@ func _ready():
 
 func _setup_visuals():
 	"""Setup meshes and materials"""
-	# Create head mesh (sphere)
-	var head_mesh = SphereMesh.new()
-	head_mesh.radius = 0.25
-	head_mesh.height = 0.5
-	head.mesh = head_mesh
-
-	# Create direction indicator (cone pointing forward)
-	var indicator_mesh = BoxMesh.new()
-	indicator_mesh.size = Vector3(0.2, 0.2, 0.4)
-	direction_indicator.mesh = indicator_mesh
+	# Direction indicator visibility
 	direction_indicator.visible = show_direction_indicator
 
 	# Create materials
@@ -46,6 +41,11 @@ func _setup_visuals():
 	head_material.metallic = 0.2
 	head_material.roughness = 0.6
 
+	limb_material = StandardMaterial3D.new()
+	limb_material.albedo_color = team_color.darkened(0.1)
+	limb_material.metallic = 0.2
+	limb_material.roughness = 0.7
+
 	indicator_material = StandardMaterial3D.new()
 	indicator_material.albedo_color = team_color.lightened(0.4)
 	indicator_material.metallic = 0.4
@@ -54,6 +54,9 @@ func _setup_visuals():
 	# Apply materials
 	body.set_surface_override_material(0, body_material)
 	head.set_surface_override_material(0, head_material)
+	arms.set_surface_override_material(0, limb_material)
+	left_leg.set_surface_override_material(0, limb_material)
+	right_leg.set_surface_override_material(0, limb_material)
 	direction_indicator.set_surface_override_material(0, indicator_material)
 
 	# Update label
@@ -78,6 +81,8 @@ func _update_team_color():
 		body_material.albedo_color = team_color
 	if head_material:
 		head_material.albedo_color = team_color.lightened(0.2)
+	if limb_material:
+		limb_material.albedo_color = team_color.darkened(0.1)
 	if indicator_material:
 		indicator_material.albedo_color = team_color.lightened(0.4)
 	if label:
