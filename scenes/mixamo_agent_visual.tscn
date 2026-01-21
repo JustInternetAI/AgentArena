@@ -1,0 +1,31 @@
+[gd_scene load_steps=5 format=3 uid="uid://mixamo_agent_visual"]
+
+[ext_resource type="Script" path="res://scripts/mixamo_agent_visual.gd" id="1_script"]
+[ext_resource type="PackedScene" path="res://assets/characters/mixamo/Y Bot.fbx" id="2_character"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_indicator"]
+albedo_color = Color(0.5, 0.85, 1.0, 1)
+metallic = 0.4
+roughness = 0.5
+
+[sub_resource type="BoxMesh" id="BoxMesh_indicator"]
+size = Vector3(0.2, 0.2, 0.4)
+
+[node name="MixamoAgentVisual" type="Node3D"]
+script = ExtResource("1_script")
+
+[node name="Character" parent="." instance=ExtResource("2_character")]
+
+[node name="DirectionIndicator" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0.5)
+mesh = SubResource("BoxMesh_indicator")
+surface_material_override/0 = SubResource("StandardMaterial3D_indicator")
+
+[node name="Label3D" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.2, 0)
+pixel_size = 0.01
+billboard = 1
+text = "Agent"
+font_size = 32
+outline_size = 4
+outline_modulate = Color(0, 0, 0, 1)

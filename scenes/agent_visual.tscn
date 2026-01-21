@@ -1,15 +1,27 @@
-[gd_scene load_steps=5 format=3 uid="uid://agent_visual_scene"]
+[gd_scene load_steps=9 format=3 uid="uid://agent_visual_scene"]
 
 [ext_resource type="Script" path="res://scripts/agent_visual.gd" id="1_agent_visual"]
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_body"]
 radius = 0.3
-height = 1.6
+height = 1.0
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_default"]
 albedo_color = Color(0.3, 0.7, 1.0, 1)
 metallic = 0.3
 roughness = 0.7
+
+[sub_resource type="SphereMesh" id="SphereMesh_head"]
+radius = 0.2
+
+[sub_resource type="BoxMesh" id="BoxMesh_arm"]
+size = Vector3(0.6, 0.1, 0.1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_leg"]
+size = Vector3(0.1, 0.6, 0.1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_indicator"]
+size = Vector3(0.2, 0.2, 0.4)
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_collision"]
 radius = 0.3
@@ -24,13 +36,29 @@ mesh = SubResource("CapsuleMesh_body")
 surface_material_override/0 = SubResource("StandardMaterial3D_default")
 
 [node name="Head" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.7, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
+mesh = SubResource("SphereMesh_head")
+
+[node name="Arms" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.0, 0)
+mesh = SubResource("BoxMesh_arm")
+
+[node name="Legs" type="Node3D" parent="."]
+
+[node name="LeftLeg" type="MeshInstance3D" parent="Legs"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.15, 0.3, 0)
+mesh = SubResource("BoxMesh_leg")
+
+[node name="RightLeg" type="MeshInstance3D" parent="Legs"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.15, 0.3, 0)
+mesh = SubResource("BoxMesh_leg")
 
 [node name="DirectionIndicator" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0.4)
+mesh = SubResource("BoxMesh_indicator")
 
 [node name="Label3D" type="Label3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.2, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.0, 0)
 pixel_size = 0.01
 billboard = 1
 text = "Agent"

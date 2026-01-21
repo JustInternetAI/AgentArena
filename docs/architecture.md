@@ -14,8 +14,15 @@ The core simulation engine built as a Godot 4 GDExtension module.
 
 - `SimulationManager`: Manages deterministic tick loop and simulation state
 - `EventBus`: Handles event recording and replay for reproducibility
-- `Agent`: Godot-side agent representation with perception and action execution
+- `Agent`: Core C++ agent class with perception and memory (wrapped by SimpleAgent)
+- `SimpleAgent`: GDScript wrapper providing auto-discovery and signal-based tool responses
 - `ToolRegistry`: Manages available tools and their execution
+- `IPCClient`: Handles HTTP communication with Python backend
+
+**Autoload Services:**
+
+- `IPCService`: Global singleton managing connection to Python backend
+- `ToolRegistryService`: Global singleton managing tool registration and execution
 
 **Responsibilities:**
 
@@ -24,6 +31,7 @@ The core simulation engine built as a Godot 4 GDExtension module.
 - Sensor data collection (raycasts, vision, etc.)
 - Action execution in the game world
 - Navigation and pathfinding
+- Tool execution through Python IPC backend
 
 **Data Flow:**
 

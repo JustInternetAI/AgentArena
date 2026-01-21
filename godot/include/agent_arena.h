@@ -107,7 +107,7 @@ private:
     godot::Dictionary short_term_memory;
     godot::Array action_history;
     bool is_active;
-    ToolRegistry* tool_registry;
+    ToolRegistry* tool_registry;  // Optional manual override (for testing)
 
 protected:
     static void _bind_methods();
@@ -186,8 +186,14 @@ private:
     godot::Dictionary pending_response;
     bool response_received;
 
+    // Request queue for tool execution
+    godot::Array tool_request_queue;  // Queue of pending tool requests
+    bool tool_request_in_progress;    // Is a tool request currently being processed
+    godot::Dictionary current_tool_request;  // The request currently being processed
+
     void _on_request_completed(int result, int response_code, const godot::PackedStringArray& headers, const godot::PackedByteArray& body);
     void _on_tool_request_completed(int result, int response_code, const godot::PackedStringArray& headers, const godot::PackedByteArray& body);
+    void _process_next_tool_request();  // Process next request in queue
 
 protected:
     static void _bind_methods();
@@ -211,6 +217,47 @@ public:
 
     // Tool execution
     godot::Dictionary execute_tool_sync(const godot::String& tool_name, const godot::Dictionary& params, const godot::String& agent_id = "", uint64_t tick = 0);
+
+    // Getters/Setters
+    godot::String get_server_url() const { return server_url; }
+    void set_server_url(const godot::String& url);
+};
+
+/**
+ * IPC Client for communicating with Python agent runtime
+ */
+class IPCClient : public godot::Node {
+    GDCLASS(IPCClient, godot::Node)
+
+private:
+    godot::String server_url;
+    godot::HTTPRequest* http_request;
+    bool is_connected;
+    uint64_t current_tick;
+    godot::Dictionary pending_response;
+    bool response_received;
+
+    void _on_request_completed(int result, int response_code, const godot::PackedStringArray& headers, const godot::PackedByteArray& body);
+
+protected:
+    static void _bind_methods();
+
+public:
+    IPCClient();
+    ~IPCClient();
+
+    void _ready() override;
+    void _process(double delta) override;
+
+    // Connection management
+    void connect_to_server(const godot::String& url);
+    void disconnect_from_server();
+    bool is_server_connected() const { return is_connected; }
+
+    // Communication
+    void send_tick_request(uint64_t tick, const godot::Array& perceptions);
+    godot::Dictionary get_tick_response();
+    bool has_response() const { return response_received; }
 
     // Getters/Setters
     godot::String get_server_url() const { return server_url; }

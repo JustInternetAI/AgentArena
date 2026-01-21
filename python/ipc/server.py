@@ -59,6 +59,7 @@ class IPCServer:
             "total_agents_processed": 0,
             "avg_tick_time_ms": 0.0,
             "total_tools_executed": 0,
+            "total_observations_processed": 0,
         }
 
     def _register_all_tools(self) -> None:
@@ -67,6 +68,85 @@ class IPCServer:
         register_inventory_tools(self.tool_dispatcher)
         register_world_query_tools(self.tool_dispatcher)
         logger.info(f"Registered {len(self.tool_dispatcher.tools)} tools")
+
+    def _make_mock_decision(self, observation: dict[str, Any]) -> dict[str, Any]:
+        """
+        Generate a mock decision based on observation using rule-based logic.
+
+        This is a simple decision-making system for testing the observation-decision
+        loop without requiring LLM inference.
+
+        Priority:
+        1. Avoid nearby hazards (distance < 3.0)
+        2. Move to nearest resource (distance < 5.0)
+        3. Default to idle
+
+        Args:
+            observation: Observation dictionary with nearby_resources and nearby_hazards
+
+        Returns:
+            Decision dictionary with tool, params, and reasoning
+        """
+        nearby_resources = observation.get("nearby_resources", [])
+        nearby_hazards = observation.get("nearby_hazards", [])
+
+        # Priority 1: Avoid hazards that are too close
+        for hazard in nearby_hazards:
+            distance = hazard.get("distance", float("inf"))
+            if distance < 3.0:
+                hazard_pos = hazard.get("position", [0, 0, 0])
+                hazard_type = hazard.get("type", "unknown")
+
+                # Calculate a safe position away from the hazard using move_to
+                agent_pos = observation.get("position", [0, 0, 0])
+
+                # Vector from hazard to agent
+                dx = agent_pos[0] - hazard_pos[0]
+                dz = agent_pos[2] - hazard_pos[2]
+
+                # Normalize and scale to move 5 units away from hazard
+                length = (dx**2 + dz**2) ** 0.5
+                if length > 0:
+                    dx = (dx / length) * 5.0
+                    dz = (dz / length) * 5.0
+                else:
+                    # If on top of hazard, move in arbitrary direction
+                    dx, dz = 5.0, 0.0
+
+                safe_position = [
+                    hazard_pos[0] + dx,
+                    agent_pos[1],  # Keep same Y
+                    hazard_pos[2] + dz,
+                ]
+
+                return {
+                    "tool": "move_to",
+                    "params": {"target_position": safe_position, "speed": 2.0},
+                    "reasoning": f"Avoiding nearby {hazard_type} hazard at distance {distance:.1f}",
+                }
+
+        # Priority 2: Move to nearest resource if within range
+        if nearby_resources:
+            # Find closest resource
+            closest_resource = min(nearby_resources, key=lambda r: r.get("distance", float("inf")))
+            distance = closest_resource.get("distance", float("inf"))
+
+            if distance < 5.0:
+                resource_pos = closest_resource.get("position", [0, 0, 0])
+                resource_type = closest_resource.get("type", "unknown")
+                resource_name = closest_resource.get("name", "resource")
+                return {
+                    "tool": "move_to",
+                    "params": {"target_position": resource_pos, "speed": 1.5},
+                    "reasoning": f"Moving to collect {resource_type} ({resource_name}) at distance {distance:.1f}",
+                }
+
+        # Default: Idle (no immediate actions needed)
+        return {
+            "tool": "idle",
+            "params": {},
+            "reasoning": "No immediate actions needed - exploring environment",
+        }
 
     def create_app(self) -> FastAPI:
         """Create and configure the FastAPI application."""
@@ -246,7 +326,7 @@ class IPCServer:
                 )
 
                 logger.debug(
-                    f"Tool '{tool_request.tool_name}' executed: " f"success={response.success}"
+                    f"Tool '{tool_request.tool_name}' executed: success={response.success}"
                 )
 
                 return response.to_dict()
@@ -272,6 +352,53 @@ class IPCServer:
         async def get_metrics():
             """Get server performance metrics."""
             return self.metrics
+
+        @app.post("/observe")
+        async def process_observation(observation: dict[str, Any]) -> dict[str, Any]:
+            """
+            Process a single observation and return a mock decision.
+
+            This is a simplified endpoint for testing the observation-decision loop.
+            It uses rule-based mock logic instead of real LLM inference.
+
+            Args:
+                observation: Observation data containing:
+                    - agent_id: Agent identifier
+                    - position: [x, y, z] position
+                    - nearby_resources: List of visible resources
+                    - nearby_hazards: List of nearby hazards
+
+            Returns:
+                Decision dictionary with tool, params, and reasoning
+            """
+            try:
+                agent_id = observation.get("agent_id", "unknown")
+
+                logger.debug(f"Processing observation for agent {agent_id}")
+                logger.debug(f"Position: {observation.get('position')}")
+                logger.debug(f"Resources: {len(observation.get('nearby_resources', []))}")
+                logger.debug(f"Hazards: {len(observation.get('nearby_hazards', []))}")
+
+                # Generate mock decision using rule-based logic
+                decision = self._make_mock_decision(observation)
+
+                # Update metrics
+                self.metrics["total_observations_processed"] += 1
+
+                logger.info(
+                    f"Agent {agent_id} decision: {decision['tool']} - {decision['reasoning']}"
+                )
+
+                return {
+                    "agent_id": agent_id,
+                    "tool": decision["tool"],
+                    "params": decision["params"],
+                    "reasoning": decision["reasoning"],
+                }
+
+            except Exception as e:
+                logger.error(f"Error processing observation: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail=str(e))
 
         self.app = app
         return app

@@ -1,0 +1,53 @@
+[gd_scene format=3]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_1"]
+radius = 0.3
+height = 1.6
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_body"]
+radius = 0.3
+height = 1.0
+
+[sub_resource type="SphereMesh" id="SphereMesh_head"]
+radius = 0.2
+
+[sub_resource type="BoxMesh" id="BoxMesh_arm"]
+size = Vector3(0.6, 0.1, 0.1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_leg"]
+size = Vector3(0.1, 0.6, 0.1)
+
+[node name="SimpleHumanoid" type="CharacterBody3D"]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
+shape = SubResource("CapsuleShape3D_1")
+
+[node name="Body" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
+mesh = SubResource("CapsuleMesh_body")
+
+[node name="Head" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
+mesh = SubResource("SphereMesh_head")
+
+[node name="Arms" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.0, 0)
+mesh = SubResource("BoxMesh_arm")
+
+[node name="Legs" type="Node3D" parent="."]
+
+[node name="LeftLeg" type="MeshInstance3D" parent="Legs"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.15, 0.3, 0)
+mesh = SubResource("BoxMesh_leg")
+
+[node name="RightLeg" type="MeshInstance3D" parent="Legs"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.15, 0.3, 0)
+mesh = SubResource("BoxMesh_leg")
+
+[node name="Label3D" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.0, 0)
+pixel_size = 0.01
+billboard = 1
+text = "Agent"
+font_size = 32

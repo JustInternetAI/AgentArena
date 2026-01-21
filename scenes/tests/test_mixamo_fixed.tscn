@@ -1,0 +1,48 @@
+[gd_scene load_steps=4 format=3 uid="uid://test_mixamo_fixed"]
+
+[ext_resource type="Script" path="res://scripts/tests/test_mixamo_fixed.gd" id="1_script"]
+[ext_resource type="PackedScene" path="res://assets/characters/mixamo/Y Bot.fbx" id="2_character"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ground"]
+albedo_color = Color(0.5, 0.5, 0.5, 1)
+
+[node name="TestMixamoFixed" type="Node3D"]
+script = ExtResource("1_script")
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.866025, 0.5, 0, -0.5, 0.866025, 0, 3, 5)
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866025, -0.25, 0.433013, 0, 0.866025, 0.5, -0.5, -0.433013, 0.75, 0, 5, 0)
+shadow_enabled = true
+
+[node name="Character" parent="." instance=ExtResource("2_character")]
+
+[node name="Ground" type="CSGBox3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+size = Vector3(10, 1, 10)
+material = SubResource("StandardMaterial3D_ground")
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="InfoLabel" type="Label" parent="UI"]
+offset_left = 10.0
+offset_top = 10.0
+offset_right = 550.0
+offset_bottom = 250.0
+text = "Mixamo Character Test (FIXED)
+
+Camera Controls:
+  WASD - Rotate camera
+  Q/E - Zoom in/out
+
+Animation Controls:
+  0 - Play built-in animation
+  1 - Load & Play Idle animation
+  2 - Load & Play Walking animation
+  3 - Load & Play Running animation
+  T - Stop (T-pose)
+  D - Debug info
+
+This version properly retargets animations
+from separate FBX files to the character skeleton."

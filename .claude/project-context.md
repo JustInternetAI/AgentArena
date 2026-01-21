@@ -71,6 +71,10 @@ c:\Projects\Agent Arena\
 ├── scripts/                 # GDScript files
 │   ├── tests/               # Test scripts (test_extension.gd, ipc_test.gd)
 │   └── test_arena.gd        # Main test arena script
+├── scenes/                  # Godot benchmark scenes (.tscn files)
+├── scripts/                 # GDScript files
+│   ├── tests/               # Test scripts (test_extension.gd, ipc_test.gd)
+│   └── test_arena.gd        # Main test arena script
 ├── tests/                   # Python unit tests
 └── docs/                    # Documentation
 ```
@@ -92,14 +96,9 @@ c:\Projects\Agent Arena\
 - ✅ Test scene created with working controls
 - ✅ Core classes verified: SimulationManager, Agent, EventBus, ToolRegistry
 - ✅ IPC system implemented (Godot ↔ Python via HTTP/FastAPI)
-- ✅ Benchmark scenes created (foraging, crafting_chain, team_capture)
-- ✅ Tool execution system connected (Agent → ToolRegistry → IPC → Python)
-- ✅ Benchmark scenes integrated with tool execution system
-
-### Active Work Items
-- 🔄 **Andrew**: LLM backend integration with agent decision-making
-- ✅ **Justin** (Issue #15): Build out benchmark scenes with game content - **COMPLETE**
-- ✅ **Justin** (Issue #16): Connect tool execution system in Godot - **COMPLETE**
+- ⏳ Next: Create actual benchmark scenes (foraging, crafting_chain, team_capture)
+- ⏳ Next: Set up Python environment and agent runtime
+- ⏳ Next: Integrate LLM backends with agent decision-making
 
 ## Development Commands
 
@@ -138,6 +137,20 @@ pip install -r requirements.txt
 # Run Python tests
 cd tests
 pytest -v
+```
+
+### Run IPC Server (Godot ↔ Python Communication)
+```bash
+# Start Python IPC server
+cd python
+venv\Scripts\activate
+python run_ipc_server.py
+
+# With custom options
+python run_ipc_server.py --host 127.0.0.1 --port 5000 --workers 4 --debug
+
+# Test IPC in Godot
+# Open scenes/ipc_test.gd in Godot editor and run it
 ```
 
 ### Run IPC Server (Godot ↔ Python Communication)
@@ -201,67 +214,15 @@ python run_ipc_server.py --host 127.0.0.1 --port 5000 --workers 4 --debug
 
 ### IPCClient (Node)
 - HTTP client for Godot ↔ Python communication
-- Methods: `connect_to_server()`, `send_tick_request()`, `get_tick_response()`, `has_response()`, `execute_tool_sync()`
+- Methods: `connect_to_server()`, `send_tick_request()`, `get_tick_response()`, `has_response()`
 - Properties: `server_url`
 - Signals: `response_received`, `connection_failed`
 
-## Tool Execution System
-
-The tool execution system enables agents to perform actions in the simulation by calling Python tool functions.
-
-### Architecture
-```
-Agent.call_tool() → ToolRegistry.execute_tool() → IPCClient.execute_tool_sync() →
-Python IPC Server (/tools/execute) → ToolDispatcher.execute_tool() → Tool Function
-```
-
-### Available Tools
-- **Movement**: `move_to`, `navigate_to`, `stop_movement`, `rotate_to_face`
-- **Inventory**: `pickup_item`, `drop_item`, `use_item`, `get_inventory`, `craft_item`
-- **World Query**: (defined in `python/tools/world_query.py`)
-
-### Usage Example (GDScript)
-```gdscript
-# Setup
-var agent = Agent.new()
-var tool_registry = ToolRegistry.new()
-var ipc_client = IPCClient.new()
-
-tool_registry.set_ipc_client(ipc_client)
-agent.set_tool_registry(tool_registry)
-
-# Execute tool
-var result = agent.call_tool("move_to", {
-    "target_position": [10.0, 0.0, 5.0],
-    "speed": 1.5
-})
-
-if result["success"]:
-    print("Tool executed successfully: ", result["result"])
-else:
-    print("Tool failed: ", result["error"])
-```
-
-### Testing
-- Test scenes: `scenes/tests/test_tool_execution_simple.tscn` (recommended), `scenes/tests/test_tool_execution.tscn`
-- Test scripts: `scripts/tests/test_tool_execution_simple.gd`, `scripts/tests/test_tool_execution.gd`
-- Test README: `scenes/tests/README.md`
-- Documentation: `TESTING_TOOL_EXECUTION.md`, `TOOL_TESTING_FIXED.md`
-
 ## Known Issues
+- Benchmark scenes are empty placeholders (need to create actual game worlds)
 - Python environment needs initial setup (venv + pip install)
-
-## Recent Issues
-- Issue #15: Build out benchmark scenes with game content (assigned to Justin) - ✅ **COMPLETE**
-  - Connected all three benchmark scenes to tool execution system
-  - Foraging scene: Resource collection with hazard avoidance
-  - Crafting chain scene: Multi-step crafting recipes
-  - Team capture scene: Multi-agent team competition
-  - All scenes ready for LLM-driven agents
-- Issue #16: Connect tool execution system in Godot (assigned to Justin) - ✅ **COMPLETE**
-  - See: `TESTING_TOOL_EXECUTION.md`, `TOOL_TESTING_FIXED.md` for details
-  - Test scenes: `scenes/tests/` (use `test_tool_execution_simple.tscn` for quick verification)
-- LLM backend integration (assigned to Andrew) - In Progress
+- LLM backends not yet connected to agent decision-making
+- Tool execution in Godot currently returns stub responses
 
 ## References
 - Godot docs: https://docs.godotengine.org/

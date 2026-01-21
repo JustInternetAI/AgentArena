@@ -3,7 +3,7 @@ entry_symbol = "agent_arena_library_init"
 compatibility_minimum = "4.5"
 
 [libraries]
-windows.debug.x86_64 = "res://bin/windows/libagent_arena.windows.template_debug.x86_64.dll"
+windows.debug.x86_64 = "res://bin/windows/libagent_arena.windows.template_release.x86_64.dll"
 windows.release.x86_64 = "res://bin/windows/libagent_arena.windows.template_release.x86_64.dll"
 linux.debug.x86_64 = "res://bin/linux/libagent_arena.linux.template_debug.x86_64.so"
 linux.release.x86_64 = "res://bin/linux/libagent_arena.linux.template_release.x86_64.so"
