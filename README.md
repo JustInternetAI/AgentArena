@@ -15,6 +15,7 @@ nMaintained by [JustInternetAI](https://github.com/JustInternetAI)
 ### Core
 - **Godot C++ Module**: Deterministic tick loop, event bus, navigation, sensors, stable replay logs
 - **Agent Runtime**: Adapters for llama.cpp, TensorRT-LLM, vLLM with function-calling tool API
+- **Model Management**: Automated LLM model downloading from Hugging Face Hub with caching and verification
 - **Tool System**: World querying (vision rays, inventories), pathfinding, crafting actions via JSON schemas
 - **Memory & RAG**: Short-term scratchpad + long-term vector store with episode summaries
 - **Benchmark Scenes**: 3 sandbox environments (foraging, crafting chain, team capture) with metrics
@@ -129,6 +130,26 @@ agent-arena/
 ### Quick Start
 
 See [docs/quickstart.md](docs/quickstart.md) for a tutorial on creating your first agent-driven scene.
+
+### Model Management
+
+Agent Arena includes a built-in tool to download and manage LLM models from Hugging Face Hub:
+
+```bash
+# Download a model for testing
+cd python
+python -m tools.model_manager download tinyllama-1.1b-chat --format gguf --quant q4_k_m
+
+# List available models in registry
+python -m tools.model_manager info
+
+# List downloaded models
+python -m tools.model_manager list
+```
+
+Supported models include TinyLlama (1.1B), Phi-2 (2.7B), Llama-2 (7B/13B), Mistral (7B), Llama-3 (8B), and Mixtral (8x7B).
+
+For detailed documentation on model management, see [docs/model_management.md](docs/model_management.md).
 
 ## Development Roadmap
 

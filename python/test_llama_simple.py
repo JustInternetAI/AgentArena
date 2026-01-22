@@ -5,16 +5,17 @@ Demonstrates basic usage without complex tool calling.
 """
 
 import logging
-from backends import LlamaCppBackend, BackendConfig
 
-logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+from backends import BackendConfig, LlamaCppBackend
+
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 
 def main():
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Llama.cpp Backend - Simple Test")
-    print("="*60 + "\n")
+    print("=" * 60 + "\n")
 
     # Initialize backend
     config = BackendConfig(
@@ -49,7 +50,7 @@ def main():
 
     # Llama-2 chat format: [INST] question [/INST]
     prompt = "[INST] What is the capital of France? Answer in one word. [/INST]"
-    print(f"Question: What is the capital of France?")
+    print("Question: What is the capital of France?")
 
     result = backend.generate(prompt, temperature=0.1, max_tokens=10)
     print(f"Answer: {result.text.strip()}\n")
@@ -86,15 +87,17 @@ What should you do FIRST? Reply with just the action name and parameters, like: 
     print("Test 5: Temperature Comparison")
     print("-" * 40)
 
-    base_prompt = "[INST] Complete this sentence in a creative way: The robot opened the door and saw [/INST]"
+    base_prompt = (
+        "[INST] Complete this sentence in a creative way: The robot opened the door and saw [/INST]"
+    )
 
     for temp in [0.1, 0.5, 1.0]:
         result = backend.generate(base_prompt, temperature=temp, max_tokens=30)
         print(f"Temp {temp}: {result.text.strip()}")
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("All tests completed!")
-    print("="*60)
+    print("=" * 60)
 
     backend.unload()
 

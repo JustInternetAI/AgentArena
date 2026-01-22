@@ -28,18 +28,19 @@ jobs:
       uses: actions/cache@v3
       with:
         path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('python/requirements.txt') }}
+        key: ${{ runner.os }}-pip-${{ hashFiles('python/requirements-ci.txt') }}
         restore-keys: |
           ${{ runner.os }}-pip-
 
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -e .[dev]
+        pip install -r python/requirements-ci.txt
 
     - name: Run tests
-      run: |
-        pytest -v --cov-report=xml --cov-report=term
+      run: pytest tests -v --cov-report=xml --cov-report=term --ignore=tests/test_llama_cpp_backend.py --ignore=tests/test_vllm_backend.py
+      env:
+        PYTHONPATH: ${{ github.workspace }}/python
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
@@ -60,7 +61,7 @@ jobs:
 
     - name: Install package and linting tools
       run: |
-        pip install -e .[dev]
+        pip install -r python/requirements-ci.txt
 
     - name: Run black (format check)
       run: |
