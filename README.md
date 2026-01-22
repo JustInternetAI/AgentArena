@@ -131,6 +131,26 @@ agent-arena/
 
 See [docs/quickstart.md](docs/quickstart.md) for a tutorial on creating your first agent-driven scene.
 
+### Model Management
+
+Agent Arena includes a built-in tool to download and manage LLM models from Hugging Face Hub:
+
+```bash
+# Download a model for testing
+cd python
+python -m tools.model_manager download tinyllama-1.1b-chat --format gguf --quant q4_k_m
+
+# List available models in registry
+python -m tools.model_manager info
+
+# List downloaded models
+python -m tools.model_manager list
+```
+
+Supported models include TinyLlama (1.1B), Phi-2 (2.7B), Llama-2 (7B/13B), Mistral (7B), Llama-3 (8B), and Mixtral (8x7B).
+
+For detailed documentation on model management, see [docs/model_management.md](docs/model_management.md).
+
 ## Development Roadmap
 
 - [ ] Phase 1: Core infrastructure (deterministic sim, event bus, basic tools)

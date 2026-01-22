@@ -38,10 +38,9 @@ jobs:
         pip install -r python/requirements-ci.txt
 
     - name: Run tests
-      run: |
-        export PYTHONPATH="${PYTHONPATH}:${PWD}/python"
-        pytest tests -v --cov-report=xml --cov-report=term --ignore=tests/test_llama_cpp_backend.py --ignore=tests/test_vllm_backend.py
-      shell: bash
+      run: pytest tests -v --cov-report=xml --cov-report=term --ignore=tests/test_llama_cpp_backend.py --ignore=tests/test_vllm_backend.py
+      env:
+        PYTHONPATH: ${{ github.workspace }}/python
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
