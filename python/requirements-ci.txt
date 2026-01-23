@@ -1,3 +1,4 @@
+# CI-specific requirements (excludes dependencies that require compilation)
 # Core dependencies
 numpy>=1.24.0
 pydantic>=2.0.0
@@ -9,19 +10,9 @@ omegaconf>=2.3.0
 fastapi>=0.104.0
 uvicorn>=0.24.0
 
-# LLM backends
-llama-cpp-python>=0.2.0  # llama.cpp Python bindings
+# LLM backends (lightweight only - exclude llama-cpp-python and torch)
 openai>=1.0.0  # For OpenAI-compatible APIs
 requests>=2.31.0
-
-# Vector stores and embeddings
-faiss-cpu>=1.7.4  # CPU-only FAISS (use faiss-gpu for GPU support)
-sentence-transformers>=2.2.0  # For embeddings
-chromadb>=0.4.0  # Alternative lightweight vector store
-
-# ML/AI (optional)
-torch>=2.0.0  # PyTorch for model training
-transformers>=4.35.0  # HuggingFace transformers
 huggingface-hub>=0.20.0  # For downloading models from HuggingFace Hub
 
 # Testing and development
@@ -43,7 +34,3 @@ pyyaml>=6.0.0  # YAML configuration files
 # Logging and monitoring
 structlog>=23.2.0
 python-json-logger>=2.0.7
-
-# Data handling
-pandas>=2.0.0
-pillow>=10.0.0  # For image processing (multimodal)

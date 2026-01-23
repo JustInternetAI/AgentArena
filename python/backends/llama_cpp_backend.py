@@ -28,7 +28,7 @@ class LlamaCppBackend(BaseBackend):
             logger.info(f"Loading model from {self.config.model_path}")
 
             # Use GPU layers from config
-            n_gpu_layers = getattr(self.config, 'n_gpu_layers', 0)
+            n_gpu_layers = getattr(self.config, "n_gpu_layers", 0)
 
             if n_gpu_layers > 0:
                 logger.info(f"Offloading {n_gpu_layers} layers to GPU")

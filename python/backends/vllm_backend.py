@@ -194,14 +194,16 @@ class VLLMBackend(BaseBackend):
             # Convert tool schemas to OpenAI format
             openai_tools = []
             for tool in tools:
-                openai_tools.append({
-                    "type": "function",
-                    "function": {
-                        "name": tool["name"],
-                        "description": tool["description"],
-                        "parameters": tool.get("parameters", {}),
+                openai_tools.append(
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": tool["name"],
+                            "description": tool["description"],
+                            "parameters": tool.get("parameters", {}),
+                        },
                     }
-                })
+                )
 
             # Use chat completions API for function calling
             response = self.client.chat.completions.create(
