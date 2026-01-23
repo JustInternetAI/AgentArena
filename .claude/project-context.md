@@ -9,6 +9,178 @@ Quick reference for Claude Code sessions.
 - **Founders**: Andrew Madison & Justin Madison
 - **Organization**: JustInternetAI
 
+---
+
+## Vision & Purpose
+
+### What is Agent Arena?
+
+Agent Arena is an **educational framework for learning agentic AI programming** through interactive game scenarios. Rather than reading about agents in isolation, developers build and deploy AI agents into simulated environments where they can observe, debug, and iterate on agent behavior in real-time.
+
+Think of it as a **"gym" for AI agents** - a place where developers can:
+- Learn the fundamentals of agentic AI (perception, reasoning, tool use, memory)
+- Experiment with different architectures and LLM backends
+- Test agents against progressively challenging scenarios
+- Compare approaches and share results
+
+### Why Agent Arena?
+
+**The Problem**: Agentic AI is becoming essential, but learning it is fragmented. Tutorials show toy examples. Real deployments are too complex. There's no middle ground where you can safely experiment and see immediate results.
+
+**The Solution**: A game-like environment where:
+1. **Scenarios are self-contained** - Clear objectives, measurable outcomes
+2. **Feedback is immediate** - Watch your agent succeed or fail in real-time
+3. **Debugging is possible** - Deterministic replay, step-through mode, prompt inspection
+4. **Complexity is progressive** - Start simple, unlock harder challenges
+
+### Core Educational Goals
+
+1. **Tool Use** - Learn how agents call functions to interact with the world
+2. **Observation Processing** - Understand how agents perceive and interpret their environment
+3. **Memory Systems** - Implement short-term, long-term, and episodic memory
+4. **Planning & Reasoning** - Build agents that decompose goals and execute multi-step plans
+5. **Multi-Agent Coordination** - Design agents that communicate and cooperate
+
+### Target Audience
+
+- **AI/ML developers** wanting hands-on experience with agentic systems
+- **Students** learning about autonomous agents and LLM applications
+- **Researchers** needing reproducible benchmarks for agent evaluation
+- **Hobbyists** who want to build and experiment with AI agents
+
+---
+
+## Scenario Progression (Learning Path)
+
+Scenarios are designed to progressively introduce agentic concepts:
+
+### Tier 1: Foundations
+| Scenario | Concepts Taught |
+|----------|-----------------|
+| **Simple Navigation** | Basic tool use, movement, observation handling |
+| **Foraging** | Resource detection, goal-directed behavior, basic planning |
+| **Obstacle Course** | Spatial reasoning, sequential decision-making |
+
+### Tier 2: Memory & Planning
+| Scenario | Concepts Taught |
+|----------|-----------------|
+| **Crafting Chain** | Multi-step planning, dependency resolution, inventory management |
+| **Scavenger Hunt** | Long-term memory, revisiting locations, deferred goals |
+| **Maze Exploration** | Map building, memory-augmented navigation |
+
+### Tier 3: Adversarial & Dynamic
+| Scenario | Concepts Taught |
+|----------|-----------------|
+| **Predator Evasion** | Reactive planning, risk assessment, dynamic re-planning |
+| **Resource Competition** | Opponent modeling, strategic behavior |
+| **Tower Defense** | Real-time decision-making under pressure |
+
+### Tier 4: Multi-Agent Cooperation
+| Scenario | Concepts Taught |
+|----------|-----------------|
+| **Team Capture** | Communication, role assignment, coordinated actions |
+| **Collaborative Building** | Shared goals, task distribution, conflict resolution |
+| **Relay Race** | Handoffs, timing, trust between agents |
+
+---
+
+## Design Principles
+
+1. **Observability First** - Every agent decision should be inspectable (what it saw, what it thought, what it did)
+2. **Deterministic Replay** - Any run can be replayed exactly for debugging and comparison
+3. **Backend Agnostic** - Swap LLM backends without changing agent code (llama.cpp, vLLM, OpenAI, etc.)
+4. **Scenario as Curriculum** - Scenarios teach specific skills, ordered by complexity
+5. **Metrics Matter** - Every scenario has clear success metrics for objective comparison
+6. **Layered Complexity** - Simple interface for beginners, full control for advanced users
+
+---
+
+## Agent Interface Architecture
+
+The framework provides a **layered interface** so users can start simple and grow into full control.
+
+### Layer 1: Simple (Beginners)
+```python
+class MyAgent(SimpleAgentBehavior):
+    system_prompt = "You are a foraging agent. Collect apples."
+
+    def decide(self, context: SimpleContext) -> str:
+        # Just return a tool name - framework handles the rest
+        if context.nearby_resources:
+            return "move_to"
+        return "idle"
+```
+
+### Layer 2: Intermediate (LLM Integration)
+```python
+class MyAgent(AgentBehavior):
+    def __init__(self, backend):
+        self.backend = backend
+        self.memory = SlidingWindowMemory(capacity=10)  # Use built-in memory
+        self.system_prompt = "You are a foraging agent..."
+
+    def decide(self, observation, tools) -> AgentDecision:
+        self.memory.store(observation)
+        prompt = self.build_prompt(observation)
+        response = self.backend.generate_with_tools(prompt, tools)
+        return AgentDecision.from_response(response)
+```
+
+### Layer 3: Advanced (Full Control)
+```python
+class MyAgent(AgentBehavior):
+    def __init__(self, backend):
+        self.backend = backend
+        self.memory = MyCustomRAGMemory()  # Custom memory implementation
+        self.planner = HierarchicalPlanner()
+
+    def decide(self, observation, tools) -> AgentDecision:
+        # Full control over memory, prompts, planning, everything
+        ...
+```
+
+### What Users Control vs Framework Handles
+
+| Aspect | Simple | Intermediate | Advanced |
+|--------|--------|--------------|----------|
+| System Prompt | Class attribute | User writes | User writes |
+| Memory | Framework default | Choose built-in | Implement custom |
+| Prompt Building | Framework | User customizes | User implements |
+| Response Parsing | Framework | Framework helpers | User implements |
+| Custom State | Not available | Basic dict | Full control |
+
+### Key Interfaces
+
+- `AgentBehavior` - Abstract base class users implement
+- `AgentMemory` - Interface for memory systems (swappable)
+- `AgentDecision` - What the agent returns (tool + params + reasoning)
+- `Observation` - What the agent receives from Godot
+
+See `docs/architecture.md` for full details.
+
+---
+
+## Future Directions
+
+### Near-Term
+- Complete initial benchmark scenarios (foraging, crafting_chain, team_capture)
+- Build debugging/inspection tools (prompt viewer, step-through mode)
+- Create quickstart tutorials for building your first agent
+
+### Medium-Term
+- Public leaderboards for scenario benchmarks
+- Community scenario sharing
+- A/B comparison tools for agent implementations
+- Support for visual/multimodal observations (screenshots, rendered views)
+
+### Long-Term
+- Curriculum learning system (automatic difficulty progression)
+- RL fine-tuning pipeline for agents
+- Distributed evaluation for large-scale benchmarking
+- Integration with popular agent frameworks (LangChain, AutoGPT patterns)
+
+---
+
 ## GitHub Configuration
 - **Project Board**: Agent Arena Development Board (Project #3)
 - **Project Board ID**: `PVT_kwDODG39W84BHw8k`
@@ -53,28 +225,27 @@ c:\Projects\Agent Arena\
 ├── agent_arena.gdextension  # GDExtension configuration
 ├── project.godot            # Godot project file
 ├── godot/                   # C++ GDExtension module
-│   ├── src/                 # Core simulation classes (agent_arena.cpp, register_types.cpp)
-│   ├── include/             # Headers (agent_arena.h, register_types.h)
+│   ├── src/                 # Core simulation classes
+│   ├── include/             # Headers
 │   └── build/               # CMake build directory
 ├── bin/                     # Compiled libraries
 │   └── windows/             # Windows DLLs
 ├── external/                # Third-party dependencies
 │   └── godot-cpp/           # Godot C++ bindings (4.5-stable)
 ├── python/                  # Python agent runtime
-│   ├── agent_runtime/       # Agent logic
+│   ├── agent_runtime/       # Core framework (see Agent Interface below)
+│   │   ├── behaviors/       # Built-in behavior implementations
+│   │   ├── memory/          # Memory system implementations
+│   │   └── schemas/         # Shared data contracts
+│   ├── user_agents/         # WHERE USERS PUT THEIR CODE
 │   ├── backends/            # LLM adapters (llama.cpp, vLLM, etc)
 │   ├── tools/               # Agent tools (movement, inventory, etc)
-│   ├── memory/              # Memory systems (RAG, episodes)
 │   └── evals/               # Evaluation harness
 ├── configs/                 # Hydra configs
 ├── scenes/                  # Godot benchmark scenes (.tscn files)
 ├── scripts/                 # GDScript files
-│   ├── tests/               # Test scripts (test_extension.gd, ipc_test.gd)
-│   └── test_arena.gd        # Main test arena script
-├── scenes/                  # Godot benchmark scenes (.tscn files)
-├── scripts/                 # GDScript files
-│   ├── tests/               # Test scripts (test_extension.gd, ipc_test.gd)
-│   └── test_arena.gd        # Main test arena script
+│   ├── autoload/            # Global services (IPCService, ToolRegistryService)
+│   └── tests/               # Test scripts
 ├── tests/                   # Python unit tests
 └── docs/                    # Documentation
 ```

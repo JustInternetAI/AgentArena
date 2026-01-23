@@ -13,9 +13,11 @@ from typing import Any
 from fastapi import FastAPI, HTTPException
 
 from agent_runtime.runtime import AgentRuntime
+from agent_runtime.schemas import ToolSchema
 from agent_runtime.tool_dispatcher import ToolDispatcher
 from tools import register_inventory_tools, register_movement_tools, register_world_query_tools
 
+from .converters import decision_to_action, perception_to_observation
 from .messages import (
     ActionMessage,
     TickRequest,
@@ -37,6 +39,7 @@ class IPCServer:
     def __init__(
         self,
         runtime: AgentRuntime,
+        behaviors: dict | None = None,
         host: str = "127.0.0.1",
         port: int = 5000,
     ):
@@ -45,10 +48,12 @@ class IPCServer:
 
         Args:
             runtime: AgentRuntime instance to process agent decisions
+            behaviors: Dictionary of agent_id -> AgentBehavior instances
             host: Host address to bind to
             port: Port to listen on
         """
         self.runtime = runtime
+        self.behaviors = behaviors or {}
         self.host = host
         self.port = port
         self.app: FastAPI | None = None
@@ -204,40 +209,76 @@ class IPCServer:
 
                 logger.debug(f"Processing tick {tick} with {len(tick_request.perceptions)} agents")
 
-                # Build observations dict for runtime
-                observations = {}
-                for perception in tick_request.perceptions:
-                    observations[perception.agent_id] = {
-                        "tick": perception.tick,
-                        "position": perception.position,
-                        "rotation": perception.rotation,
-                        "velocity": perception.velocity,
-                        "visible_entities": perception.visible_entities,
-                        "inventory": perception.inventory,
-                        "health": perception.health,
-                        "energy": perception.energy,
-                        "custom_data": perception.custom_data,
-                    }
-
-                # Process agents and get actions
-                actions_dict = await self.runtime.process_tick(tick, observations)
-
-                # Convert actions to response format
-                action_messages = []
-                for agent_id, action in actions_dict.items():
-                    action_msg = ActionMessage(
-                        agent_id=agent_id,
-                        tick=tick,
-                        tool=action.tool,
-                        params=action.params,
-                        reasoning=action.reasoning,
+                # Get tool schemas for agents
+                tool_schemas = []
+                for name, schema in self.tool_dispatcher.schemas.items():
+                    tool_schemas.append(
+                        ToolSchema(
+                            name=schema.name,
+                            description=schema.description,
+                            parameters=schema.parameters,
+                        )
                     )
-                    action_messages.append(action_msg)
+
+                # Process each agent using registered behaviors
+                action_messages = []
+                for perception in tick_request.perceptions:
+                    agent_id = perception.agent_id
+
+                    # Convert perception to Observation
+                    observation = perception_to_observation(perception)
+
+                    # Get behavior for this agent
+                    behavior = self.behaviors.get(agent_id)
+
+                    if behavior:
+                        # Call behavior.decide() with Observation and tools
+                        try:
+                            decision = behavior.decide(observation, tool_schemas)
+
+                            # Convert decision to ActionMessage
+                            action_msg = decision_to_action(decision, agent_id, tick)
+                            action_messages.append(action_msg)
+
+                            logger.debug(
+                                f"Agent {agent_id} decided: {decision.tool} - {decision.reasoning}"
+                            )
+                        except Exception as e:
+                            logger.error(
+                                f"Error in behavior.decide() for agent {agent_id}: {e}",
+                                exc_info=True,
+                            )
+                            # Fallback to idle
+                            from agent_runtime.schemas import AgentDecision
+
+                            decision = AgentDecision.idle(reasoning=f"Error: {str(e)}")
+                            action_msg = decision_to_action(decision, agent_id, tick)
+                            action_messages.append(action_msg)
+                    else:
+                        # No behavior registered, use mock decision
+                        logger.warning(
+                            f"No behavior registered for agent {agent_id}, using mock decision"
+                        )
+                        mock_obs = {
+                            "agent_id": agent_id,
+                            "position": perception.position,
+                            "nearby_resources": perception.custom_data.get("nearby_resources", []),
+                            "nearby_hazards": perception.custom_data.get("nearby_hazards", []),
+                        }
+                        decision_dict = self._make_mock_decision(mock_obs)
+                        action_msg = ActionMessage(
+                            agent_id=agent_id,
+                            tick=tick,
+                            tool=decision_dict["tool"],
+                            params=decision_dict["params"],
+                            reasoning=decision_dict["reasoning"],
+                        )
+                        action_messages.append(action_msg)
 
                 # Calculate metrics
                 elapsed_ms = (time.time() - start_time) * 1000
                 self.metrics["total_ticks"] += 1
-                self.metrics["total_agents_processed"] += len(observations)
+                self.metrics["total_agents_processed"] += len(tick_request.perceptions)
                 self.metrics["avg_tick_time_ms"] = (
                     self.metrics["avg_tick_time_ms"] * 0.9 + elapsed_ms * 0.1
                 )
@@ -248,7 +289,7 @@ class IPCServer:
                     actions=action_messages,
                     metrics={
                         "tick_time_ms": elapsed_ms,
-                        "agents_processed": len(observations),
+                        "agents_processed": len(tick_request.perceptions),
                         "actions_generated": len(action_messages),
                     },
                 )
@@ -427,6 +468,7 @@ class IPCServer:
 
 def create_server(
     runtime: AgentRuntime | None = None,
+    behaviors: dict | None = None,
     host: str = "127.0.0.1",
     port: int = 5000,
 ) -> IPCServer:
@@ -435,6 +477,7 @@ def create_server(
 
     Args:
         runtime: AgentRuntime instance, or None to create a default one
+        behaviors: Dictionary of agent_id -> AgentBehavior instances
         host: Host address to bind to
         port: Port to listen on
 
@@ -444,4 +487,4 @@ def create_server(
     if runtime is None:
         runtime = AgentRuntime(max_workers=4)
 
-    return IPCServer(runtime=runtime, host=host, port=port)
+    return IPCServer(runtime=runtime, behaviors=behaviors, host=host, port=port)

@@ -43,25 +43,205 @@ Python Runtime -> Action Decision -> Event Bus -> Action Execution
 
 ### 2. Python Agent Runtime
 
-The LLM-based reasoning and decision-making system.
+The LLM-based reasoning and decision-making system with a **layered interface** for different skill levels.
 
-**Key Modules:**
+**Directory Structure:**
 
-#### agent_runtime/
-- `Agent`: Core agent with perception-reasoning-action loop
-- `AgentRuntime`: Manages multiple agents and async execution
-- `ToolDispatcher`: Registers and executes tools
+```
+python/
+├── agent_runtime/              # Core framework (users import from here)
+│   ├── __init__.py             # Public API exports
+│   ├── behavior.py             # AgentBehavior ABC, SimpleAgentBehavior
+│   ├── schemas.py              # Observation, AgentDecision, ToolSchema
+│   ├── arena.py                # AgentArena orchestrator (hides IPC)
+│   ├── behaviors/              # Built-in behavior implementations
+│   │   ├── llm_behavior.py     # LLM-based decision making
+│   │   ├── rule_based.py       # Simple rules for tutorials
+│   │   └── random_behavior.py  # Random baseline
+│   └── memory/                 # Memory system implementations
+│       ├── base.py             # AgentMemory ABC
+│       ├── sliding_window.py   # Simple FIFO memory
+│       ├── summarizing.py      # LLM-compressed memory
+│       └── rag.py              # Vector store retrieval
+│
+├── user_agents/                # WHERE USERS PUT THEIR CODE
+│   ├── __init__.py
+│   ├── examples/               # Example agents to learn from
+│   │   ├── simple_forager.py
+│   │   ├── llm_forager.py
+│   │   └── strategic_agent.py
+│   └── README.md               # "Start here" guide
+│
+├── backends/                   # LLM adapters
+│   ├── base.py                 # BaseBackend ABC
+│   ├── llama_cpp.py            # llama.cpp integration
+│   ├── vllm.py                 # vLLM integration
+│   └── openai_compat.py        # OpenAI-compatible APIs
+│
+├── tools/                      # Agent tools (framework-provided)
+│   ├── movement.py             # move_to, navigate_to, rotate
+│   ├── world_query.py          # raycast, get_nearby_entities
+│   └── inventory.py            # pickup, drop, craft
+│
+├── evals/                      # Evaluation harness
+│   └── ...
+│
+├── ipc/                        # IPC internals (users don't touch)
+│   ├── server.py               # FastAPI server
+│   └── protocol.py             # Message schemas
+│
+└── run_agent.py                # Main entry point
+```
+
+#### Layered Agent Interface
+
+The framework provides three layers of abstraction:
+
+**Layer 1: SimpleAgentBehavior (Beginners)**
+- User implements `decide(context) -> tool_name`
+- Framework handles: memory, prompts, parsing, tool parameters
+- Best for: Tutorials, learning tool use basics
+
+**Layer 2: AgentBehavior with Built-in Memory (Intermediate)**
+- User implements `decide(observation, tools) -> AgentDecision`
+- User chooses memory strategy from built-ins
+- User writes system prompt and builds context
+- Best for: Learning LLM integration, prompt engineering
+
+**Layer 3: AgentBehavior with Custom Memory (Advanced)**
+- User implements custom `AgentMemory` subclass
+- Full control over state, prompts, and decision flow
+- Best for: Research, complex agent architectures
+
+#### Key Interfaces
+
+```python
+# behavior.py - What users implement
+
+class AgentBehavior(ABC):
+    """Full interface for agent decision-making."""
+
+    @abstractmethod
+    def decide(self, observation: Observation, tools: list[ToolSchema]) -> AgentDecision:
+        """Given current observation and available tools, decide what to do."""
+        pass
+
+    def on_tool_result(self, tool: str, result: dict) -> None:
+        """Optional: Handle tool execution results."""
+        pass
+
+    def on_episode_start(self) -> None:
+        """Optional: Initialize at episode start."""
+        pass
+
+    def on_episode_end(self, success: bool) -> None:
+        """Optional: Cleanup at episode end."""
+        pass
+
+
+class SimpleAgentBehavior(AgentBehavior):
+    """Simplified interface for beginners."""
+
+    system_prompt: str = "You are an agent."
+    memory_capacity: int = 10
+
+    @abstractmethod
+    def decide(self, context: SimpleContext) -> str:
+        """Return the name of the tool to use."""
+        pass
+```
+
+```python
+# schemas.py - Data contracts
+
+@dataclass
+class Observation:
+    """What the agent receives from Godot each tick."""
+    agent_id: str
+    tick: int
+    position: tuple[float, float, float]
+    rotation: tuple[float, float, float] | None
+    visible_entities: list[EntityInfo]
+    nearby_resources: list[ResourceInfo]
+    nearby_hazards: list[HazardInfo]
+    inventory: list[ItemInfo]
+    health: float
+    energy: float
+    custom: dict  # Scenario-specific data
+
+
+@dataclass
+class AgentDecision:
+    """What the agent returns to the framework."""
+    tool: str
+    params: dict
+    reasoning: str | None = None
+
+    @classmethod
+    def from_llm_response(cls, response: str) -> "AgentDecision":
+        """Parse LLM response into decision."""
+        ...
+
+
+@dataclass
+class SimpleContext:
+    """Simplified context for beginners."""
+    position: tuple[float, float, float]
+    nearby_resources: list[dict]
+    nearby_hazards: list[dict]
+    inventory: list[str]
+    goal: str | None
+```
+
+```python
+# memory/base.py - Memory interface
+
+class AgentMemory(ABC):
+    """Interface for agent memory systems."""
+
+    @abstractmethod
+    def store(self, observation: Observation) -> None:
+        """Store an observation."""
+        pass
+
+    @abstractmethod
+    def retrieve(self, query: str | None = None) -> list[Observation]:
+        """Retrieve relevant observations."""
+        pass
+
+    @abstractmethod
+    def summarize(self) -> str:
+        """Return memory as string for LLM context."""
+        pass
+
+    def clear(self) -> None:
+        """Clear all memory."""
+        pass
+```
+
+#### User Entry Point
+
+```python
+# run_agent.py - How users run their agents
+
+from agent_runtime import AgentArena
+from user_agents.my_agent import MyAgent
+
+# Connect to Godot (framework handles IPC)
+arena = AgentArena.connect(host="127.0.0.1", port=5000)
+
+# Register agent behavior
+arena.register("agent_001", MyAgent())
+
+# Run (blocks, handles tick loop)
+arena.run()
+```
 
 #### backends/
 - `BaseBackend`: Abstract LLM backend interface
 - `LlamaCppBackend`: llama.cpp integration
-- `VLLMBackend`: vLLM integration (future)
-- `TensorRTBackend`: TensorRT-LLM integration (future)
-
-#### memory/
-- `ShortTermMemory`: Recent observations (FIFO/priority queue)
-- `LongTermMemory`: Vector store for RAG (FAISS/Milvus)
-- `EpisodeMemory`: Episode summaries and learning
+- `VLLMBackend`: vLLM integration
+- `OpenAICompatBackend`: OpenAI-compatible APIs (OpenRouter, etc.)
 
 #### tools/
 - `world_query.py`: Vision rays, entity detection, distance
