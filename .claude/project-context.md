@@ -267,9 +267,11 @@ c:\Projects\Agent Arena\
 - ✅ Test scene created with working controls
 - ✅ Core classes verified: SimulationManager, Agent, EventBus, ToolRegistry
 - ✅ IPC system implemented (Godot ↔ Python via HTTP/FastAPI)
-- ⏳ Next: Create actual benchmark scenes (foraging, crafting_chain, team_capture)
-- ⏳ Next: Set up Python environment and agent runtime
-- ⏳ Next: Integrate LLM backends with agent decision-making
+- ✅ Python agent runtime framework complete (AgentArena, AgentBehavior, memory systems)
+- ✅ **Observation-decision loop integrated** (Issue #30) - Foraging scene fully working with Python agents
+- ✅ SimpleForager agent demonstrates complete flow: observations → decisions → execution
+- ⏳ Next: Create additional benchmark scenes (crafting_chain, team_capture)
+- ⏳ Next: Integrate LLM backends with agent decision-making (currently using rule-based SimpleForager)
 
 ## Development Commands
 
@@ -310,32 +312,43 @@ cd tests
 pytest -v
 ```
 
-### Run IPC Server (Godot ↔ Python Communication)
+### Run Foraging Demo (Complete Observation-Decision Loop)
 ```bash
-# Start Python IPC server
+# Start Python IPC server with SimpleForager agent
 cd python
 venv\Scripts\activate
-python run_ipc_server.py
+python run_foraging_demo.py
 
-# With custom options
-python run_ipc_server.py --host 127.0.0.1 --port 5000 --workers 4 --debug
+# You should see:
+# ============================================================
+# Foraging Demo - SimpleForager Agent
+# ============================================================
+# Registering SimpleForager agent...
+#   ✓ Registered SimpleForager for agent_id: foraging_agent_001
+# ✓ IPC Server ready at http://127.0.0.1:5000
+# ✓ Waiting for observations from Godot...
 
-# Test IPC in Godot
-# Open scenes/ipc_test.gd in Godot editor and run it
+# Then in Godot:
+# 1. Open scenes/foraging.tscn
+# 2. Press F5 to run the scene
+# 3. Press SPACE to start the simulation
+# 4. Watch the agent collect resources while avoiding hazards!
+#
+# Controls:
+# - SPACE: Start/Stop simulation
+# - R: Reset scene
+# - S: Step one tick
 ```
 
-### Run IPC Server (Godot ↔ Python Communication)
+### Run Generic IPC Server (For Custom Agents)
 ```bash
-# Start Python IPC server
+# Start Python IPC server without pre-registered agents
 cd python
 venv\Scripts\activate
 python run_ipc_server.py
 
 # With custom options
 python run_ipc_server.py --host 127.0.0.1 --port 5000 --workers 4 --debug
-
-# Test IPC in Godot
-# Open scenes/ipc_test.gd in Godot editor and run it
 ```
 
 ## Common Tasks
@@ -390,10 +403,9 @@ python run_ipc_server.py --host 127.0.0.1 --port 5000 --workers 4 --debug
 - Signals: `response_received`, `connection_failed`
 
 ## Known Issues
-- Benchmark scenes are empty placeholders (need to create actual game worlds)
-- Python environment needs initial setup (venv + pip install)
-- LLM backends not yet connected to agent decision-making
-- Tool execution in Godot currently returns stub responses
+- Only foraging scene is fully implemented (crafting_chain and team_capture need content)
+- LLM backends not yet connected to agent decision-making (currently using rule-based SimpleForager)
+- Some tools in ToolRegistryService return stub responses (only move_to is fully implemented)
 
 ## References
 - Godot docs: https://docs.godotengine.org/

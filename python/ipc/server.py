@@ -53,7 +53,7 @@ class IPCServer:
             port: Port to listen on
         """
         self.runtime = runtime
-        self.behaviors = behaviors or {}
+        self.behaviors = behaviors if behaviors is not None else {}
         self.host = host
         self.port = port
         self.app: FastAPI | None = None
@@ -397,10 +397,11 @@ class IPCServer:
         @app.post("/observe")
         async def process_observation(observation: dict[str, Any]) -> dict[str, Any]:
             """
-            Process a single observation and return a mock decision.
+            Process a single observation and return a decision.
 
-            This is a simplified endpoint for testing the observation-decision loop.
-            It uses rule-based mock logic instead of real LLM inference.
+            This endpoint supports both registered behaviors and mock logic:
+            - If a behavior is registered for the agent_id, it will be used
+            - Otherwise, falls back to rule-based mock logic
 
             Args:
                 observation: Observation data containing:
@@ -420,8 +421,58 @@ class IPCServer:
                 logger.debug(f"Resources: {len(observation.get('nearby_resources', []))}")
                 logger.debug(f"Hazards: {len(observation.get('nearby_hazards', []))}")
 
-                # Generate mock decision using rule-based logic
-                decision = self._make_mock_decision(observation)
+                # Check if we have a registered behavior for this agent
+                behavior = self.behaviors.get(agent_id)
+
+                if behavior:
+                    # Use registered behavior to make decision
+                    logger.info(f"Using registered behavior for agent {agent_id}")
+
+                    # Convert observation dict to Observation schema
+                    from .messages import PerceptionMessage
+
+                    # Create PerceptionMessage from observation dict
+                    perception = PerceptionMessage(
+                        agent_id=agent_id,
+                        tick=observation.get("tick", 0),
+                        position=observation.get("position", [0, 0, 0]),
+                        rotation=observation.get("rotation", [0.0, 0.0, 0.0]),
+                        velocity=observation.get("velocity", [0.0, 0.0, 0.0]),
+                        visible_entities=observation.get("visible_entities", []),
+                        inventory=observation.get("inventory", []),
+                        health=observation.get("health", 100.0),
+                        energy=observation.get("energy", 100.0),
+                        custom_data={
+                            "nearby_resources": observation.get("nearby_resources", []),
+                            "nearby_hazards": observation.get("nearby_hazards", []),
+                        },
+                    )
+
+                    # Convert to runtime Observation
+                    obs = perception_to_observation(perception)
+
+                    # Get tool schemas
+                    tool_schemas = [
+                        ToolSchema(
+                            name=schema.name,
+                            description=schema.description,
+                            parameters=schema.parameters,
+                        )
+                        for schema in self.tool_dispatcher.schemas.values()
+                    ]
+
+                    # Get decision from behavior
+                    agent_decision = behavior.decide(obs, tool_schemas)
+
+                    decision = {
+                        "tool": agent_decision.tool,
+                        "params": agent_decision.params,
+                        "reasoning": agent_decision.reasoning or "No reasoning provided",
+                    }
+                else:
+                    # Generate mock decision using rule-based logic
+                    logger.info(f"Using mock logic for agent {agent_id}")
+                    decision = self._make_mock_decision(observation)
 
                 # Update metrics
                 self.metrics["total_observations_processed"] += 1

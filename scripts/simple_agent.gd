@@ -15,8 +15,12 @@ signal tick_completed(response: Dictionary)
 
 @export var agent_id: String = ""
 @export var auto_connect: bool = true
+@export var move_speed: float = 5.0  # Units per second
 
 var _cpp_agent: Agent
+var _target_position: Vector3 = Vector3.ZERO
+var _is_moving: bool = false
+var _movement_speed: float = 1.0
 
 func _ready():
 	if agent_id.is_empty():
@@ -61,6 +65,23 @@ func call_tool(tool_name: String, parameters: Dictionary = {}) -> Dictionary:
 		return {"success": false, "error": "ToolRegistryService not available"}
 
 	print("SimpleAgent '", agent_id, "' calling tool: ", tool_name)
+
+	# Handle movement locally
+	if tool_name == "move_to" and parameters.has("target_position"):
+		var target = parameters.target_position
+		# Convert array to Vector3 if needed
+		if target is Array and target.size() >= 3:
+			_target_position = Vector3(target[0], target[1], target[2])
+		elif target is Vector3:
+			_target_position = target
+		else:
+			print("SimpleAgent: Invalid target_position format: ", target)
+			return {"success": false, "error": "Invalid target_position"}
+
+		_movement_speed = parameters.get("speed", 1.0)
+		_is_moving = true
+		print("SimpleAgent '", agent_id, "' starting movement to ", _target_position, " at speed ", _movement_speed)
+
 	return ToolRegistryService.execute_tool(agent_id, tool_name, parameters)
 
 func send_tick(tick: int, perceptions: Array) -> void:
@@ -105,6 +126,28 @@ func execute_action(action: Dictionary):
 	"""Execute an action"""
 	if _cpp_agent:
 		_cpp_agent.execute_action(action)
+
+func _process(delta):
+	"""Handle movement each frame"""
+	if _is_moving:
+		var distance = global_position.distance_to(_target_position)
+
+		# Stop if close enough (0.1 unit tolerance)
+		if distance < 0.1:
+			_is_moving = false
+			global_position = _target_position
+			return
+
+		# Move toward target
+		var direction = (_target_position - global_position).normalized()
+		var move_distance = _movement_speed * move_speed * delta
+
+		# Don't overshoot the target
+		if move_distance > distance:
+			global_position = _target_position
+			_is_moving = false
+		else:
+			global_position += direction * move_distance
 
 # Signal handlers
 func _on_tool_response(response_agent_id: String, tool_name: String, response: Dictionary):

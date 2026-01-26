@@ -278,19 +278,143 @@ configs/
 
 ### Godot <-> Python IPC
 
-**Options:**
+**Current Implementation: HTTP/REST (FastAPI)**
+
+The foraging demo uses a working HTTP-based IPC system that demonstrates the full observation-decision-execution loop.
+
+**Architecture:**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                Godot Scene (foraging.tscn)                  │
+│                                                             │
+│  ┌────────────────┐              ┌──────────────────┐      │
+│  │SceneController │──observe────▶│  HTTPRequest     │──┐   │
+│  │  (foraging.gd) │              │                  │  │   │
+│  │                │◀────result───│                  │◀─┘   │
+│  └────────┬───────┘              └──────────────────┘      │
+│           │                                                 │
+│           │ call_tool(decision)                             │
+│           │                                                 │
+│  ┌────────▼───────┐              ┌──────────────────┐      │
+│  │  SimpleAgent   │──execute────▶│ToolRegistryService│     │
+│  │(simple_agent.gd)│              │                  │      │
+│  └────────────────┘              └──────────────────┘      │
+└─────────────────────────────────────────────────────────────┘
+                       │                   ▲
+                       │ POST /observe     │ response
+                       ▼                   │
+┌─────────────────────────────────────────────────────────────┐
+│              Python IPC Server (FastAPI)                    │
+│                                                             │
+│  ┌────────────────┐              ┌──────────────────┐      │
+│  │   IPCServer    │──lookup─────▶│  AgentArena      │      │
+│  │                │              │  .behaviors{}    │      │
+│  │  /observe      │◀────behavior─│                  │      │
+│  │  /tool         │              │                  │      │
+│  └────────┬───────┘              └──────────────────┘      │
+│           │                                                 │
+│           │ behavior.decide(obs, tools)                     │
+│           │                                                 │
+│  ┌────────▼───────────────────────────────────────┐        │
+│  │  SimpleForager (user_agents/examples/)         │        │
+│  │  - Finds nearest resource                      │        │
+│  │  - Avoids hazards                              │        │
+│  │  - Returns AgentDecision(tool, params)         │        │
+│  └────────────────────────────────────────────────┘        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Implementation Details:**
+
+1. **Behavior Registration** ([run_foraging_demo.py](../python/run_foraging_demo.py)):
+   ```python
+   arena = AgentArena.connect(host="127.0.0.1", port=5000)
+   arena.register("foraging_agent_001", SimpleForager(memory_capacity=10))
+   arena.run()  # Starts FastAPI server
+   ```
+
+2. **Observation Endpoint** ([ipc/server.py:397-495](../python/ipc/server.py#L397-L495)):
+   ```python
+   @app.post("/observe")
+   async def process_observation(observation: dict) -> dict:
+       agent_id = observation.get("agent_id")
+       behavior = self.behaviors.get(agent_id)  # Lookup registered behavior
+
+       if behavior:
+           # Convert Godot dict -> Observation schema
+           obs = perception_to_observation(perception)
+
+           # Get tool schemas
+           tool_schemas = [...]
+
+           # Agent decides action
+           decision = behavior.decide(obs, tool_schemas)
+
+           return {
+               "tool": decision.tool,
+               "params": decision.params,
+               "reasoning": decision.reasoning
+           }
+       else:
+           # Fallback to mock logic
+           return self._make_mock_decision(observation)
+   ```
+
+3. **Scene Observation Sending** ([base_scene_controller.gd](../scripts/base_scene_controller.gd)):
+   ```gdscript
+   func _request_backend_decision(agent_data, observations, tick):
+       var body = JSON.stringify({
+           "agent_id": agent_data.id,
+           "tick": tick,
+           "position": observations.position,
+           "nearby_resources": observations.nearby_resources,
+           "nearby_hazards": observations.nearby_hazards
+       })
+
+       http_request.request(backend_url + "/observe", headers, HTTPClient.METHOD_POST, body)
+   ```
+
+4. **Decision Execution** ([foraging.gd:173-175](../scripts/foraging.gd#L173-L175)):
+   ```gdscript
+   func _execute_backend_decision(agent_data, decision):
+       # Call agent's tool with params from Python decision
+       agent_data.agent.call_tool(decision.tool, decision.params)
+   ```
+
+5. **Movement Implementation** ([simple_agent.gd:130-151](../scripts/simple_agent.gd#L130-L151)):
+   ```gdscript
+   func call_tool(tool_name: String, parameters: Dictionary = {}):
+       if tool_name == "move_to":
+           _target_position = Vector3(parameters.target_position[0],
+                                      parameters.target_position[1],
+                                      parameters.target_position[2])
+           _movement_speed = parameters.get("speed", 1.0)
+           _is_moving = true
+
+       return ToolRegistryService.execute_tool(agent_id, tool_name, parameters)
+
+   func _process(delta):
+       if _is_moving:
+           var direction = (_target_position - global_position).normalized()
+           var move_distance = _movement_speed * move_speed * delta
+           global_position += direction * move_distance
+   ```
+
+**Critical Implementation Notes:**
+
+- **Behavior Reference Bug**: Must use `behaviors if behaviors is not None else {}` instead of `behaviors or {}` to preserve dict reference when empty
+- **Movement Implementation**: SimpleAgent must implement `_process(delta)` for frame-based movement, not just return success from tool calls
+- **Agent ID Matching**: Godot agent_id must exactly match registered Python agent_id
+
+**Other IPC Options (Not Currently Implemented):**
 
 1. **gRPC** (Recommended for production)
    - Bidirectional streaming
    - Type-safe protocol buffers
    - Low latency
 
-2. **HTTP/REST** (Simple for prototyping)
-   - Request/response per tick
-   - JSON serialization
-   - Easy debugging
-
-3. **Shared Memory** (Highest performance)
+2. **Shared Memory** (Highest performance)
    - Zero-copy communication
    - MessagePack serialization
    - Complex to implement
