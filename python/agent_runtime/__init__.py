@@ -7,6 +7,7 @@ This module provides the core agent runtime infrastructure for LLM-driven agents
 from .agent import Agent
 from .arena import AgentArena
 from .behavior import AgentBehavior, SimpleAgentBehavior
+from .local_llm_behavior import LocalLLMBehavior, create_local_llm_behavior
 from .memory import AgentMemory, RAGMemory, SlidingWindowMemory, SummarizingMemory
 from .runtime import AgentRuntime
 from .schemas import (
@@ -28,6 +29,8 @@ __all__ = [
     "ToolDispatcher",
     "AgentBehavior",
     "SimpleAgentBehavior",
+    "LocalLLMBehavior",
+    "create_local_llm_behavior",
     "AgentMemory",
     "SlidingWindowMemory",
     "SummarizingMemory",

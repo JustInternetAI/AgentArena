@@ -207,7 +207,7 @@ class IPCServer:
                 tick_request = TickRequest.from_dict(request_data)
                 tick = tick_request.tick
 
-                logger.debug(f"Processing tick {tick} with {len(tick_request.perceptions)} agents")
+                logger.info(f"[/tick] Processing tick {tick} with {len(tick_request.perceptions)} agents")
 
                 # Get tool schemas for agents
                 tool_schemas = []
@@ -231,6 +231,11 @@ class IPCServer:
                     # Get behavior for this agent
                     behavior = self.behaviors.get(agent_id)
 
+                    # If no specific behavior, check for default behavior
+                    if behavior is None and "_default" in self.behaviors:
+                        behavior = self.behaviors["_default"]
+                        logger.debug(f"Using default behavior for agent {agent_id}")
+
                     if behavior:
                         # Call behavior.decide() with Observation and tools
                         try:
@@ -240,8 +245,8 @@ class IPCServer:
                             action_msg = decision_to_action(decision, agent_id, tick)
                             action_messages.append(action_msg)
 
-                            logger.debug(
-                                f"Agent {agent_id} decided: {decision.tool} - {decision.reasoning}"
+                            logger.info(
+                                f"[/tick] Agent {agent_id} decided: {decision.tool} - {decision.reasoning}"
                             )
                         except Exception as e:
                             logger.error(
@@ -294,8 +299,8 @@ class IPCServer:
                     },
                 )
 
-                logger.debug(
-                    f"Tick {tick} processed in {elapsed_ms:.2f}ms, "
+                logger.info(
+                    f"[/tick] Tick {tick} processed in {elapsed_ms:.2f}ms, "
                     f"{len(action_messages)} actions generated"
                 )
 
@@ -379,6 +384,7 @@ class IPCServer:
         @app.get("/tools/list")
         async def list_tools() -> dict[str, Any]:
             """Get list of available tools and their schemas."""
+            logger.info("[/tools/list] Tools requested")
             schemas = {}
             for name, schema in self.tool_dispatcher.schemas.items():
                 schemas[name] = {
@@ -387,6 +393,7 @@ class IPCServer:
                     "parameters": schema.parameters,
                     "returns": schema.returns,
                 }
+            logger.info(f"[/tools/list] Returning {len(schemas)} tools")
             return {"tools": schemas, "count": len(schemas)}
 
         @app.get("/metrics")
@@ -415,13 +422,72 @@ class IPCServer:
             try:
                 agent_id = observation.get("agent_id", "unknown")
 
-                logger.debug(f"Processing observation for agent {agent_id}")
+                logger.info(f"[/observe] Processing observation for agent '{agent_id}'")
                 logger.debug(f"Position: {observation.get('position')}")
                 logger.debug(f"Resources: {len(observation.get('nearby_resources', []))}")
                 logger.debug(f"Hazards: {len(observation.get('nearby_hazards', []))}")
 
-                # Generate mock decision using rule-based logic
-                decision = self._make_mock_decision(observation)
+                # Check if a behavior is registered for this agent
+                behavior = self.behaviors.get(agent_id)
+
+                # If no specific behavior, check for default behavior
+                if behavior is None and "_default" in self.behaviors:
+                    behavior = self.behaviors["_default"]
+                    logger.info(f"[/observe] Using default behavior for agent '{agent_id}'")
+
+                if behavior:
+                    # Convert observation dict to Observation object
+                    from .converters import perception_to_observation
+                    from ipc.messages import PerceptionMessage
+
+                    # Create PerceptionMessage from observation dict
+                    perception = PerceptionMessage(
+                        agent_id=agent_id,
+                        tick=observation.get("tick", 0),
+                        position=observation.get("position", [0, 0, 0]),
+                        rotation=observation.get("rotation"),
+                        velocity=observation.get("velocity"),
+                        custom_data={
+                            "nearby_resources": observation.get("nearby_resources", []),
+                            "nearby_hazards": observation.get("nearby_hazards", []),
+                            "inventory": observation.get("inventory", []),
+                            "health": observation.get("health", 100.0),
+                            "energy": observation.get("energy", 100.0),
+                        },
+                    )
+
+                    obs = perception_to_observation(perception)
+
+                    # Get tool schemas
+                    tool_schemas = []
+                    for name, schema in self.tool_dispatcher.schemas.items():
+                        tool_schemas.append(
+                            ToolSchema(
+                                name=schema.name,
+                                description=schema.description,
+                                parameters=schema.parameters,
+                            )
+                        )
+
+                    try:
+                        # Call behavior.decide()
+                        agent_decision = behavior.decide(obs, tool_schemas)
+
+                        decision = {
+                            "tool": agent_decision.tool,
+                            "params": agent_decision.params,
+                            "reasoning": agent_decision.reasoning or "Agent decision",
+                        }
+                    except Exception as e:
+                        logger.error(f"Error in behavior.decide(): {e}", exc_info=True)
+                        decision = {
+                            "tool": "idle",
+                            "params": {},
+                            "reasoning": f"Error: {str(e)}",
+                        }
+                else:
+                    # Generate mock decision using rule-based logic
+                    decision = self._make_mock_decision(observation)
 
                 # Update metrics
                 self.metrics["total_observations_processed"] += 1
@@ -469,6 +535,7 @@ class IPCServer:
 def create_server(
     runtime: AgentRuntime | None = None,
     behaviors: dict | None = None,
+    default_behavior: "AgentBehavior | None" = None,
     host: str = "127.0.0.1",
     port: int = 5000,
 ) -> IPCServer:
@@ -478,13 +545,33 @@ def create_server(
     Args:
         runtime: AgentRuntime instance, or None to create a default one
         behaviors: Dictionary of agent_id -> AgentBehavior instances
+        default_behavior: Default behavior to use for all agents if no specific behavior is registered
         host: Host address to bind to
         port: Port to listen on
 
     Returns:
         Configured IPCServer instance
+
+    Example:
+        # Use default behavior for all agents
+        from agent_runtime.local_llm_behavior import create_local_llm_behavior
+        from backends.llama_cpp_backend import LlamaCppBackend
+        from backends.base import BackendConfig
+
+        config = BackendConfig(model_path="model.gguf", n_gpu_layers=-1)
+        backend = LlamaCppBackend(config)
+        behavior = create_local_llm_behavior(backend)
+
+        server = create_server(default_behavior=behavior)
     """
     if runtime is None:
         runtime = AgentRuntime(max_workers=4)
+
+    # If default_behavior provided and no specific behaviors, create behaviors dict
+    if default_behavior is not None:
+        if behaviors is None:
+            behaviors = {}
+        # Store reference to default behavior
+        behaviors["_default"] = default_behavior
 
     return IPCServer(runtime=runtime, behaviors=behaviors, host=host, port=port)
