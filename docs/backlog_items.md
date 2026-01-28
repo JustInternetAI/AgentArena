@@ -614,11 +614,313 @@ Run benchmarks on mobile devices.
 
 ---
 
+---
+
+#### B-31: LocalLLMBehavior - Bridge Local Backends to AgentBehavior API
+**Priority**: High
+**Component**: Agent Runtime / Backends
+**Size**: M
+**Blocking**: LLM agent integration with foraging scene
+
+**Problem Statement**:
+The codebase has two separate agent systems that aren't connected:
+
+1. **AgentBehavior system** (`python/agent_runtime/behavior.py`)
+   - Classes: `AgentBehavior`, `SimpleAgentBehavior`, `LLMAgentBehavior`
+   - Used by: IPC server's `/observe` endpoint via `server.behaviors` dict
+   - Learner-facing API with three tiers (beginner/intermediate/advanced)
+
+2. **Local LLM Backend system** (`python/backends/`)
+   - Classes: `LlamaCppBackend`, `VLLMBackend`
+   - Used by: `run_ipc_server_with_gpu.py` via `Agent` class
+   - GPU-accelerated local inference
+
+**Current Flow (Broken)**:
+```
+Godot foraging scene
+    ↓ POST /observe (sends observation)
+python/ipc/server.py line 424-475
+    ↓ checks server.behaviors dict → EMPTY
+    ↓ falls back to mock rule-based logic
+    (LlamaCppBackend never gets called)
+```
+
+**Goal**: Create `LocalLLMBehavior` class that wraps local backends (LlamaCppBackend, VLLMBackend) and implements the `AgentBehavior` interface, so local LLMs can power agents via the `/observe` endpoint.
+
+---
+
+**Architecture Context**:
+
+The IPC server (`python/ipc/server.py`) has a `behaviors` dict that maps `agent_id → AgentBehavior`. When `/observe` receives an observation:
+- Line 424-426: Gets agent_id from observation
+- Line 427: Checks `behavior = self.behaviors.get(agent_id)`
+- Line 428-471: If behavior exists, calls `behavior.decide(observation, tools)`
+- Line 472-475: If no behavior, falls back to `_make_mock_decision()`
+
+The `LLMAgentBehavior` class (line 281-422 in behavior.py) already supports cloud LLMs (Anthropic, OpenAI, Ollama) but NOT the local backends (LlamaCppBackend, VLLMBackend).
+
+---
+
+**Files to Understand First**:
+
+1. `python/agent_runtime/behavior.py` - Base classes, especially `LLMAgentBehavior`
+2. `python/backends/base.py` - `BaseBackend` interface with `generate()` and `generate_with_tools()`
+3. `python/backends/llama_cpp_backend.py` - Local GPU inference implementation
+4. `python/backends/vllm_backend.py` - vLLM server client
+5. `python/ipc/server.py` - See `/observe` endpoint (line 397-493) and `create_server()` function
+6. `python/user_agents/examples/llm_forager.py` - Example of LLMAgentBehavior subclass
+7. `python/scenarios/foraging.py` - Scenario definition with `to_system_prompt()` method
+
+---
+
+**Implementation Tasks**:
+
+- [ ] **Create `python/agent_runtime/local_llm_behavior.py`**
+
+  ```python
+  """
+  Local LLM behavior adapter.
+
+  Bridges the AgentBehavior interface to local LLM backends
+  (LlamaCppBackend, VLLMBackend) for GPU-accelerated inference.
+  """
+
+  from agent_runtime.behavior import AgentBehavior
+  from agent_runtime.schemas import AgentDecision, Observation, ToolSchema
+  from backends.base import BaseBackend
+
+  class LocalLLMBehavior(AgentBehavior):
+      """
+      AgentBehavior implementation using local LLM backends.
+
+      This bridges the learner-facing AgentBehavior API to the
+      high-performance local backends (llama.cpp, vLLM).
+
+      Example:
+          from backends import LlamaCppBackend, BackendConfig
+          from agent_runtime.local_llm_behavior import LocalLLMBehavior
+
+          config = BackendConfig(model_path="models/llama.gguf", n_gpu_layers=-1)
+          backend = LlamaCppBackend(config)
+
+          behavior = LocalLLMBehavior(
+              backend=backend,
+              system_prompt="You are a foraging agent..."
+          )
+
+          # Register with IPC server
+          server = create_server(behaviors={"agent_001": behavior})
+      """
+
+      def __init__(
+          self,
+          backend: BaseBackend,
+          system_prompt: str = "",
+          temperature: float = 0.7,
+          max_tokens: int = 256,
+      ):
+          self.backend = backend
+          self.system_prompt = system_prompt
+          self.temperature = temperature
+          self.max_tokens = max_tokens
+          self._memory: list[Observation] = []
+          self._memory_capacity = 10
+
+      def decide(self, observation: Observation, tools: list[ToolSchema]) -> AgentDecision:
+          """Use local LLM to decide next action."""
+          # 1. Store observation in memory
+          # 2. Build prompt from system_prompt + observation + tools
+          # 3. Call backend.generate_with_tools() or backend.generate()
+          # 4. Parse response into AgentDecision
+          # 5. Handle errors gracefully (return idle on failure)
+          pass
+
+      def _build_prompt(self, observation: Observation, tools: list[ToolSchema]) -> str:
+          """Build the prompt for the LLM."""
+          # Include: system prompt, current observation, available tools, memory
+          pass
+
+      def _parse_response(self, response: str, tools: list[ToolSchema]) -> AgentDecision:
+          """Parse LLM response into AgentDecision."""
+          # Handle JSON parsing, validate tool names, extract params
+          pass
+
+      def on_episode_start(self) -> None:
+          """Clear memory at episode start."""
+          self._memory.clear()
+  ```
+
+- [ ] **Add factory function for easy creation**
+
+  ```python
+  def create_local_llm_behavior(
+      model_path: str,
+      backend_type: str = "llama_cpp",  # or "vllm"
+      n_gpu_layers: int = -1,
+      system_prompt: str = "",
+      **kwargs
+  ) -> LocalLLMBehavior:
+      """Factory to create LocalLLMBehavior with backend."""
+      pass
+  ```
+
+- [ ] **Update `python/ipc/server.py` `create_server()` function** (line 520-541)
+
+  Add optional parameter to auto-create local LLM behavior:
+  ```python
+  def create_server(
+      runtime: AgentRuntime | None = None,
+      behaviors: dict | None = None,
+      host: str = "127.0.0.1",
+      port: int = 5000,
+      default_behavior: AgentBehavior | None = None,  # NEW: fallback for unknown agents
+  ) -> IPCServer:
+  ```
+
+- [ ] **Create `python/run_local_llm_forager.py`** - Startup script
+
+  ```python
+  """
+  Run foraging scene with local LLM agent.
+
+  Usage:
+      python run_local_llm_forager.py --model models/llama.gguf --gpu-layers -1
+  """
+
+  # 1. Load local backend (LlamaCppBackend or VLLMBackend)
+  # 2. Create LocalLLMBehavior with foraging system prompt
+  # 3. Register behavior for agent_id matching Godot scene
+  # 4. Start IPC server
+  ```
+
+- [ ] **Integrate scenario system prompts**
+
+  Use `python/scenarios/foraging.py` to generate system prompts:
+  ```python
+  from scenarios import get_scenario
+
+  scenario = get_scenario("foraging")
+  system_prompt = scenario.to_system_prompt(include_hints=True)
+  behavior = LocalLLMBehavior(backend=backend, system_prompt=system_prompt)
+  ```
+
+- [ ] **Add to `__init__.py` exports**
+
+  Update `python/agent_runtime/__init__.py` to export `LocalLLMBehavior`
+
+- [ ] **Write tests**
+
+  Create `tests/test_local_llm_behavior.py`:
+  - Test prompt building
+  - Test response parsing (valid JSON, invalid JSON, missing fields)
+  - Test tool validation
+  - Test memory management
+  - Mock backend for unit tests
+
+---
+
+**Reference: How LLMAgentBehavior works** (for comparison):
+
+```python
+# From behavior.py lines 321-338
+def complete(self, prompt: str, system: str | None = None, temperature: float = 0.7) -> str:
+    if self._client is None:
+        self._client = self._create_client()
+    sys_prompt = system if system is not None else self.system_prompt
+    return self._call_llm(prompt, sys_prompt, temperature)
+
+# _call_llm handles Anthropic/OpenAI/Ollama APIs
+```
+
+LocalLLMBehavior should follow similar pattern but call:
+```python
+result = self.backend.generate_with_tools(prompt, tools_as_dicts, temperature)
+# or
+result = self.backend.generate(prompt, temperature, max_tokens)
+```
+
+---
+
+**Reference: Backend API** (from `backends/base.py`):
+
+```python
+class BaseBackend(ABC):
+    @abstractmethod
+    def generate(self, prompt: str, temperature: float | None, max_tokens: int | None) -> GenerationResult:
+        pass
+
+    @abstractmethod
+    def generate_with_tools(self, prompt: str, tools: list[dict], temperature: float | None) -> GenerationResult:
+        pass
+
+@dataclass
+class GenerationResult:
+    text: str
+    tokens_used: int
+    finish_reason: str
+    metadata: dict[str, Any]
+```
+
+---
+
+**Agent ID Matching**:
+
+The Godot foraging scene uses `SimpleAgent` which has an `agent_id` property:
+- If set in scene: uses that value
+- If empty: auto-generates `"agent_" + timestamp`
+
+For testing, either:
+1. Set `agent_id = "forager_001"` in the Godot scene's SimpleAgent node
+2. OR use a wildcard/default behavior in the server
+
+Recommend option 1 for explicit control.
+
+---
+
+**Acceptance Criteria**:
+
+- [ ] `LocalLLMBehavior` implements full `AgentBehavior` interface
+- [ ] Works with both `LlamaCppBackend` and `VLLMBackend`
+- [ ] Integrates with scenario system prompts (`to_system_prompt()`)
+- [ ] `run_local_llm_forager.py` successfully runs foraging scene with local LLM
+- [ ] Agent makes reasonable decisions (moves to resources, avoids hazards)
+- [ ] Graceful error handling (returns idle on LLM failures)
+- [ ] All tests pass
+- [ ] Pre-commit hooks pass (black, ruff, mypy)
+
+---
+
+**Testing Instructions**:
+
+1. Download a GGUF model (e.g., `llama-2-7b-chat.Q4_K_M.gguf`)
+2. Run: `python run_local_llm_forager.py --model path/to/model.gguf`
+3. Open Godot and run the foraging scene
+4. Observe agent behavior in console logs
+5. Verify decisions are LLM-generated (not mock logic)
+
+---
+
+**Related Files Summary**:
+
+| File | Purpose |
+|------|---------|
+| `python/agent_runtime/behavior.py` | Base classes to extend |
+| `python/backends/llama_cpp_backend.py` | Local GPU backend |
+| `python/backends/vllm_backend.py` | vLLM server backend |
+| `python/backends/base.py` | Backend interface |
+| `python/ipc/server.py` | IPC server with /observe endpoint |
+| `python/scenarios/foraging.py` | System prompt source |
+| `python/user_agents/examples/llm_forager.py` | Reference implementation |
+| `scripts/simple_agent.gd` | Godot agent (sends agent_id) |
+| `scripts/base_scene_controller.gd` | Sends observations to /observe |
+
+---
+
 ## Total Backlog Summary
 
-- **High Priority**: 7 items
+- **High Priority**: 8 items
 - **Medium Priority**: 15 items
 - **Low Priority**: 8 items
-- **Total**: 30 items
+- **Total**: 31 items
 
 **Estimated Timeline**: 6-12 months for all items with 2 developers
