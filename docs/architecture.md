@@ -93,25 +93,50 @@ python/
 └── run_agent.py                # Main entry point
 ```
 
-#### Layered Agent Interface
+#### Three-Tier Learning Progression
 
-The framework provides three layers of abstraction:
+The framework provides three tiers of abstraction, designed as a learning progression:
 
-**Layer 1: SimpleAgentBehavior (Beginners)**
-- User implements `decide(context) -> tool_name`
-- Framework handles: memory, prompts, parsing, tool parameters
-- Best for: Tutorials, learning tool use basics
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        BEGINNER TIER                                     │
+│  SimpleAgentBehavior                                                     │
+│  ─────────────────────                                                   │
+│  • User returns: tool name (string)                                      │
+│  • Framework handles: parameters, memory, context building               │
+│  • Focus: Understanding perception → decision → action loop              │
+│  • No LLM required                                                       │
+├─────────────────────────────────────────────────────────────────────────┤
+│                       INTERMEDIATE TIER                                  │
+│  AgentBehavior + SlidingWindowMemory                                     │
+│  ────────────────────────────────────                                    │
+│  • User returns: AgentDecision with tool, params, reasoning              │
+│  • User manages: built-in memory (SlidingWindowMemory)                   │
+│  • User implements: lifecycle hooks (on_episode_start, on_tool_result)   │
+│  • Focus: State tracking, explicit parameters, memory patterns           │
+│  • No LLM required                                                       │
+├─────────────────────────────────────────────────────────────────────────┤
+│                        ADVANCED TIER                                     │
+│  LLMAgentBehavior + Custom Memory                                        │
+│  ─────────────────────────────────                                       │
+│  • User integrates: LLM backends (Anthropic, OpenAI, Ollama)             │
+│  • User implements: custom memory systems, planning, multi-agent         │
+│  • User controls: prompt engineering, response parsing, coordination     │
+│  • Focus: LLM reasoning, planning, multi-agent coordination              │
+└─────────────────────────────────────────────────────────────────────────┘
+```
 
-**Layer 2: AgentBehavior with Built-in Memory (Intermediate)**
-- User implements `decide(observation, tools) -> AgentDecision`
-- User chooses memory strategy from built-ins
-- User writes system prompt and builds context
-- Best for: Learning LLM integration, prompt engineering
+**Key Design Principles:**
 
-**Layer 3: AgentBehavior with Custom Memory (Advanced)**
-- User implements custom `AgentMemory` subclass
-- Full control over state, prompts, and decision flow
-- Best for: Research, complex agent architectures
+1. **Learners don't need C++ knowledge** - The C++ GDExtension module handles all low-level simulation details (raycasting, pathfinding, collision detection). Learners work exclusively in Python.
+
+2. **Learners don't need game development knowledge** - GDScript wrappers handle Godot integration, animation, and world interaction. Learners focus on agent logic.
+
+3. **Progressive complexity** - Each tier builds on the previous, allowing learners to gradually take more control as they understand more concepts.
+
+4. **Python is the "brain"** - All decision-making logic lives in Python. Godot and C++ provide the "body" (perception and execution).
+
+See [Learner Documentation](learners/getting_started.md) for tutorials at each tier.
 
 #### Key Interfaces
 

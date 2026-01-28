@@ -1,7 +1,27 @@
 """
 Agent behavior interfaces.
 
-Defines the contracts that user agents must fulfill.
+This module defines the base classes for agent decision-making logic,
+organized into a three-tier learning progression:
+
+BEGINNER TIER: SimpleAgentBehavior
+    - User returns a tool name (string)
+    - Framework handles parameters, memory, and context
+    - Focus: Understanding the perception → decision → action loop
+
+INTERMEDIATE TIER: AgentBehavior
+    - User returns AgentDecision with tool, params, and reasoning
+    - User manages memory using built-in SlidingWindowMemory
+    - User implements lifecycle hooks (on_episode_start, on_tool_result)
+    - Focus: State tracking, explicit parameters, memory patterns
+
+ADVANCED TIER: LLMAgentBehavior
+    - User integrates LLM backends (Anthropic, OpenAI, Ollama)
+    - User implements custom memory systems and planning
+    - User controls prompt engineering and response parsing
+    - Focus: LLM reasoning, planning, multi-agent coordination
+
+See docs/learners/ for tutorials at each tier.
 """
 
 from abc import ABC, abstractmethod
@@ -13,22 +33,45 @@ if TYPE_CHECKING:
 
 class AgentBehavior(ABC):
     """
-    Base class for agent decision-making logic.
+    Base class for agent decision-making logic (Intermediate Tier).
 
-    Users implement this to create custom agents. The framework calls
-    `decide()` each tick with the current observation and available tools.
+    Users implement this to create agents with full control over decisions.
+    The framework calls `decide()` each tick with the current observation
+    and available tools.
+
+    This is the intermediate tier interface. For beginners, see
+    SimpleAgentBehavior. For advanced LLM integration, see LLMAgentBehavior.
 
     Example:
-        class MyAgent(AgentBehavior):
-            def __init__(self, backend):
-                self.backend = backend
-                self.memory = SlidingWindowMemory(capacity=10)
+        from agent_runtime import AgentBehavior, Observation, AgentDecision, ToolSchema
+        from agent_runtime.memory import SlidingWindowMemory
 
-            def decide(self, observation, tools):
+        class MyAgent(AgentBehavior):
+            def __init__(self):
+                self.memory = SlidingWindowMemory(capacity=50)
+
+            def on_episode_start(self):
+                self.memory.clear()
+
+            def decide(self, observation: Observation, tools: list[ToolSchema]) -> AgentDecision:
                 self.memory.store(observation)
-                prompt = self._build_prompt(observation)
-                response = self.backend.generate(prompt)
-                return AgentDecision.from_llm_response(response)
+
+                # Find nearest resource
+                if observation.nearby_resources:
+                    target = observation.nearby_resources[0]
+                    if target.distance < 2.0:
+                        return AgentDecision(
+                            tool="collect",
+                            params={"resource_id": target.name},
+                            reasoning=f"Collecting {target.name}"
+                        )
+                    return AgentDecision(
+                        tool="move_to",
+                        params={"target_position": list(target.position)},
+                        reasoning=f"Moving to {target.name}"
+                    )
+
+                return AgentDecision.idle(reasoning="No resources visible")
     """
 
     @abstractmethod
@@ -233,3 +276,146 @@ class SimpleAgentBehavior(AgentBehavior):
 
         # Default: no parameters
         return {}
+
+
+class LLMAgentBehavior(AgentBehavior):
+    """
+    LLM-powered agent behavior (Advanced Tier).
+
+    Extends AgentBehavior with LLM integration capabilities. Users specify
+    the LLM backend and model, then use the `complete()` method to get
+    LLM responses for decision-making.
+
+    Example:
+        from agent_runtime import LLMAgentBehavior, Observation, AgentDecision, ToolSchema
+
+        class MyLLMAgent(LLMAgentBehavior):
+            def __init__(self):
+                super().__init__(backend="anthropic", model="claude-3-haiku-20240307")
+                self.system_prompt = "You are an intelligent foraging agent."
+
+            def decide(self, observation: Observation, tools: list[ToolSchema]) -> AgentDecision:
+                context = self._format_observation(observation)
+                response = self.complete(context)
+                return self._parse_response(response, tools)
+
+    Supported backends:
+        - "anthropic": Claude models (requires ANTHROPIC_API_KEY)
+        - "openai": GPT models (requires OPENAI_API_KEY)
+        - "ollama": Local models (requires ollama serve running)
+    """
+
+    def __init__(self, backend: str = "anthropic", model: str = "claude-3-haiku-20240307"):
+        """
+        Initialize the LLM agent behavior.
+
+        Args:
+            backend: LLM provider ("anthropic", "openai", "ollama")
+            model: Model identifier for the chosen backend
+        """
+        self.backend = backend
+        self.model = model
+        self.system_prompt: str = "You are an autonomous agent."
+        self._client = None
+
+    def complete(self, prompt: str, system: str | None = None, temperature: float = 0.7) -> str:
+        """
+        Send a prompt to the LLM and get a response.
+
+        Args:
+            prompt: The prompt to send to the LLM
+            system: Optional system prompt override (uses self.system_prompt if None)
+            temperature: Randomness of response (0 = deterministic, 1 = creative)
+
+        Returns:
+            The LLM's response as a string
+        """
+        # Lazy initialization of client
+        if self._client is None:
+            self._client = self._create_client()
+
+        sys_prompt = system if system is not None else self.system_prompt
+        return self._call_llm(prompt, sys_prompt, temperature)
+
+    def _create_client(self):
+        """Create the LLM client based on backend."""
+        if self.backend == "anthropic":
+            try:
+                import anthropic
+
+                return anthropic.Anthropic()
+            except ImportError:
+                raise ImportError("Install anthropic: pip install anthropic")
+        elif self.backend == "openai":
+            try:
+                import openai
+
+                return openai.OpenAI()
+            except ImportError:
+                raise ImportError("Install openai: pip install openai")
+        elif self.backend == "ollama":
+            try:
+                import ollama
+
+                return ollama
+            except ImportError:
+                raise ImportError("Install ollama: pip install ollama")
+        else:
+            raise ValueError(f"Unknown backend: {self.backend}")
+
+    def _call_llm(self, prompt: str, system: str, temperature: float) -> str:
+        """Make the actual LLM API call."""
+        # Client is guaranteed to be initialized by complete() before this is called
+        assert self._client is not None, "LLM client not initialized"
+
+        if self.backend == "anthropic":
+            response = self._client.messages.create(
+                model=self.model,
+                max_tokens=1024,
+                system=system,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=temperature,
+            )
+            return str(response.content[0].text)
+        elif self.backend == "openai":
+            response = self._client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=temperature,
+            )
+            content = response.choices[0].message.content
+            return str(content) if content else ""
+        elif self.backend == "ollama":
+            response = self._client.chat(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": prompt},
+                ],
+                options={"temperature": temperature},
+            )
+            return str(response["message"]["content"])
+        else:
+            raise ValueError(f"Unknown backend: {self.backend}")
+
+    def decide(self, observation: "Observation", tools: list["ToolSchema"]) -> "AgentDecision":
+        """
+        Decide what action to take using the LLM.
+
+        Override this method to implement your agent's decision logic.
+        Use self.complete() to get LLM responses.
+
+        Args:
+            observation: Current tick's observation from Godot
+            tools: List of available tools with their schemas
+
+        Returns:
+            AgentDecision specifying which tool to call and with what parameters
+        """
+        # Default implementation - override in subclass
+        from .schemas import AgentDecision
+
+        return AgentDecision.idle(reasoning="LLMAgentBehavior.decide() not implemented")

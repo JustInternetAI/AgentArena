@@ -1,12 +1,17 @@
 extends Node3D
-## Simplified Agent - Automatically connects to global services
+## SimpleAgent - Godot agent wrapper for Python-driven decision making
 ##
-## This is a GDScript wrapper around the C++ Agent class that automatically
-## connects to the IPCService and ToolRegistryService autoload singletons.
+## This GDScript handles the Godot side of agent behavior:
+## - Movement and animation in the game world
+## - Connection to IPC services for Python communication
+## - Tool execution via ToolRegistryService
+##
+## All decision-making logic (memory, planning, reasoning) lives in Python.
+## This script just provides the "body" that executes Python's decisions.
 ##
 ## Usage:
 ##   var agent = SimpleAgent.new()
-##   agent.agent_id = "npc_guard_001"
+##   agent.agent_id = "foraging_agent_001"  # Must match Python registration
 ##   add_child(agent)
 ##   agent.call_tool("move_to", {"target_position": [10, 0, 5]})
 
@@ -94,38 +99,6 @@ func send_tick(tick: int, perceptions: Array) -> void:
 		return
 
 	IPCService.send_tick(agent_id, tick, perceptions)
-
-func store_memory(key: String, value: Variant):
-	"""Store a value in the agent's short-term memory"""
-	if _cpp_agent:
-		_cpp_agent.store_memory(key, value)
-
-func retrieve_memory(key: String) -> Variant:
-	"""Retrieve a value from the agent's short-term memory"""
-	if _cpp_agent:
-		return _cpp_agent.retrieve_memory(key)
-	return null
-
-func clear_short_term_memory():
-	"""Clear all short-term memory"""
-	if _cpp_agent:
-		_cpp_agent.clear_short_term_memory()
-
-func perceive(observations: Dictionary):
-	"""Update agent's perceptions"""
-	if _cpp_agent:
-		_cpp_agent.perceive(observations)
-
-func decide_action() -> Dictionary:
-	"""Let the agent decide on an action"""
-	if _cpp_agent:
-		return _cpp_agent.decide_action()
-	return {}
-
-func execute_action(action: Dictionary):
-	"""Execute an action"""
-	if _cpp_agent:
-		_cpp_agent.execute_action(action)
 
 func _process(delta):
 	"""Handle movement each frame"""

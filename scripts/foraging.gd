@@ -11,6 +11,10 @@ const PIT_DAMAGE = 25.0
 const COLLECTION_RADIUS = 2.0
 const HAZARD_RADIUS = 1.5
 
+# Override base class perception settings if needed
+# perception_radius = 50.0  # Inherited from SceneController
+# line_of_sight_enabled = true  # Inherited from SceneController
+
 # Metrics (inherits start_time and scene_completed from SceneController)
 var resources_collected = 0
 var damage_taken = 0.0
@@ -135,12 +139,19 @@ func _on_scene_tick(tick: int):
 func _build_observations_for_agent(agent_data: Dictionary) -> Dictionary:
 	"""Build foraging-specific observations for an agent"""
 	var agent_pos = agent_data.position
+	var agent_node = agent_data.agent
 
-	# Find nearby resources
+	# Find nearby resources (with line-of-sight check)
 	var nearby_resources = []
 	for resource in active_resources:
 		if not resource.collected:
 			var dist = agent_pos.distance_to(resource.position)
+			# Skip if beyond perception radius
+			if dist > perception_radius:
+				continue
+			# Check line of sight (uses base class method)
+			if not has_line_of_sight(agent_node, agent_pos, resource.position, resource.node):
+				continue
 			nearby_resources.append({
 				"name": resource.name,
 				"type": resource.type,
@@ -148,10 +159,16 @@ func _build_observations_for_agent(agent_data: Dictionary) -> Dictionary:
 				"distance": dist
 			})
 
-	# Find nearby hazards
+	# Find nearby hazards (with line-of-sight check)
 	var nearby_hazards = []
 	for hazard in active_hazards:
 		var dist = agent_pos.distance_to(hazard.position)
+		# Skip if beyond perception radius
+		if dist > perception_radius:
+			continue
+		# Check line of sight (uses base class method)
+		if not has_line_of_sight(agent_node, agent_pos, hazard.position, hazard.node):
+			continue
 		nearby_hazards.append({
 			"name": hazard.name,
 			"type": hazard.type,

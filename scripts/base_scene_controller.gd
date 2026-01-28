@@ -27,6 +27,11 @@ class_name SceneController
 # Agent tracking
 var agents: Array[Dictionary] = []  # Array of {agent: Node, id: String, team: String, position: Vector3}
 
+# Perception configuration (override in subclasses)
+var perception_radius: float = 50.0  # Max distance agent can perceive objects
+var line_of_sight_enabled: bool = true  # Set to false to disable LOS checks (x-ray vision)
+var los_collision_mask: int = 2  # Collision layer for obstacles that block vision
+
 # Metrics
 var start_time: float = 0.0
 var scene_completed: bool = false
@@ -248,6 +253,61 @@ func get_elapsed_time() -> float:
 	if simulation_manager and simulation_manager.is_running:
 		return (Time.get_ticks_msec() / 1000.0) - start_time
 	return 0.0
+
+func has_line_of_sight(agent_node: Node3D, from_pos: Vector3, to_pos: Vector3, target_node: Node3D = null) -> bool:
+	"""Check if there's a clear line of sight between two positions.
+
+	Args:
+		agent_node: The agent node (excluded from raycast)
+		from_pos: Starting position (agent position)
+		to_pos: Target position to check visibility
+		target_node: Optional target node - if ray hits this, still counts as visible
+
+	Returns:
+		true if:
+		- No obstacle blocks the path, OR
+		- The first thing hit is the target itself (if target_node provided)
+
+	Note: Uses los_collision_mask to determine which layers block vision.
+	Set obstacles to collision layer 2 (or your configured layer) to block LOS.
+	"""
+	if not line_of_sight_enabled:
+		return true
+
+	var space_state = get_world_3d().direct_space_state
+	if space_state == null:
+		return true  # Fallback: assume visible if no physics
+
+	# Raycast from agent eye level to target
+	var eye_offset = Vector3(0, 1.0, 0)  # Agent "eyes" are 1 unit above position
+	var ray_start = from_pos + eye_offset
+	var ray_end = to_pos + Vector3(0, 0.5, 0)  # Target center (slightly above ground)
+
+	var query = PhysicsRayQueryParameters3D.create(ray_start, ray_end)
+
+	# Exclude the agent itself from raycast
+	if agent_node is CollisionObject3D:
+		query.exclude = [agent_node.get_rid()]
+
+	# Only check against obstacle collision layer
+	query.collision_mask = los_collision_mask
+
+	var result = space_state.intersect_ray(query)
+
+	# No hit means clear line of sight
+	if result.is_empty():
+		return true
+
+	# If we hit the target itself, that counts as visible
+	if target_node != null and result.collider == target_node:
+		return true
+
+	# Something else is blocking the view
+	return false
+
+func is_within_perception(agent_pos: Vector3, target_pos: Vector3) -> bool:
+	"""Check if a target is within the agent's perception radius"""
+	return agent_pos.distance_to(target_pos) <= perception_radius
 
 ## Backend decision communication
 

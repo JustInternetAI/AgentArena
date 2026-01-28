@@ -8,6 +8,7 @@ roughness = 0.85
 radius = 0.6
 
 [node name="Bush" type="StaticBody3D"]
+collision_layer = 2
 
 [node name="BushMesh" type="CSGSphere3D" parent="."]
 transform = Transform3D(1.2, 0, 0, 0, 0.8, 0, 0, 0, 1.0, 0, 0.5, 0)

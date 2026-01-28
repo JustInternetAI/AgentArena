@@ -95,68 +95,100 @@ Scenarios are designed to progressively introduce agentic concepts:
 
 ---
 
-## Agent Interface Architecture
+## Three-Tier Agent Interface
 
-The framework provides a **layered interface** so users can start simple and grow into full control.
+The framework provides a **three-tier learning progression** so users can start simple and grow into full control. Learners do NOT need C++ or game development knowledge - all agent logic is written in Python.
 
-### Layer 1: Simple (Beginners)
+### Tier 1: Beginner (SimpleAgentBehavior)
 ```python
+from agent_runtime import SimpleAgentBehavior, SimpleContext
+
 class MyAgent(SimpleAgentBehavior):
     system_prompt = "You are a foraging agent. Collect apples."
 
     def decide(self, context: SimpleContext) -> str:
-        # Just return a tool name - framework handles the rest
+        # Just return a tool name - framework infers parameters
         if context.nearby_resources:
             return "move_to"
         return "idle"
 ```
+**Focus**: Understanding the perception → decision → action loop
 
-### Layer 2: Intermediate (LLM Integration)
+### Tier 2: Intermediate (AgentBehavior)
 ```python
-class MyAgent(AgentBehavior):
-    def __init__(self, backend):
-        self.backend = backend
-        self.memory = SlidingWindowMemory(capacity=10)  # Use built-in memory
-        self.system_prompt = "You are a foraging agent..."
+from agent_runtime import AgentBehavior, Observation, AgentDecision, ToolSchema
+from agent_runtime.memory import SlidingWindowMemory
 
-    def decide(self, observation, tools) -> AgentDecision:
+class MyAgent(AgentBehavior):
+    def __init__(self):
+        self.memory = SlidingWindowMemory(capacity=50)
+
+    def on_episode_start(self):
+        self.memory.clear()
+
+    def decide(self, observation: Observation, tools: list[ToolSchema]) -> AgentDecision:
         self.memory.store(observation)
-        prompt = self.build_prompt(observation)
-        response = self.backend.generate_with_tools(prompt, tools)
-        return AgentDecision.from_response(response)
+        if observation.nearby_resources:
+            target = observation.nearby_resources[0]
+            return AgentDecision(
+                tool="move_to",
+                params={"target_position": list(target.position)},
+                reasoning=f"Moving to {target.name}"
+            )
+        return AgentDecision.idle()
 ```
+**Focus**: State tracking, explicit parameters, memory patterns
 
-### Layer 3: Advanced (Full Control)
+### Tier 3: Advanced (LLMAgentBehavior)
 ```python
-class MyAgent(AgentBehavior):
-    def __init__(self, backend):
-        self.backend = backend
-        self.memory = MyCustomRAGMemory()  # Custom memory implementation
-        self.planner = HierarchicalPlanner()
+from agent_runtime import LLMAgentBehavior, Observation, AgentDecision, ToolSchema
 
-    def decide(self, observation, tools) -> AgentDecision:
-        # Full control over memory, prompts, planning, everything
-        ...
+class MyAgent(LLMAgentBehavior):
+    def __init__(self):
+        super().__init__(backend="anthropic", model="claude-3-haiku-20240307")
+        self.system_prompt = "You are an intelligent foraging agent."
+
+    def decide(self, observation: Observation, tools: list[ToolSchema]) -> AgentDecision:
+        context = self._format_observation(observation)
+        response = self.complete(context)
+        return self._parse_response(response, tools)
 ```
+**Focus**: LLM reasoning, planning, multi-agent coordination
 
 ### What Users Control vs Framework Handles
 
-| Aspect | Simple | Intermediate | Advanced |
-|--------|--------|--------------|----------|
-| System Prompt | Class attribute | User writes | User writes |
-| Memory | Framework default | Choose built-in | Implement custom |
-| Prompt Building | Framework | User customizes | User implements |
-| Response Parsing | Framework | Framework helpers | User implements |
-| Custom State | Not available | Basic dict | Full control |
+| Aspect | Beginner | Intermediate | Advanced |
+|--------|----------|--------------|----------|
+| Return Type | Tool name (str) | AgentDecision | AgentDecision |
+| Parameters | Framework infers | User specifies | User specifies |
+| Memory | Automatic | User manages built-in | User implements custom |
+| LLM Integration | Not needed | Optional | Core feature |
+| Lifecycle Hooks | Not needed | Optional | Optional |
 
-### Key Interfaces
+### Key Classes
 
-- `AgentBehavior` - Abstract base class users implement
-- `AgentMemory` - Interface for memory systems (swappable)
-- `AgentDecision` - What the agent returns (tool + params + reasoning)
-- `Observation` - What the agent receives from Godot
+- `SimpleAgentBehavior` - Beginner tier (just return tool name)
+- `AgentBehavior` - Intermediate tier (full decision control)
+- `LLMAgentBehavior` - Advanced tier (LLM integration)
+- `SlidingWindowMemory` - Built-in memory for intermediate/advanced
 
-See `docs/architecture.md` for full details.
+### Example Agents
+
+Located in `python/user_agents/examples/`:
+- `SimpleForagerSimple` - Beginner tier example
+- `SimpleForager` - Intermediate tier example
+- `LLMForager` - Advanced tier example
+
+### Learner Documentation
+
+Complete tutorials at each tier: `docs/learners/`
+- `getting_started.md` - Quick start guide
+- `beginner/` - 5 tutorials + foraging challenge
+- `intermediate/` - 5 tutorials + crafting challenge
+- `advanced/` - 6 tutorials + team challenge
+- `api_reference/` - Complete API documentation
+
+See `docs/architecture.md` for technical details.
 
 ---
 
@@ -253,6 +285,8 @@ c:\Projects\Agent Arena\
 ## Key Files
 - Architecture: `docs/architecture.md`
 - Setup guide: `docs/quickstart.md`
+- **Learner docs**: `docs/learners/getting_started.md` (start here for tutorials)
+- **API reference**: `docs/learners/api_reference/`
 - Testing guide: `TESTING.md`
 - GitHub setup: `GITHUB_SETUP.md`
 - Main config: `configs/config.yaml`
@@ -270,8 +304,12 @@ c:\Projects\Agent Arena\
 - ✅ Python agent runtime framework complete (AgentArena, AgentBehavior, memory systems)
 - ✅ **Observation-decision loop integrated** (Issue #30) - Foraging scene fully working with Python agents
 - ✅ SimpleForager agent demonstrates complete flow: observations → decisions → execution
+- ✅ **Three-tier learning system documented** - Beginner, Intermediate, Advanced tiers with full tutorials
+- ✅ **LLMAgentBehavior implemented** - Supports Anthropic, OpenAI, and Ollama backends
+- ✅ **Comprehensive learner documentation** - `docs/learners/` with 16+ tutorial files
+- ✅ **Example agents for each tier** - SimpleForagerSimple, SimpleForager, LLMForager
 - ⏳ Next: Create additional benchmark scenes (crafting_chain, team_capture)
-- ⏳ Next: Integrate LLM backends with agent decision-making (currently using rule-based SimpleForager)
+- ⏳ Next: Test LLM integration end-to-end with real API calls
 
 ## Development Commands
 
