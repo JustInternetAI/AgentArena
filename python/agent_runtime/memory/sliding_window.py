@@ -46,7 +46,7 @@ class SlidingWindowMemory(AgentMemory):
             raise ValueError("Capacity must be at least 1")
 
         self.capacity = capacity
-        self._observations: list["Observation"] = []
+        self._observations: list[Observation] = []
 
     def store(self, observation: "Observation") -> None:
         """

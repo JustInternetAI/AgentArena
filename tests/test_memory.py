@@ -495,19 +495,41 @@ class TestSummarizingMemory:
 
 
 class TestRAGMemory:
-    """Tests for RAGMemory stub."""
+    """Tests for RAGMemory implementation."""
 
-    def test_initialization_raises_error(self):
-        """Test that RAGMemory initialization raises NotImplementedError."""
-        with pytest.raises(NotImplementedError, match="RAGMemory is not yet implemented"):
-            RAGMemory()
+    def test_initialization(self):
+        """Test that RAGMemory initializes correctly."""
+        memory = RAGMemory()
+        assert isinstance(memory, AgentMemory)
+        assert len(memory) == 0
 
-    def test_initialization_with_args_raises_error(self):
-        """Test that RAGMemory with any args raises NotImplementedError."""
-        with pytest.raises(NotImplementedError, match="RAGMemory is not yet implemented"):
-            RAGMemory(embedding_model="test")
+    def test_initialization_with_args(self):
+        """Test that RAGMemory accepts configuration args."""
+        memory = RAGMemory(
+            embedding_model="all-MiniLM-L6-v2",
+            similarity_threshold=0.5,
+            default_k=3
+        )
+        assert memory.similarity_threshold == 0.5
+        assert memory.default_k == 3
 
-    def test_error_message_suggests_alternatives(self):
-        """Test that error message mentions alternatives."""
-        with pytest.raises(NotImplementedError, match="SlidingWindowMemory or SummarizingMemory"):
-            RAGMemory()
+    def test_basic_store_and_retrieve(self):
+        """Test basic store and retrieve functionality."""
+        memory = RAGMemory()
+
+        # Store an observation
+        obs = Observation(
+            agent_id="test_agent",
+            tick=1,
+            position=(0.0, 0.0, 0.0),
+            health=100.0,
+            energy=100.0
+        )
+        memory.store(obs)
+
+        assert len(memory) == 1
+
+        # Retrieve recent observations
+        results = memory.retrieve(limit=5)
+        assert len(results) == 1
+        assert results[0].agent_id == "test_agent"
