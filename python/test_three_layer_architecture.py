@@ -29,29 +29,26 @@ try:
     from long_term_memory_module import LongTermMemory
 
     # Initialize
-    layer1_memory = LongTermMemory(
-        embedding_model="all-MiniLM-L6-v2",
-        index_type="FlatIP"
-    )
+    layer1_memory = LongTermMemory(embedding_model="all-MiniLM-L6-v2", index_type="FlatIP")
     print("[OK] Initialized LongTermMemory")
 
     # Store plain text with metadata
     print("\nStoring plain text memories...")
     id1 = layer1_memory.store_memory(
         text="Found valuable resources at coordinates 10,5",
-        metadata={"type": "discovery", "importance": "high"}
+        metadata={"type": "discovery", "importance": "high"},
     )
     print(f"  Stored: {id1[:8]}... - 'Found valuable resources...'")
 
     id2 = layer1_memory.store_memory(
         text="Encountered hostile entity in northern region",
-        metadata={"type": "danger", "importance": "critical"}
+        metadata={"type": "danger", "importance": "critical"},
     )
     print(f"  Stored: {id2[:8]}... - 'Encountered hostile entity...'")
 
     id3 = layer1_memory.store_memory(
         text="Established safe camp near water source",
-        metadata={"type": "achievement", "importance": "medium"}
+        metadata={"type": "achievement", "importance": "medium"},
     )
     print(f"  Stored: {id3[:8]}... - 'Established safe camp...'")
 
@@ -66,6 +63,7 @@ try:
 except Exception as e:
     print(f"[ERROR] Layer 1 failed: {e}")
     import traceback
+
     traceback.print_exc()
 
 # ============================================================================
@@ -84,6 +82,7 @@ try:
     # Define a custom domain class
     class GameEvent:
         """Custom domain object - game events."""
+
         def __init__(self, event_type, description, location, participants):
             self.type = event_type
             self.description = description
@@ -102,7 +101,7 @@ try:
             return {
                 "event_type": event.type,
                 "location": event.location,
-                "num_participants": len(event.participants)
+                "num_participants": len(event.participants),
             }
 
         def from_dict(self, data):
@@ -112,7 +111,7 @@ try:
                 event_type=meta["event_type"],
                 description=data["text"].split(": ", 1)[1].split(" at ")[0],
                 location=meta["location"],
-                participants=[]  # Simplified reconstruction
+                participants=[],  # Simplified reconstruction
             )
 
     # Create converter and memory
@@ -122,14 +121,16 @@ try:
         to_metadata=converter.to_metadata,
         from_dict=converter.from_dict,
         embedding_model="all-MiniLM-L6-v2",
-        index_type="FlatIP"
+        index_type="FlatIP",
     )
     print("[OK] Initialized SemanticMemory with GameEventConverter")
 
     # Store custom objects
     print("\nStoring GameEvent objects...")
     event1 = GameEvent("combat", "Player defeated dragon boss", "Castle", ["player1", "dragon"])
-    event2 = GameEvent("trade", "Successful merchant transaction", "Market", ["player1", "merchant"])
+    event2 = GameEvent(
+        "trade", "Successful merchant transaction", "Market", ["player1", "merchant"]
+    )
     event3 = GameEvent("discovery", "Found legendary sword", "Cave", ["player1"])
 
     layer2_memory.store(event1)
@@ -157,6 +158,7 @@ try:
 except Exception as e:
     print(f"[ERROR] Layer 2 failed: {e}")
     import traceback
+
     traceback.print_exc()
 
 # ============================================================================
@@ -175,9 +177,7 @@ try:
 
     # Initialize agent memory
     layer3_memory = RAGMemoryV2(
-        embedding_model="all-MiniLM-L6-v2",
-        index_type="FlatIP",
-        similarity_threshold=0.25
+        embedding_model="all-MiniLM-L6-v2", index_type="FlatIP", similarity_threshold=0.25
     )
     print("[OK] Initialized RAGMemoryV2")
 
@@ -192,7 +192,7 @@ try:
         energy=90.0,
         nearby_resources=[
             ResourceInfo(name="berries", type="food", position=(12.0, 0.0, 5.0), distance=2.0)
-        ]
+        ],
     )
     layer3_memory.store(obs1)
     print(f"  Tick {obs1.tick}: Found berries at {obs1.position}")
@@ -204,8 +204,14 @@ try:
         health=100.0,
         energy=85.0,
         nearby_hazards=[
-            HazardInfo(name="fire", type="environmental", position=(22.0, 0.0, 10.0), distance=2.0, damage=30.0)
-        ]
+            HazardInfo(
+                name="fire",
+                type="environmental",
+                position=(22.0, 0.0, 10.0),
+                distance=2.0,
+                damage=30.0,
+            )
+        ],
     )
     layer3_memory.store(obs2)
     print(f"  Tick {obs2.tick}: Spotted fire hazard at {obs2.position}")
@@ -218,8 +224,8 @@ try:
         energy=80.0,
         nearby_resources=[
             ResourceInfo(name="water", type="liquid", position=(5.5, 0.0, 15.0), distance=0.5),
-            ResourceInfo(name="stone", type="material", position=(6.0, 0.0, 15.0), distance=1.0)
-        ]
+            ResourceInfo(name="stone", type="material", position=(6.0, 0.0, 15.0), distance=1.0),
+        ],
     )
     layer3_memory.store(obs3)
     print(f"  Tick {obs3.tick}: Found water and stone at {obs3.position}")
@@ -244,6 +250,7 @@ try:
 except Exception as e:
     print(f"[ERROR] Layer 3 failed: {e}")
     import traceback
+
     traceback.print_exc()
 
 # ============================================================================
@@ -254,7 +261,8 @@ print("\n" + "=" * 70)
 print("ARCHITECTURE SUMMARY")
 print("=" * 70)
 
-print("""
+print(
+    """
 Three-Layer Memory Architecture:
 
 +---------------------------------------------------------------+
@@ -285,7 +293,8 @@ Benefits:
 [OK] Clean separation of concerns
 [OK] Each layer can be tested independently
 [OK] Easy to add new domains without changing lower layers
-""")
+"""
+)
 
 print("\n" + "=" * 70)
 print("[SUCCESS] ALL THREE LAYERS WORKING CORRECTLY")

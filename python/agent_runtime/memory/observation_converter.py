@@ -6,7 +6,7 @@ to/from the generic semantic memory format.
 """
 
 import logging
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ..schemas import Observation

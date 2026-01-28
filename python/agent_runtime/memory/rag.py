@@ -5,7 +5,6 @@ Uses FAISS-based vector store for semantic retrieval of agent observations.
 """
 
 import logging
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
 from .base import AgentMemory
@@ -251,7 +250,7 @@ class RAGMemory(AgentMemory):
         self._observation_to_memory.clear()
         logger.info("Cleared all RAG memories")
 
-    def save(self, filepath: Optional[str] = None) -> None:
+    def save(self, filepath: str | None = None) -> None:
         """
         Save memory to disk for persistence.
 
@@ -263,7 +262,7 @@ class RAGMemory(AgentMemory):
         """
         self.long_term_memory.save(filepath)
 
-    def load(self, filepath: Optional[str] = None) -> None:
+    def load(self, filepath: str | None = None) -> None:
         """
         Load memory from disk.
 

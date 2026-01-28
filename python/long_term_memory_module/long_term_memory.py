@@ -5,7 +5,6 @@ Provides RAG-based episodic memory storage and retrieval using vector embeddings
 for semantic similarity search.
 """
 
-import json
 import logging
 import pickle
 import uuid
@@ -167,7 +166,9 @@ class LongTermMemory:
                 logger.debug(f"Trained IVF index on {len(training_vectors)} vectors")
             else:
                 # Not enough vectors yet - will train later
-                logger.debug(f"Waiting for more vectors to train IVF ({len(self.memories)+1}/{nlist})")
+                logger.debug(
+                    f"Waiting for more vectors to train IVF ({len(self.memories)+1}/{nlist})"
+                )
 
         # Add to FAISS index (only if trained, or if not an IVF index)
         if not self.index_type.startswith("IVF") or self.index.is_trained:

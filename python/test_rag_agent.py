@@ -28,7 +28,7 @@ try:
         embedding_model="all-MiniLM-L6-v2",
         index_type="FlatIP",  # Use cosine similarity
         similarity_threshold=0.3,
-        default_k=5
+        default_k=5,
     )
     print(f"[OK] Initialized RAGMemory\n")
 
@@ -46,7 +46,7 @@ try:
         energy=90.0,
         nearby_resources=[
             ResourceInfo(name="berries", type="food", position=(12.0, 0.0, 5.0), distance=2.0)
-        ]
+        ],
     )
     memory.store(obs1)
     print(f"Tick {obs1.tick}: Found berries at position {obs1.position}")
@@ -60,7 +60,7 @@ try:
         health=100.0,
         energy=85.0,
         inventory=[ItemInfo(id="berry_1", name="berries", quantity=5)],
-        nearby_resources=[]
+        nearby_resources=[],
     )
     memory.store(obs2)
     print(f"Tick {obs2.tick}: Collected berries successfully")
@@ -78,8 +78,14 @@ try:
         health=100.0,
         energy=80.0,
         nearby_hazards=[
-            HazardInfo(name="fire", type="environmental", position=(22.0, 0.0, 10.0), distance=2.0, damage=30.0)
-        ]
+            HazardInfo(
+                name="fire",
+                type="environmental",
+                position=(22.0, 0.0, 10.0),
+                distance=2.0,
+                damage=30.0,
+            )
+        ],
     )
     memory.store(obs3)
     print(f"Tick {obs3.tick}: Spotted fire hazard at distance {obs3.nearby_hazards[0].distance}")
@@ -93,8 +99,14 @@ try:
         health=70.0,  # Lost 30 health!
         energy=75.0,
         nearby_hazards=[
-            HazardInfo(name="fire", type="environmental", position=(22.0, 0.0, 10.0), distance=0.5, damage=30.0)
-        ]
+            HazardInfo(
+                name="fire",
+                type="environmental",
+                position=(22.0, 0.0, 10.0),
+                distance=0.5,
+                damage=30.0,
+            )
+        ],
     )
     memory.store(obs4)
     print(f"Tick {obs4.tick}: Got too close to fire! Health dropped to {obs4.health}")
@@ -112,8 +124,8 @@ try:
         energy=70.0,
         nearby_resources=[
             ResourceInfo(name="water", type="liquid", position=(5.0, 0.0, 17.0), distance=2.0),
-            ResourceInfo(name="stone", type="material", position=(6.0, 0.0, 15.0), distance=1.0)
-        ]
+            ResourceInfo(name="stone", type="material", position=(6.0, 0.0, 15.0), distance=1.0),
+        ],
     )
     memory.store(obs5)
     print(f"Tick {obs5.tick}: Found water and stone near rocks")
@@ -131,8 +143,8 @@ try:
         ],
         inventory=[
             ItemInfo(id="berry_1", name="berries", quantity=5),
-            ItemInfo(id="wood_1", name="wood", quantity=3)
-        ]
+            ItemInfo(id="wood_1", name="wood", quantity=3),
+        ],
     )
     memory.store(obs6)
     print(f"Tick {obs6.tick}: Collected wood safely")
@@ -170,7 +182,9 @@ try:
         print(f"  {i}. Tick {obs.tick} - Health: {obs.health}, Energy: {obs.energy}")
         if obs.nearby_hazards:
             print(f"     Hazards encountered: {[h.name for h in obs.nearby_hazards]}")
-            print(f"     Lesson: Approaching {obs.nearby_hazards[0].name} reduced health to {obs.health}")
+            print(
+                f"     Lesson: Approaching {obs.nearby_hazards[0].name} reduced health to {obs.health}"
+            )
 
     # Query 3: Where to find resources
     print("\nQuery 3: 'Where can I find water and building materials?'")
@@ -209,10 +223,7 @@ try:
 
     # Create new memory instance and load
     print("\nLoading memory into new instance...")
-    memory2 = RAGMemory(
-        embedding_model="all-MiniLM-L6-v2",
-        index_type="FlatIP"
-    )
+    memory2 = RAGMemory(embedding_model="all-MiniLM-L6-v2", index_type="FlatIP")
     memory2.load(save_path)
     print(f"[OK] Loaded {len(memory2)} memories")
 
@@ -224,6 +235,7 @@ try:
 
     # Cleanup
     import shutil
+
     shutil.rmtree(temp_dir)
     print("[OK] Cleaned up temporary files")
 
@@ -250,5 +262,6 @@ try:
 except Exception as e:
     print(f"\n[ERROR] {type(e).__name__}: {e}")
     import traceback
+
     traceback.print_exc()
     sys.exit(1)

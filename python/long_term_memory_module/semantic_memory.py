@@ -7,14 +7,15 @@ objects by using converter functions.
 """
 
 import logging
-from typing import Any, Callable, Generic, TypeVar, Optional
+from collections.abc import Callable
+from typing import Any, Generic, TypeVar
 
 from .long_term_memory import LongTermMemory
 
 logger = logging.getLogger(__name__)
 
 # Generic type for objects stored in memory
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class SemanticMemory(Generic[T]):
@@ -55,12 +56,12 @@ class SemanticMemory(Generic[T]):
     def __init__(
         self,
         to_text: Callable[[T], str],
-        to_metadata: Optional[Callable[[T], dict[str, Any]]] = None,
-        from_dict: Optional[Callable[[dict[str, Any]], T]] = None,
+        to_metadata: Callable[[T], dict[str, Any]] | None = None,
+        from_dict: Callable[[dict[str, Any]], T] | None = None,
         embedding_model: str = "all-MiniLM-L6-v2",
         index_type: str = "Flat",
-        persist_path: Optional[str] = None,
-        **ltm_kwargs
+        persist_path: str | None = None,
+        **ltm_kwargs,
     ):
         """
         Initialize generic semantic memory.
@@ -88,7 +89,7 @@ class SemanticMemory(Generic[T]):
             embedding_model=embedding_model,
             index_type=index_type,
             persist_path=persist_path,
-            **ltm_kwargs
+            **ltm_kwargs,
         )
 
         logger.info(
@@ -96,7 +97,7 @@ class SemanticMemory(Generic[T]):
             f"(converter: {to_text.__name__ if hasattr(to_text, '__name__') else 'lambda'})"
         )
 
-    def store(self, obj: T, additional_metadata: Optional[dict[str, Any]] = None) -> str:
+    def store(self, obj: T, additional_metadata: dict[str, Any] | None = None) -> str:
         """
         Store an object in semantic memory.
 
@@ -129,10 +130,7 @@ class SemanticMemory(Generic[T]):
         return memory_id
 
     def query(
-        self,
-        query_text: str,
-        k: int = 5,
-        threshold: Optional[float] = None
+        self, query_text: str, k: int = 5, threshold: float | None = None
     ) -> list[dict[str, Any]]:
         """
         Query semantic memory and get raw results.
@@ -152,12 +150,7 @@ class SemanticMemory(Generic[T]):
         """
         return self.long_term_memory.query_memory(query_text, k, threshold)
 
-    def query_objects(
-        self,
-        query_text: str,
-        k: int = 5,
-        threshold: Optional[float] = None
-    ) -> list[T]:
+    def query_objects(self, query_text: str, k: int = 5, threshold: float | None = None) -> list[T]:
         """
         Query semantic memory and reconstruct typed objects.
 
@@ -199,7 +192,7 @@ class SemanticMemory(Generic[T]):
 
         return objects
 
-    def recall_by_id(self, memory_id: str) -> Optional[dict[str, Any]]:
+    def recall_by_id(self, memory_id: str) -> dict[str, Any] | None:
         """
         Retrieve a specific memory by ID.
 
@@ -240,7 +233,7 @@ class SemanticMemory(Generic[T]):
         self.long_term_memory.clear_memories()
         logger.info("Cleared all semantic memories")
 
-    def save(self, filepath: Optional[str] = None) -> None:
+    def save(self, filepath: str | None = None) -> None:
         """
         Save memory to disk.
 
@@ -252,7 +245,7 @@ class SemanticMemory(Generic[T]):
         """
         self.long_term_memory.save(filepath)
 
-    def load(self, filepath: Optional[str] = None) -> None:
+    def load(self, filepath: str | None = None) -> None:
         """
         Load memory from disk.
 
@@ -329,8 +322,5 @@ class MemoryConverter:
             Configured SemanticMemory instance
         """
         return SemanticMemory(
-            to_text=self.to_text,
-            to_metadata=self.to_metadata,
-            from_dict=self.from_dict,
-            **kwargs
+            to_text=self.to_text, to_metadata=self.to_metadata, from_dict=self.from_dict, **kwargs
         )

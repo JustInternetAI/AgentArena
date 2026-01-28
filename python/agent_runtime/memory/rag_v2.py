@@ -9,7 +9,7 @@ leveraging the three-layer architecture.
 """
 
 import logging
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from .base import AgentMemory
 from .observation_converter import ObservationConverter
@@ -52,7 +52,7 @@ class RAGMemoryV2(AgentMemory):
         index_type: str = "Flat",
         similarity_threshold: float = 0.3,
         default_k: int = 5,
-        persist_path: Optional[str] = None,
+        persist_path: str | None = None,
     ):
         """
         Initialize RAG memory with semantic search.
@@ -107,11 +107,7 @@ class RAGMemoryV2(AgentMemory):
         self.semantic_memory.store(observation)
         logger.debug(f"Stored observation from tick {observation.tick}")
 
-    def retrieve(
-        self,
-        query: Optional[str] = None,
-        limit: Optional[int] = None
-    ) -> list["Observation"]:
+    def retrieve(self, query: str | None = None, limit: int | None = None) -> list["Observation"]:
         """
         Retrieve observations from memory.
 
@@ -156,9 +152,7 @@ class RAGMemoryV2(AgentMemory):
             # Semantic search - use query_objects for type safety
             try:
                 observations = self.semantic_memory.query_objects(
-                    query_text=query,
-                    k=k,
-                    threshold=self.similarity_threshold
+                    query_text=query, k=k, threshold=self.similarity_threshold
                 )
                 return observations
             except Exception as e:
@@ -215,7 +209,7 @@ class RAGMemoryV2(AgentMemory):
         self.semantic_memory.clear()
         logger.info("Cleared all RAG memories")
 
-    def save(self, filepath: Optional[str] = None) -> None:
+    def save(self, filepath: str | None = None) -> None:
         """
         Save memory to disk for persistence.
 
@@ -227,7 +221,7 @@ class RAGMemoryV2(AgentMemory):
         """
         self.semantic_memory.save(filepath)
 
-    def load(self, filepath: Optional[str] = None) -> None:
+    def load(self, filepath: str | None = None) -> None:
         """
         Load memory from disk.
 

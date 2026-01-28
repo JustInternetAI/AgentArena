@@ -47,7 +47,7 @@ try:
                 embedding_model="all-MiniLM-L6-v2",
                 index_type="FlatIP",
                 similarity_threshold=0.2,  # Lower threshold for demo
-                default_k=3
+                default_k=3,
             )
             print(f"[OK] Initialized RAGAgent '{agent_id}'")
 
@@ -79,8 +79,9 @@ try:
 
             return decision
 
-        def _build_context(self, observation: Observation, goal: str,
-                          memories: list[Observation]) -> str:
+        def _build_context(
+            self, observation: Observation, goal: str, memories: list[Observation]
+        ) -> str:
             """Build prompt context with current state and relevant memories."""
 
             context_parts = []
@@ -91,13 +92,16 @@ try:
             context_parts.append(f"- Health: {observation.health}, Energy: {observation.energy}")
 
             if observation.nearby_resources:
-                resources = [f"{r.name} at distance {r.distance}"
-                           for r in observation.nearby_resources]
+                resources = [
+                    f"{r.name} at distance {r.distance}" for r in observation.nearby_resources
+                ]
                 context_parts.append(f"- Resources: {', '.join(resources)}")
 
             if observation.nearby_hazards:
-                hazards = [f"{h.name} (damage {h.damage}) at distance {h.distance}"
-                         for h in observation.nearby_hazards]
+                hazards = [
+                    f"{h.name} (damage {h.damage}) at distance {h.distance}"
+                    for h in observation.nearby_hazards
+                ]
                 context_parts.append(f"- Hazards: {', '.join(hazards)}")
 
             if observation.inventory:
@@ -139,7 +143,7 @@ try:
         energy=90.0,
         nearby_resources=[
             ResourceInfo(name="berries", type="food", position=(11.0, 0.0, 5.0), distance=1.0)
-        ]
+        ],
     )
     agent.decide(obs1, "Find food to restore energy")
 
@@ -150,7 +154,7 @@ try:
         position=(11.0, 0.0, 5.0),
         health=100.0,
         energy=95.0,  # Restored
-        inventory=[ItemInfo(id="b1", name="berries", quantity=5)]
+        inventory=[ItemInfo(id="b1", name="berries", quantity=5)],
     )
     agent.decide(obs2, "Successfully collected food")
 
@@ -166,9 +170,14 @@ try:
         health=100.0,
         energy=85.0,
         nearby_hazards=[
-            HazardInfo(name="fire", type="environmental",
-                      position=(22.0, 0.0, 10.0), distance=2.0, damage=30.0)
-        ]
+            HazardInfo(
+                name="fire",
+                type="environmental",
+                position=(22.0, 0.0, 10.0),
+                distance=2.0,
+                damage=30.0,
+            )
+        ],
     )
     agent.decide(obs3, "Avoid hazards to maintain health")
 
@@ -180,9 +189,14 @@ try:
         health=70.0,  # Damaged!
         energy=80.0,
         nearby_hazards=[
-            HazardInfo(name="fire", type="environmental",
-                      position=(22.0, 0.0, 10.0), distance=0.5, damage=30.0)
-        ]
+            HazardInfo(
+                name="fire",
+                type="environmental",
+                position=(22.0, 0.0, 10.0),
+                distance=0.5,
+                damage=30.0,
+            )
+        ],
     )
     agent.decide(obs4, "Took damage from hazard - learn from mistake")
 
@@ -199,8 +213,8 @@ try:
         energy=70.0,
         nearby_resources=[
             ResourceInfo(name="water", type="liquid", position=(5.5, 0.0, 15.0), distance=0.5),
-            ResourceInfo(name="stone", type="material", position=(6.0, 0.0, 15.0), distance=1.0)
-        ]
+            ResourceInfo(name="stone", type="material", position=(6.0, 0.0, 15.0), distance=1.0),
+        ],
     )
     agent.decide(obs5, "Find water and building materials")
 
@@ -215,7 +229,7 @@ try:
         position=(8.0, 0.0, 3.0),
         health=65.0,
         energy=40.0,  # Low energy!
-        inventory=[ItemInfo(id="s1", name="stone", quantity=2)]
+        inventory=[ItemInfo(id="s1", name="stone", quantity=2)],
     )
     decision = agent.decide(obs6, "Find food to restore low energy")
 
@@ -227,19 +241,20 @@ try:
         health=65.0,
         energy=50.0,
         nearby_hazards=[
-            HazardInfo(name="fire", type="environmental",
-                      position=(20.0, 0.0, 12.0), distance=2.0, damage=30.0)
-        ]
+            HazardInfo(
+                name="fire",
+                type="environmental",
+                position=(20.0, 0.0, 12.0),
+                distance=2.0,
+                damage=30.0,
+            )
+        ],
     )
     decision = agent.decide(obs7, "Safely navigate around fire hazard")
 
     # New situation: Need water
     obs8 = Observation(
-        agent_id="agent_001",
-        tick=70,
-        position=(3.0, 0.0, 12.0),
-        health=60.0,
-        energy=45.0
+        agent_id="agent_001", tick=70, position=(3.0, 0.0, 12.0), health=60.0, energy=45.0
     )
     decision = agent.decide(obs8, "Find water source to drink")
 
@@ -258,7 +273,7 @@ try:
         "Where did I successfully find food?",
         "What happened when I got close to fire?",
         "Where are water sources located?",
-        "What resources have I collected?"
+        "What resources have I collected?",
     ]
 
     for query in test_queries:
@@ -287,5 +302,6 @@ try:
 except Exception as e:
     print(f"\n[ERROR] {type(e).__name__}: {e}")
     import traceback
+
     traceback.print_exc()
     sys.exit(1)

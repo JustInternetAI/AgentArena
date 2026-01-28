@@ -29,7 +29,7 @@ try:
         embedding_model="all-MiniLM-L6-v2",
         index_type="FlatIP",
         similarity_threshold=0.25,
-        default_k=5
+        default_k=5,
     )
     print(f"[OK] Created RAGMemoryV2: {memory}")
     assert len(memory) == 0, "Memory should be empty on init"
@@ -50,7 +50,7 @@ try:
         energy=90.0,
         nearby_resources=[
             ResourceInfo(name="berries", type="food", position=(11.0, 0.0, 5.0), distance=1.0)
-        ]
+        ],
     )
     memory.store(obs1)
     print(f"[OK] Stored observation 1: Tick {obs1.tick} - Found berries")
@@ -63,8 +63,14 @@ try:
         health=100.0,
         energy=85.0,
         nearby_hazards=[
-            HazardInfo(name="fire", type="environmental", position=(21.0, 0.0, 10.0), distance=1.0, damage=30.0)
-        ]
+            HazardInfo(
+                name="fire",
+                type="environmental",
+                position=(21.0, 0.0, 10.0),
+                distance=1.0,
+                damage=30.0,
+            )
+        ],
     )
     memory.store(obs2)
     print(f"[OK] Stored observation 2: Tick {obs2.tick} - Fire hazard")
@@ -77,8 +83,14 @@ try:
         health=70.0,  # Damaged!
         energy=80.0,
         nearby_hazards=[
-            HazardInfo(name="fire", type="environmental", position=(21.0, 0.0, 10.0), distance=0.5, damage=30.0)
-        ]
+            HazardInfo(
+                name="fire",
+                type="environmental",
+                position=(21.0, 0.0, 10.0),
+                distance=0.5,
+                damage=30.0,
+            )
+        ],
     )
     memory.store(obs3)
     print(f"[OK] Stored observation 3: Tick {obs3.tick} - Took fire damage (health: {obs3.health})")
@@ -92,8 +104,8 @@ try:
         energy=75.0,
         nearby_resources=[
             ResourceInfo(name="water", type="liquid", position=(5.5, 0.0, 15.0), distance=0.5),
-            ResourceInfo(name="stone", type="material", position=(6.0, 0.0, 15.0), distance=1.0)
-        ]
+            ResourceInfo(name="stone", type="material", position=(6.0, 0.0, 15.0), distance=1.0),
+        ],
     )
     memory.store(obs4)
     print(f"[OK] Stored observation 4: Tick {obs4.tick} - Found water and stone")
@@ -107,8 +119,8 @@ try:
         energy=85.0,
         inventory=[
             ItemInfo(id="water_1", name="water", quantity=1),
-            ItemInfo(id="stone_1", name="stone", quantity=3)
-        ]
+            ItemInfo(id="stone_1", name="stone", quantity=3),
+        ],
     )
     memory.store(obs5)
     print(f"[OK] Stored observation 5: Tick {obs5.tick} - Collected water and stone")
@@ -128,7 +140,9 @@ try:
     print(f"[OK] Retrieved {len(food_results)} results")
     assert len(food_results) > 0, "Should find food-related memories"
     for i, obs in enumerate(food_results, 1):
-        print(f"  {i}. Tick {obs.tick} at {obs.position} - Health: {obs.health}, Energy: {obs.energy}")
+        print(
+            f"  {i}. Tick {obs.tick} at {obs.position} - Health: {obs.health}, Energy: {obs.energy}"
+        )
     # Verify berries observation is in results
     berry_found = any(obs.tick == 10 for obs in food_results)
     print(f"[OK] Berries observation {'found' if berry_found else 'not found'} in results")
@@ -208,15 +222,14 @@ try:
         print("[OK] Memory saved successfully")
 
         # Verify files exist
-        assert os.path.exists(save_path.replace('.faiss', '.index')), "Index file should exist"
-        assert os.path.exists(save_path.replace('.faiss', '.metadata')), "Metadata file should exist"
+        assert os.path.exists(save_path.replace(".faiss", ".index")), "Index file should exist"
+        assert os.path.exists(
+            save_path.replace(".faiss", ".metadata")
+        ), "Metadata file should exist"
         print("[OK] Memory files created")
 
         # Create new memory and load
-        memory2 = RAGMemoryV2(
-            embedding_model="all-MiniLM-L6-v2",
-            index_type="FlatIP"
-        )
+        memory2 = RAGMemoryV2(embedding_model="all-MiniLM-L6-v2", index_type="FlatIP")
         print(f"Loading from: {save_path}")
         memory2.load(save_path)
         print(f"[OK] Loaded {len(memory2)} memories")
@@ -273,11 +286,7 @@ try:
     # Store one observation
     print("Storing single observation...")
     single_obs = Observation(
-        agent_id="test_agent",
-        tick=100,
-        position=(0.0, 0.0, 0.0),
-        health=100.0,
-        energy=100.0
+        agent_id="test_agent", tick=100, position=(0.0, 0.0, 0.0), health=100.0, energy=100.0
     )
     memory.store(single_obs)
     print("[OK] Stored single observation")
@@ -298,18 +307,10 @@ try:
 
     # Store observations from different agents
     agent1_obs = Observation(
-        agent_id="agent_001",
-        tick=10,
-        position=(10.0, 0.0, 0.0),
-        health=100.0,
-        energy=100.0
+        agent_id="agent_001", tick=10, position=(10.0, 0.0, 0.0), health=100.0, energy=100.0
     )
     agent2_obs = Observation(
-        agent_id="agent_002",
-        tick=10,
-        position=(20.0, 0.0, 0.0),
-        health=100.0,
-        energy=100.0
+        agent_id="agent_002", tick=10, position=(20.0, 0.0, 0.0), health=100.0, energy=100.0
     )
 
     memory.store(agent1_obs)
@@ -337,15 +338,13 @@ try:
     start = time.time()
     for i in range(100):
         obs = Observation(
-            agent_id="perf_test",
-            tick=i,
-            position=(float(i), 0.0, 0.0),
-            health=100.0,
-            energy=100.0
+            agent_id="perf_test", tick=i, position=(float(i), 0.0, 0.0), health=100.0, energy=100.0
         )
         memory.store(obs)
     store_time = time.time() - start
-    print(f"[OK] Stored 100 observations in {store_time:.3f}s ({store_time*10:.1f}ms per observation)")
+    print(
+        f"[OK] Stored 100 observations in {store_time:.3f}s ({store_time*10:.1f}ms per observation)"
+    )
 
     # Query performance
     print("Querying 100 observations...")
@@ -384,5 +383,6 @@ try:
 except Exception as e:
     print(f"\n[ERROR] Test failed: {type(e).__name__}: {e}")
     import traceback
+
     traceback.print_exc()
     sys.exit(1)
