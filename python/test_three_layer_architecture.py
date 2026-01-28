@@ -6,8 +6,8 @@ Layer 2: SemanticMemory - Generic object storage with converters
 Layer 3: RAGMemoryV2 - Domain-specific agent observations
 """
 
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -77,7 +77,7 @@ print("Works with ANY Python objects via converter functions")
 print()
 
 try:
-    from long_term_memory_module import SemanticMemory, MemoryConverter
+    from long_term_memory_module import MemoryConverter, SemanticMemory
 
     # Define a custom domain class
     class GameEvent:
@@ -173,7 +173,7 @@ print()
 
 try:
     from agent_runtime.memory import RAGMemoryV2
-    from agent_runtime.schemas import Observation, ResourceInfo, HazardInfo, ItemInfo
+    from agent_runtime.schemas import HazardInfo, Observation, ResourceInfo
 
     # Initialize agent memory
     layer3_memory = RAGMemoryV2(

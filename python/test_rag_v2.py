@@ -4,10 +4,10 @@ Comprehensive test for RAGMemoryV2 (Layer 3 implementation).
 Tests the new three-layer architecture implementation with agent observations.
 """
 
-import sys
 import os
-import tempfile
 import shutil
+import sys
+import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -17,7 +17,7 @@ print("=" * 70)
 
 try:
     from agent_runtime.memory import RAGMemoryV2
-    from agent_runtime.schemas import Observation, ResourceInfo, HazardInfo, ItemInfo
+    from agent_runtime.schemas import HazardInfo, ItemInfo, Observation, ResourceInfo
 
     # ========================================================================
     # TEST 1: Initialization
@@ -315,7 +315,7 @@ try:
 
     memory.store(agent1_obs)
     memory.store(agent2_obs)
-    print(f"[OK] Stored observations from 2 different agents")
+    print("[OK] Stored observations from 2 different agents")
 
     # Retrieve all
     all_obs = memory.retrieve(limit=10)

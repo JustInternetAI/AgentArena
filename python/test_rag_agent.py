@@ -7,8 +7,8 @@ This demonstrates how an agent can use RAG memory to:
 3. Make informed decisions based on memory
 """
 
-import sys
 import os
+import sys
 
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -18,7 +18,7 @@ print("=" * 60)
 
 try:
     from agent_runtime.memory import RAGMemory
-    from agent_runtime.schemas import Observation, ResourceInfo, HazardInfo, ItemInfo
+    from agent_runtime.schemas import HazardInfo, ItemInfo, Observation, ResourceInfo
 
     print("[OK] Successfully imported RAGMemory and schemas\n")
 
@@ -30,7 +30,7 @@ try:
         similarity_threshold=0.3,
         default_k=5,
     )
-    print(f"[OK] Initialized RAGMemory\n")
+    print("[OK] Initialized RAGMemory\n")
 
     # Simulate an agent's journey through multiple episodes
     print("=" * 60)
@@ -211,8 +211,8 @@ try:
     print("TESTING PERSISTENCE")
     print("=" * 60)
 
-    import tempfile
     import os
+    import tempfile
 
     # Save memory
     temp_dir = tempfile.mkdtemp()

@@ -9,8 +9,8 @@ This demonstrates a complete agent loop:
 5. Store new observation
 """
 
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -19,7 +19,7 @@ print("=" * 70)
 
 try:
     from agent_runtime.memory import RAGMemory
-    from agent_runtime.schemas import Observation, ResourceInfo, HazardInfo, ItemInfo
+    from agent_runtime.schemas import HazardInfo, ItemInfo, Observation, ResourceInfo
 
     # Mock LLM backend for demonstration
     class MockLLMBackend:
@@ -262,7 +262,7 @@ try:
     print("MEMORY STATISTICS")
     print("=" * 70)
     print(f"Total observations stored: {len(agent.memory)}")
-    print(f"\nFull memory summary:")
+    print("\nFull memory summary:")
     print(agent.memory.summarize())
 
     print("\n" + "=" * 70)

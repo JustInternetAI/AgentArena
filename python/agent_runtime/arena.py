@@ -51,8 +51,8 @@ class AgentArena:
             max_workers: Maximum number of concurrent agent workers
         """
         self.runtime = AgentRuntime(max_workers=max_workers)
-        self.behaviors: dict[str, "AgentBehavior"] = {}
-        self.ipc_server: "IPCServer | None" = None
+        self.behaviors: dict[str, AgentBehavior] = {}
+        self.ipc_server: IPCServer | None = None
         self._running = False
 
         logger.info(f"Initialized AgentArena with {max_workers} workers")
