@@ -1,50 +1,85 @@
 """
-IPC Server with Local LLM Foraging Agent.
+Local LLM Forager Demo - Run LLM-powered agent in foraging scene.
 
-This script starts the FastAPI server with a LocalLLMBehavior-powered agent
-using GPU-accelerated llama.cpp or vLLM backend for the foraging scenario.
+This script demonstrates the LocalLLMBehavior integration:
+1. Loads a local GGUF model via llama.cpp (or connects to vLLM server)
+2. Uses GPU-accelerated inference for decision making
+3. Connects to Godot foraging scene via IPC
+
+To run:
+1. Download a model: python -m tools.model_manager download tinyllama-1.1b-chat --format gguf --quant q4_k_m
+2. Start this script: python run_local_llm_forager.py --model ../models/tinyllama-1.1b-chat/gguf/q4_k_m/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf
+3. Open Godot and load foraging.tscn
+4. Press SPACE to start the simulation
 """
 
 import argparse
 import logging
 import sys
 
-from agent_runtime.local_llm_behavior import create_local_llm_behavior
-from agent_runtime.runtime import AgentRuntime
+from agent_runtime import AgentArena, LocalLLMBehavior
 from backends import BackendConfig, LlamaCppBackend
-from backends.vllm_backend import VLLMBackend, VLLMBackendConfig
-from ipc.server import create_server
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
 logger = logging.getLogger(__name__)
 
+# Default system prompt for foraging scenario
+FORAGING_SYSTEM_PROMPT = """You are a foraging agent. You MUST respond with ONLY a JSON object, no other text.
+
+Rules:
+- Move toward nearest resource
+- Avoid hazards (distance < 3.0)
+
+Response format (ONLY output this JSON, nothing else):
+{"tool": "move_to", "params": {"target_position": [x, y, z], "speed": 1.5}, "reasoning": "reason"}
+
+Or to do nothing:
+{"tool": "idle", "params": {}, "reasoning": "reason"}
+"""
+
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Agent Arena IPC Server with Local LLM Foraging Agent"
+    """Run foraging demo with LocalLLMBehavior agent."""
+    parser = argparse.ArgumentParser(description="Run foraging demo with local LLM-powered agent")
+    parser.add_argument(
+        "--model",
+        type=str,
+        required=True,
+        help="Path to GGUF model file",
+    )
+    parser.add_argument(
+        "--gpu-layers",
+        type=int,
+        default=-1,
+        help="GPU layers to offload (-1=all, 0=CPU only)",
+    )
+    parser.add_argument(
+        "--temperature",
+        type=float,
+        default=0.7,
+        help="LLM temperature (0-1)",
+    )
+    parser.add_argument(
+        "--max-tokens",
+        type=int,
+        default=256,
+        help="Maximum tokens per response",
     )
     parser.add_argument(
         "--host",
         type=str,
         default="127.0.0.1",
-        help="Host address to bind to (default: 127.0.0.1)",
+        help="IPC server host",
     )
     parser.add_argument(
         "--port",
         type=int,
         default=5000,
-        help="Port to listen on (default: 5000)",
-    )
-    parser.add_argument(
-        "--workers",
-        type=int,
-        default=4,
-        help="Maximum number of concurrent agent workers (default: 4)",
+        help="IPC server port",
     )
     parser.add_argument(
         "--debug",
@@ -52,59 +87,22 @@ def main():
         help="Enable debug logging",
     )
     parser.add_argument(
-        "--backend",
+        "--agent-id",
         type=str,
-        choices=["llama_cpp", "vllm"],
-        default="llama_cpp",
-        help="Backend type to use: llama_cpp or vllm (default: llama_cpp)",
-    )
-    parser.add_argument(
-        "--model",
-        type=str,
-        default="../models/llama-2-7b-chat.Q4_K_M.gguf",
-        help="Path to GGUF model file (for llama_cpp) or model name (for vllm)",
-    )
-    parser.add_argument(
-        "--gpu-layers",
-        type=int,
-        default=-1,
-        help="Number of layers to offload to GPU: -1=all, 0=CPU only (default: -1, llama_cpp only)",
-    )
-    parser.add_argument(
-        "--vllm-api",
-        type=str,
-        default="http://localhost:8000/v1",
-        help="vLLM API base URL (default: http://localhost:8000/v1, vllm only)",
-    )
-    parser.add_argument(
-        "--temperature",
-        type=float,
-        default=0.7,
-        help="LLM temperature for decision making (default: 0.7)",
-    )
-    parser.add_argument(
-        "--max-tokens",
-        type=int,
-        default=256,
-        help="Maximum tokens to generate per decision (default: 256)",
+        default="foraging_agent_001",
+        help="Agent ID to register behavior for (must match Godot scene)",
     )
     parser.add_argument(
         "--memory-capacity",
         type=int,
         default=10,
-        help="Number of recent observations to keep in memory (default: 10)",
+        help="Number of recent observations to keep in memory",
     )
     parser.add_argument(
         "--system-prompt",
         type=str,
         default=None,
-        help="Custom system prompt (optional, uses default foraging prompt if not provided)",
-    )
-    parser.add_argument(
-        "--agent-id",
-        type=str,
-        default=None,
-        help="Specific agent ID to assign behavior to (optional, uses default for all agents if not provided)",
+        help="Custom system prompt (uses default foraging prompt if not provided)",
     )
 
     args = parser.parse_args()
@@ -117,114 +115,105 @@ def main():
         logging.getLogger("ipc.server").setLevel(logging.DEBUG)
 
     logger.info("=" * 60)
-    logger.info("Agent Arena IPC Server - Local LLM Foraging Agent")
+    logger.info("Local LLM Forager Demo")
     logger.info("=" * 60)
-    logger.info(f"Host: {args.host}")
-    logger.info(f"Port: {args.port}")
-    logger.info(f"Max Workers: {args.workers}")
-    logger.info(f"Backend: {args.backend}")
     logger.info(f"Model: {args.model}")
-    if args.backend == "llama_cpp":
-        logger.info(
-            f"GPU Layers: {args.gpu_layers} ({'all' if args.gpu_layers == -1 else 'CPU only' if args.gpu_layers == 0 else args.gpu_layers})"
-        )
-    else:
-        logger.info(f"vLLM API: {args.vllm_api}")
+    gpu_desc = (
+        "all"
+        if args.gpu_layers == -1
+        else ("CPU only" if args.gpu_layers == 0 else args.gpu_layers)
+    )
+    logger.info(f"GPU Layers: {args.gpu_layers} ({gpu_desc})")
     logger.info(f"Temperature: {args.temperature}")
     logger.info(f"Max Tokens: {args.max_tokens}")
     logger.info(f"Memory Capacity: {args.memory_capacity}")
-    if args.agent_id:
-        logger.info(f"Agent ID: {args.agent_id}")
-    else:
-        logger.info("Agent ID: <default for all agents>")
+    logger.info(f"Agent ID: {args.agent_id}")
     logger.info("=" * 60)
 
     backend = None
 
     try:
-        # Create backend based on type
-        if args.backend == "llama_cpp":
-            backend_config = BackendConfig(
-                model_path=args.model,
-                temperature=args.temperature,
-                max_tokens=args.max_tokens,
-                n_gpu_layers=args.gpu_layers,
-            )
+        # Load LLM backend
+        logger.info("Loading LLM backend...")
+        config = BackendConfig(
+            model_path=args.model,
+            temperature=args.temperature,
+            max_tokens=args.max_tokens,
+            n_gpu_layers=args.gpu_layers,
+        )
+        backend = LlamaCppBackend(config)
+        logger.info("  Backend loaded successfully")
 
-            logger.info("Loading llama.cpp backend...")
-            backend = LlamaCppBackend(backend_config)
-            logger.info("✓ llama.cpp backend loaded successfully")
-
-        elif args.backend == "vllm":
-            backend_config = VLLMBackendConfig(
-                model_path=args.model,
-                api_base=args.vllm_api,
-                temperature=args.temperature,
-                max_tokens=args.max_tokens,
-            )
-
-            logger.info("Connecting to vLLM server...")
-            backend = VLLMBackend(backend_config)
-            logger.info("✓ vLLM backend connected successfully")
+        # Determine system prompt
+        system_prompt = args.system_prompt if args.system_prompt else FORAGING_SYSTEM_PROMPT
 
         # Create LocalLLMBehavior
         logger.info("Creating LocalLLMBehavior...")
-        behavior = create_local_llm_behavior(
+        behavior = LocalLLMBehavior(
             backend=backend,
-            system_prompt=args.system_prompt,
+            system_prompt=system_prompt,
             memory_capacity=args.memory_capacity,
             temperature=args.temperature,
             max_tokens=args.max_tokens,
         )
-        logger.info("✓ LocalLLMBehavior created successfully")
+        logger.info("  LocalLLMBehavior created")
 
-        # Create runtime
-        runtime = AgentRuntime(max_workers=args.workers)
+        # Create arena and register behavior
+        logger.info("Creating AgentArena...")
+        arena = AgentArena.connect(host=args.host, port=args.port, max_workers=4)
 
-        # Create server with default behavior or specific agent behavior
-        if args.agent_id:
-            # Assign to specific agent ID
-            behaviors = {args.agent_id: behavior}
-            server = create_server(
-                runtime=runtime, behaviors=behaviors, host=args.host, port=args.port
-            )
-            logger.info(f"✓ Behavior assigned to agent '{args.agent_id}'")
-        else:
-            # Use as default for all agents
-            server = create_server(
-                runtime=runtime, default_behavior=behavior, host=args.host, port=args.port
-            )
-            logger.info("✓ Behavior set as default for all agents")
+        # Register behavior for the foraging scene agent
+        agent_id = args.agent_id
+        arena.register(agent_id, behavior)
+        logger.info(f"  Registered LocalLLMBehavior for agent_id: {agent_id}")
 
-        logger.info("=" * 60)
-        logger.info("Server ready! You can now:")
-        logger.info("  1. Open Godot and run the foraging scene")
-        logger.info("  2. The agent will use the local LLM for decision making")
-        logger.info("  3. Check console logs for agent reasoning")
+        registered = arena.get_registered_agents()
+        logger.info(f"Total registered agents: {len(registered)}")
+
+        # Debug: verify behaviors dict is shared with IPC server
+        logger.info(f"  Arena behaviors: {list(arena.behaviors.keys())}")
+        if arena.ipc_server:
+            logger.info(f"  IPC server behaviors: {list(arena.ipc_server.behaviors.keys())}")
+            logger.info(f"  Same dict reference: {arena.behaviors is arena.ipc_server.behaviors}")
+
         logger.info("")
-        logger.info("Note: Make sure the Godot agent has agent_id set")
-        if args.agent_id:
-            logger.info(f"      (should be '{args.agent_id}')")
-        else:
-            logger.info("      (any agent_id will use the default behavior)")
         logger.info("=" * 60)
+        logger.info("Instructions:")
+        logger.info("  1. Open Godot and load scenes/foraging.tscn")
+        logger.info("  2. Press F5 to run the scene")
+        logger.info("  3. Press SPACE to start the simulation")
+        logger.info("  4. Watch the LLM-powered agent make decisions!")
+        logger.info("")
+        logger.info(f"IPC Server ready at http://{args.host}:{args.port}")
+        logger.info("Press Ctrl+C to stop")
+        logger.info("=" * 60)
+        logger.info("")
 
-        # Start server
-        logger.info("Starting IPC server...")
-        server.run()
+        # Run the arena (blocks until stopped)
+        arena.run()
 
+    except FileNotFoundError:
+        logger.error(f"Model file not found: {args.model}")
+        logger.error("Download a model first:")
+        logger.error(
+            "  python -m tools.model_manager download tinyllama-1.1b-chat --format gguf --quant q4_k_m"
+        )
+        return 1
     except KeyboardInterrupt:
-        logger.info("\nShutting down gracefully...")
+        logger.info("\n")
+        logger.info("=" * 60)
+        logger.info("Shutting down gracefully...")
         if backend is not None:
-            logger.info("Unloading LLM backend...")
             backend.unload()
-        sys.exit(0)
+            logger.info("  Backend unloaded")
+        logger.info("=" * 60)
+        return 0
     except Exception as e:
         logger.error(f"Fatal error: {e}", exc_info=True)
         if backend is not None:
             backend.unload()
-        sys.exit(1)
+        return 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

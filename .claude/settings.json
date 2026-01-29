@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(.venvScriptspython.exe -m pytest tests/test_local_llm_behavior.py -v)"
+    ]
+  }
+}
