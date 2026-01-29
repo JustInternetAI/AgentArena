@@ -616,11 +616,12 @@ Run benchmarks on mobile devices.
 
 ---
 
-#### B-31: LocalLLMBehavior - Bridge Local Backends to AgentBehavior API
+#### B-31: LocalLLMBehavior - Bridge Local Backends to AgentBehavior API ✅ COMPLETE
 **Priority**: High
 **Component**: Agent Runtime / Backends
 **Size**: M
 **Blocking**: LLM agent integration with foraging scene
+**Status**: Completed - see [python/agent_runtime/local_llm_behavior.py](../python/agent_runtime/local_llm_behavior.py)
 
 **Problem Statement**:
 The codebase has two separate agent systems that aren't connected:
@@ -675,7 +676,7 @@ The `LLMAgentBehavior` class (line 281-422 in behavior.py) already supports clou
 
 **Implementation Tasks**:
 
-- [ ] **Create `python/agent_runtime/local_llm_behavior.py`**
+- [x] **Create `python/agent_runtime/local_llm_behavior.py`**
 
   ```python
   """
@@ -750,7 +751,7 @@ The `LLMAgentBehavior` class (line 281-422 in behavior.py) already supports clou
           self._memory.clear()
   ```
 
-- [ ] **Add factory function for easy creation**
+- [x] **Add factory function for easy creation**
 
   ```python
   def create_local_llm_behavior(
@@ -764,7 +765,7 @@ The `LLMAgentBehavior` class (line 281-422 in behavior.py) already supports clou
       pass
   ```
 
-- [ ] **Update `python/ipc/server.py` `create_server()` function** (line 520-541)
+- [x] **Update `python/ipc/server.py` `create_server()` function** (line 520-541)
 
   Add optional parameter to auto-create local LLM behavior:
   ```python
@@ -777,7 +778,7 @@ The `LLMAgentBehavior` class (line 281-422 in behavior.py) already supports clou
   ) -> IPCServer:
   ```
 
-- [ ] **Create `python/run_local_llm_forager.py`** - Startup script
+- [x] **Create `python/run_local_llm_forager.py`** - Startup script
 
   ```python
   """
@@ -793,7 +794,7 @@ The `LLMAgentBehavior` class (line 281-422 in behavior.py) already supports clou
   # 4. Start IPC server
   ```
 
-- [ ] **Integrate scenario system prompts**
+- [ ] **Integrate scenario system prompts** (deferred - optional enhancement)
 
   Use `python/scenarios/foraging.py` to generate system prompts:
   ```python
@@ -804,11 +805,11 @@ The `LLMAgentBehavior` class (line 281-422 in behavior.py) already supports clou
   behavior = LocalLLMBehavior(backend=backend, system_prompt=system_prompt)
   ```
 
-- [ ] **Add to `__init__.py` exports**
+- [x] **Add to `__init__.py` exports**
 
   Update `python/agent_runtime/__init__.py` to export `LocalLLMBehavior`
 
-- [ ] **Write tests**
+- [x] **Write tests**
 
   Create `tests/test_local_llm_behavior.py`:
   - Test prompt building
@@ -916,11 +917,91 @@ Recommend option 1 for explicit control.
 
 ---
 
+#### B-32: Tier 3 Memory Inspection API
+**Priority**: Medium
+**Component**: Agent Runtime
+**Size**: S
+**Depends On**: B-31 (LocalLLMBehavior)
+
+**Problem Statement**:
+Advanced learners need to inspect and debug agent memory contents. Currently there's no standardized way to view what's stored in memory, query it externally, or export it for analysis.
+
+**Goal**: Provide memory inspection tools for Tier 3 learners.
+
+**Implementation Tasks**:
+- [ ] Add `memory.dump()` method to `AgentMemory` interface
+- [ ] Add `memory.query(query: str)` for semantic retrieval
+- [ ] Create CLI tool: `python -m tools.inspect_agent --memory`
+- [ ] Add memory export to JSON/CSV formats
+- [ ] Document memory inspection in learner_tiers.md
+
+**Acceptance Criteria**:
+- [ ] Learners can view full memory contents
+- [ ] Learners can search memory by query
+- [ ] Export works for analysis in external tools
+
+---
+
+#### B-33: Tier 3 Reasoning Trace System
+**Priority**: Medium
+**Component**: Agent Runtime
+**Size**: M
+**Depends On**: B-31 (LocalLLMBehavior)
+
+**Problem Statement**:
+Advanced learners need to understand step-by-step how their agent made decisions. They need to see: what was retrieved from memory, what prompt was sent, what the LLM responded, and how that was parsed into a decision.
+
+**Goal**: Provide a reasoning trace system that logs every step of the decision process.
+
+**Implementation Tasks**:
+- [ ] Add `ReasoningTrace` class to track decision steps
+- [ ] Add `log_step(name, data)` method to AgentBehavior
+- [ ] Store traces per-episode with timestamps
+- [ ] Create CLI tool: `python -m tools.inspect_agent --last-decision`
+- [ ] Create CLI tool: `python -m tools.inspect_agent --watch` (live mode)
+- [ ] Add trace visualization (text-based tree view)
+- [ ] Document in learner_tiers.md
+
+**Acceptance Criteria**:
+- [ ] Each decision step is logged with timestamp and data
+- [ ] Learners can replay full decision traces
+- [ ] Live watching mode shows decisions as they happen
+
+---
+
+#### B-34: Tier 3 Reflection Hooks
+**Priority**: Medium
+**Component**: Agent Runtime
+**Size**: M
+**Depends On**: B-31, B-32, B-33
+
+**Problem Statement**:
+Advanced learners want agents that learn from experience. They need hooks to reflect on episode outcomes, store insights, and use those insights in future decisions.
+
+**Goal**: Provide reflection hooks that enable learning from past episodes.
+
+**Implementation Tasks**:
+- [ ] Add `on_episode_end(outcome: dict)` hook to AgentBehavior
+- [ ] Add `reflect(outcome) -> str` method to LLMAgentBehavior
+- [ ] Add `self.reflections` storage for past insights
+- [ ] Integrate reflections into prompt building
+- [ ] Create example: `ReflectiveForager` in user_agents/examples/
+- [ ] Add reflection viewer to CLI tools
+- [ ] Document reflection patterns in learner_tiers.md
+
+**Acceptance Criteria**:
+- [ ] Agents can reflect on episode outcomes using LLM
+- [ ] Reflections are stored and can be retrieved
+- [ ] Reflections improve future decision-making
+- [ ] Clear documentation with examples
+
+---
+
 ## Total Backlog Summary
 
 - **High Priority**: 8 items
-- **Medium Priority**: 15 items
+- **Medium Priority**: 18 items
 - **Low Priority**: 8 items
-- **Total**: 31 items
+- **Total**: 34 items
 
 **Estimated Timeline**: 6-12 months for all items with 2 developers

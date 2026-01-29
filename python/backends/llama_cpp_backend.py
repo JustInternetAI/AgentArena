@@ -4,15 +4,20 @@ llama.cpp backend adapter.
 
 import json
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 from .base import BackendConfig, BaseBackend, GenerationResult
+
+if TYPE_CHECKING:
+    from llama_cpp import Llama
 
 logger = logging.getLogger(__name__)
 
 
 class LlamaCppBackend(BaseBackend):
     """Backend adapter for llama.cpp."""
+
+    llm: "Llama | None"
 
     def __init__(self, config: BackendConfig):
         """Initialize llama.cpp backend."""
@@ -79,13 +84,16 @@ class LlamaCppBackend(BaseBackend):
                 echo=False,
             )
 
-            text = response["choices"][0]["text"]
-            tokens_used = response["usage"]["total_tokens"]
+            # Cast response to dict since we're not streaming
+            resp = cast(dict[str, Any], response)
+            text = resp["choices"][0]["text"]
+            tokens_used = resp["usage"]["total_tokens"]
+            finish_reason = str(resp["choices"][0].get("finish_reason", "stop"))
 
             return GenerationResult(
                 text=text,
                 tokens_used=tokens_used,
-                finish_reason=response["choices"][0]["finish_reason"],
+                finish_reason=finish_reason,
                 metadata={"model": self.config.model_path},
             )
 

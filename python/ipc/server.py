@@ -12,6 +12,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException
 
+from agent_runtime.behavior import AgentBehavior
 from agent_runtime.runtime import AgentRuntime
 from agent_runtime.schemas import ToolSchema
 from agent_runtime.tool_dispatcher import ToolDispatcher
@@ -40,6 +41,7 @@ class IPCServer:
         self,
         runtime: AgentRuntime,
         behaviors: dict | None = None,
+        default_behavior: "AgentBehavior | None" = None,
         host: str = "127.0.0.1",
         port: int = 5000,
     ):
@@ -49,11 +51,13 @@ class IPCServer:
         Args:
             runtime: AgentRuntime instance to process agent decisions
             behaviors: Dictionary of agent_id -> AgentBehavior instances
+            default_behavior: Default behavior to use for unregistered agents
             host: Host address to bind to
             port: Port to listen on
         """
         self.runtime = runtime
         self.behaviors = behaviors if behaviors is not None else {}
+        self.default_behavior = default_behavior
         self.host = host
         self.port = port
         self.app: FastAPI | None = None
@@ -228,8 +232,8 @@ class IPCServer:
                     # Convert perception to Observation
                     observation = perception_to_observation(perception)
 
-                    # Get behavior for this agent
-                    behavior = self.behaviors.get(agent_id)
+                    # Get behavior for this agent (or use default)
+                    behavior = self.behaviors.get(agent_id) or self.default_behavior
 
                     if behavior:
                         # Call behavior.decide() with Observation and tools
@@ -421,12 +425,13 @@ class IPCServer:
                 logger.debug(f"Resources: {len(observation.get('nearby_resources', []))}")
                 logger.debug(f"Hazards: {len(observation.get('nearby_hazards', []))}")
 
-                # Check if we have a registered behavior for this agent
-                behavior = self.behaviors.get(agent_id)
+                # Check if we have a registered behavior for this agent (or use default)
+                behavior = self.behaviors.get(agent_id) or self.default_behavior
 
                 if behavior:
-                    # Use registered behavior to make decision
-                    logger.info(f"Using registered behavior for agent {agent_id}")
+                    # Use registered or default behavior to make decision
+                    behavior_type = "registered" if agent_id in self.behaviors else "default"
+                    logger.info(f"Using {behavior_type} behavior for agent {agent_id}")
 
                     # Convert observation dict to Observation schema
                     from .messages import PerceptionMessage
@@ -520,6 +525,7 @@ class IPCServer:
 def create_server(
     runtime: AgentRuntime | None = None,
     behaviors: dict | None = None,
+    default_behavior: AgentBehavior | None = None,
     host: str = "127.0.0.1",
     port: int = 5000,
 ) -> IPCServer:
@@ -529,13 +535,31 @@ def create_server(
     Args:
         runtime: AgentRuntime instance, or None to create a default one
         behaviors: Dictionary of agent_id -> AgentBehavior instances
+        default_behavior: Default behavior to use for agents not in behaviors dict
         host: Host address to bind to
         port: Port to listen on
 
     Returns:
         Configured IPCServer instance
+
+    Example:
+        from agent_runtime import create_local_llm_behavior
+
+        # Create a default LLM behavior for all agents
+        default = create_local_llm_behavior(
+            model_path="models/llama-2-7b.gguf",
+            system_prompt="You are a foraging agent."
+        )
+
+        server = create_server(default_behavior=default)
     """
     if runtime is None:
         runtime = AgentRuntime(max_workers=4)
 
-    return IPCServer(runtime=runtime, behaviors=behaviors, host=host, port=port)
+    return IPCServer(
+        runtime=runtime,
+        behaviors=behaviors,
+        default_behavior=default_behavior,
+        host=host,
+        port=port,
+    )
