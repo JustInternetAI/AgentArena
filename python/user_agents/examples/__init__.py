@@ -14,7 +14,7 @@ INTERMEDIATE TIER:
     - Focus: State tracking and explicit parameters
 
 ADVANCED TIER:
-    LLMForager - Uses LLMAgentBehavior
+    LLMForager - Uses LLMAgentBehavior (COMING SOON)
     - Integrates LLM for reasoning
     - Custom prompt engineering
     - Focus: LLM-based decision making
@@ -22,8 +22,8 @@ ADVANCED TIER:
 Use these as starting points for your own agents!
 """
 
-from .llm_forager import LLMForager
+# from .llm_forager import LLMForager  # TODO: Uncomment when LLMAgentBehavior is implemented
 from .simple_forager import SimpleForager
 from .simple_forager_simple import SimpleForagerSimple
 
-__all__ = ["SimpleForager", "SimpleForagerSimple", "LLMForager"]
+__all__ = ["SimpleForager", "SimpleForagerSimple"]  # "LLMForager" coming soon
