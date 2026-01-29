@@ -47,12 +47,85 @@ The foraging demo showcases the full integration between Godot and Python agents
 
 ## Quick Start
 
-### 1. Start the Python IPC Server
+There are two ways to run the foraging demo:
+1. **Rule-based agent** (SimpleForager) - No model download required
+2. **LLM-powered agent** - Requires downloading a GGUF model
+
+---
+
+### Option A: Rule-Based Agent (Quick Test)
+
+This uses the SimpleForager agent which makes decisions using simple rules (no LLM).
 
 ```bash
-cd "c:\Projects\Agent Arena"
-python python/run_foraging_demo.py
+cd python
+.\venv\Scripts\activate   # Windows
+# source venv/bin/activate  # Linux/Mac
+python run_foraging_demo.py
 ```
+
+---
+
+### Option B: LLM-Powered Agent (GPU Required)
+
+This uses a local LLM via llama.cpp for decision-making.
+
+#### Step 1: Download a Model
+
+First, download a GGUF model using the built-in model manager:
+
+```bash
+cd python
+.\venv\Scripts\activate
+
+# Small model for testing (~700MB) - recommended for first test
+python -m tools.model_manager download tinyllama-1.1b-chat --format gguf --quant q4_k_m
+
+# Or a more capable model (~4GB)
+python -m tools.model_manager download phi-2 --format gguf --quant q4_k_m
+
+# Or a production-quality model (~4GB)
+python -m tools.model_manager download llama-2-7b-chat --format gguf --quant q4_k_m
+```
+
+To see all available models:
+```bash
+python -m tools.model_manager info
+```
+
+To list downloaded models:
+```bash
+python -m tools.model_manager list
+```
+
+#### Step 2: Run with LocalLLMBehavior
+
+Use `run_local_llm_forager.py` which integrates the LLM with the agent behavior system:
+
+```bash
+# Using TinyLlama (fastest, basic quality)
+python run_local_llm_forager.py --model ../models/tinyllama-1.1b-chat/gguf/q4_k_m/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf --gpu-layers -1
+
+# Using Phi-2 (good balance)
+python run_local_llm_forager.py --model ../models/phi-2/gguf/q4_k_m/phi-2.Q4_K_M.gguf --gpu-layers -1
+
+# Using Llama-2-7B (production quality)
+python run_local_llm_forager.py --model ../models/llama-2-7b-chat/gguf/q4_k_m/llama-2-7b-chat.Q4_K_M.gguf --gpu-layers -1
+```
+
+**Options:**
+- `--gpu-layers -1`: Offload all layers to GPU (fastest)
+- `--gpu-layers 0`: CPU only (no GPU required)
+- `--gpu-layers 20`: Offload 20 layers to GPU (partial)
+- `--temperature`: LLM temperature (default: 0.7)
+- `--max-tokens`: Maximum tokens per response (default: 256)
+- `--debug`: Enable debug logging
+
+The LocalLLMBehavior class bridges the LlamaCppBackend with the AgentBehavior interface, providing real LLM-powered decision making.
+
+---
+
+### Expected Output (Rule-Based Demo)
 
 You should see:
 ```
@@ -305,6 +378,40 @@ Now that Issue #30 is complete, you can:
 4. **Run benchmarks** - Compare different agent implementations
 
 ## Troubleshooting
+
+### Model not found error
+
+```
+ValueError: Model path does not exist: path/to/model.gguf
+```
+
+**Fix:** Download a model first using the model manager:
+```bash
+cd python
+.\venv\Scripts\activate
+python -m tools.model_manager download tinyllama-1.1b-chat --format gguf --quant q4_k_m
+```
+
+Then use the correct path:
+```bash
+python run_ipc_server_with_gpu.py --model ../models/tinyllama-1.1b-chat/gguf/q4_k_m/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf --gpu-layers -1
+```
+
+### CUDA/GPU not detected
+
+**Check:**
+- NVIDIA GPU with CUDA support
+- CUDA Toolkit installed
+- `llama-cpp-python` installed with CUDA support:
+  ```bash
+  pip uninstall llama-cpp-python
+  CMAKE_ARGS="-DLLAMA_CUBLAS=on" pip install llama-cpp-python --no-cache-dir
+  ```
+
+**Fallback:** Use CPU-only mode:
+```bash
+python run_ipc_server_with_gpu.py --model <path> --gpu-layers 0
+```
 
 ### Agent uses mock logic instead of registered behavior
 

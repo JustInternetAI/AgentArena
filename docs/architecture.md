@@ -4,6 +4,43 @@
 
 Agent Arena is designed as a hybrid system combining a high-performance Godot C++ module for deterministic simulation with a flexible Python runtime for LLM-driven agent reasoning.
 
+## Design Philosophy
+
+Agent Arena follows a clear principle: **learner clarity over performance optimization**.
+
+### Separation of Concerns
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        LEARNER SPACE                            │
+│                   (What you write and control)                  │
+│                                                                 │
+│  • Agent behaviors (decide logic)                               │
+│  • Prompts and prompt templates                                 │
+│  • Memory management and inspection                             │
+│  • Reflection, planning, and reasoning traces                   │
+│                                                                 │
+├─────────────────────────────────────────────────────────────────┤
+│                       INFRASTRUCTURE                            │
+│                     (Hidden, just works)                        │
+│                                                                 │
+│  • IPC Server (FastAPI, HTTP handling)                          │
+│  • LLM Backends (llama.cpp, vLLM)                               │
+│  • GPU memory management                                        │
+│  • Model loading and inference                                  │
+│  • Godot communication protocol                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**The Learner Interface**: Learners interact with a simple, well-defined contract:
+
+- **Input**: `Observation` (position, nearby resources, hazards, inventory)
+- **Output**: `AgentDecision` (tool name, parameters, reasoning)
+
+Everything else - how observations arrive, how decisions execute, what LLM powers inference - is infrastructure that learners don't need to understand.
+
+See [learner_tiers.md](learner_tiers.md) for the complete progression guide.
+
 ## System Components
 
 ### 1. Godot C++ Module (GDExtension)
@@ -95,11 +132,12 @@ python/
 
 #### Three-Tier Learning Progression
 
-The framework provides three tiers of abstraction, designed as a learning progression:
+The framework provides three tiers of abstraction, designed as a learning progression.
+See [learner_tiers.md](learner_tiers.md) for detailed documentation and examples.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                        BEGINNER TIER                                     │
+│  TIER 1: BEGINNER                                                        │
 │  SimpleAgentBehavior                                                     │
 │  ─────────────────────                                                   │
 │  • User returns: tool name (string)                                      │
@@ -107,24 +145,34 @@ The framework provides three tiers of abstraction, designed as a learning progre
 │  • Focus: Understanding perception → decision → action loop              │
 │  • No LLM required                                                       │
 ├─────────────────────────────────────────────────────────────────────────┤
-│                       INTERMEDIATE TIER                                  │
-│  AgentBehavior + SlidingWindowMemory                                     │
-│  ────────────────────────────────────                                    │
+│  TIER 2: INTERMEDIATE                                                    │
+│  AgentBehavior + LLMAgentBehavior                                        │
+│  ────────────────────────────────                                        │
 │  • User returns: AgentDecision with tool, params, reasoning              │
-│  • User manages: built-in memory (SlidingWindowMemory)                   │
+│  • User customizes: prompt templates, response parsing                   │
 │  • User implements: lifecycle hooks (on_episode_start, on_tool_result)   │
-│  • Focus: State tracking, explicit parameters, memory patterns           │
-│  • No LLM required                                                       │
+│  • Focus: Prompt engineering, LLM integration, state tracking            │
 ├─────────────────────────────────────────────────────────────────────────┤
-│                        ADVANCED TIER                                     │
-│  LLMAgentBehavior + Custom Memory                                        │
-│  ─────────────────────────────────                                       │
-│  • User integrates: LLM backends (Anthropic, OpenAI, Ollama)             │
-│  • User implements: custom memory systems, planning, multi-agent         │
-│  • User controls: prompt engineering, response parsing, coordination     │
-│  • Focus: LLM reasoning, planning, multi-agent coordination              │
+│  TIER 3: ADVANCED                                                        │
+│  LLMAgentBehavior + Memory/Reflection Extensions                         │
+│  ───────────────────────────────────────────────                         │
+│  • User controls: memory storage and retrieval (self.memory)             │
+│  • User implements: reflection hooks, planning strategies                │
+│  • User inspects: reasoning traces, decision logs                        │
+│  • Tooling: Memory viewer, decision inspector, trace debugger            │
+│  • Focus: Learning from experience, multi-step planning, self-improvement│
 └─────────────────────────────────────────────────────────────────────────┘
 ```
+
+**Tier 3 Capabilities** (for advanced learners):
+
+| Capability | What You Control | Inspection Tool |
+|------------|------------------|-----------------|
+| **Prompting** | `build_prompt()`, templates | Log full prompt before send |
+| **Memory** | `self.memory.add()`, `memory.query()` | `memory.dump()`, memory viewer |
+| **Reasoning** | `self.reasoning_trace` | Step-by-step decision log |
+| **Reflection** | `reflect(outcome)` → stored insights | View past reflections |
+| **Planning** | `plan()` → multi-step strategies | Visualize plan tree |
 
 **Key Design Principles:**
 

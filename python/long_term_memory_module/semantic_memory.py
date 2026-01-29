@@ -307,7 +307,7 @@ class MemoryConverter:
         """Extract metadata from object."""
         return {}
 
-    def from_dict(self, data: dict[str, Any]) -> T:
+    def from_dict(self, data: dict[str, Any]) -> Any:
         """Reconstruct object from stored dictionary."""
         raise NotImplementedError("Subclass must implement from_dict()")
 

@@ -24,7 +24,7 @@ class ObservationConverter(MemoryConverter):
     with agent observations in the memory system.
     """
 
-    def to_text(self, observation: "Observation") -> str:
+    def to_text(self, observation: "Observation") -> str:  # type: ignore[override]
         """
         Convert an observation to searchable text representation.
 
@@ -76,7 +76,7 @@ class ObservationConverter(MemoryConverter):
 
         return ". ".join(parts) + "."
 
-    def to_metadata(self, observation: "Observation") -> dict[str, Any]:
+    def to_metadata(self, observation: "Observation") -> dict[str, Any]:  # type: ignore[override]
         """
         Extract structured metadata from observation.
 
@@ -119,7 +119,7 @@ class ObservationConverter(MemoryConverter):
 
         return metadata
 
-    def from_dict(self, data: dict[str, Any]) -> "Observation":
+    def from_dict(self, data: dict[str, Any]) -> "Observation":  # type: ignore[override]
         """
         Reconstruct an Observation from stored memory data.
 

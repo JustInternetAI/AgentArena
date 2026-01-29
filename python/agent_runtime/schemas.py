@@ -317,28 +317,64 @@ class AgentDecision:
         if isinstance(response, dict):
             data = response
         else:
-            # Try to parse JSON
+            import re
+
+            data = None
+
+            # Try to parse JSON directly first
             try:
                 data = json.loads(response)
-            except json.JSONDecodeError as e:
-                # Try to extract JSON from markdown code blocks
-                if "```json" in response or "```" in response:
-                    # Extract content between ```json and ``` or ``` and ```
-                    import re
+            except json.JSONDecodeError:
+                pass
 
-                    json_match = re.search(r"```(?:json)?\s*\n(.*?)\n```", response, re.DOTALL)
-                    if json_match:
-                        try:
-                            data = json.loads(json_match.group(1))
-                        except json.JSONDecodeError:
-                            logger.error(f"Failed to parse JSON from code block: {e}")
-                            raise ValueError(f"Invalid JSON in LLM response: {e}")
-                    else:
-                        logger.error(f"Failed to parse LLM response: {e}")
-                        raise ValueError(f"Invalid JSON in LLM response: {e}")
-                else:
-                    logger.error(f"Failed to parse LLM response: {e}")
-                    raise ValueError(f"Invalid JSON in LLM response: {e}")
+            # Try to extract JSON from markdown code blocks
+            if data is None and ("```json" in response or "```" in response):
+                json_match = re.search(r"```(?:json)?\s*\n(.*?)\n```", response, re.DOTALL)
+                if json_match:
+                    try:
+                        data = json.loads(json_match.group(1))
+                    except json.JSONDecodeError:
+                        pass
+
+            # Try to find JSON object embedded in text
+            if data is None:
+                # Look for {"tool": pattern which is our expected format
+                json_match = re.search(r'\{[^{}]*"tool"[^{}]*\}', response)
+                if json_match:
+                    try:
+                        data = json.loads(json_match.group(0))
+                    except json.JSONDecodeError:
+                        pass
+
+                # Try finding any JSON object with nested braces
+                if data is None:
+                    # Find JSON objects - match balanced braces
+                    brace_start = response.find("{")
+                    if brace_start != -1:
+                        depth = 0
+                        for i, char in enumerate(response[brace_start:], brace_start):
+                            if char == "{":
+                                depth += 1
+                            elif char == "}":
+                                depth -= 1
+                                if depth == 0:
+                                    json_str = response[brace_start : i + 1]
+                                    try:
+                                        data = json.loads(json_str)
+                                        break
+                                    except json.JSONDecodeError:
+                                        # Try next occurrence
+                                        brace_start = response.find("{", i + 1)
+                                        if brace_start == -1:
+                                            break
+                                        depth = 0
+
+            if data is None:
+                logger.error("Failed to parse LLM response: No valid JSON found")
+                raise ValueError("Invalid JSON in LLM response: No valid JSON found")
+
+        # At this point data is guaranteed to be a dict (mypy needs explicit assertion)
+        assert data is not None
 
         # Extract fields with defaults
         tool = data.get("tool")

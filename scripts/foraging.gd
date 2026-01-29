@@ -103,7 +103,11 @@ func _input(event):
 		elif event.keycode == KEY_R:
 			_reset_scene()
 		elif event.keycode == KEY_S:
-			simulation_manager.step_simulation()
+			# Block stepping if we're waiting for an LLM decision
+			if waiting_for_decision:
+				print("⏳ Waiting for backend decision... step blocked")
+			else:
+				simulation_manager.step_simulation()
 
 func _on_scene_started():
 	"""Called when simulation starts"""
@@ -303,6 +307,8 @@ func _update_metrics_ui():
 	var status = "RUNNING" if simulation_manager.is_running else "STOPPED"
 	if scene_completed:
 		status = "COMPLETED"
+	elif waiting_for_decision:
+		status = "WAITING FOR LLM"
 
 	# Get last decision info
 	var last_decision_text = "None"

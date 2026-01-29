@@ -206,7 +206,7 @@ class VLLMBackend(BaseBackend):
                 )
 
             # Use chat completions API for function calling
-            response = self.client.chat.completions.create(
+            response = self.client.chat.completions.create(  # type: ignore[call-overload]
                 model=self.config.model_path,
                 messages=[{"role": "user", "content": prompt}],
                 tools=openai_tools,

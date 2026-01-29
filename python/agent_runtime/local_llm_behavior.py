@@ -1,23 +1,23 @@
 """
 LocalLLMBehavior - Bridges local LLM backends to AgentBehavior API.
 
-This module provides a behavior class that wraps local LLM backends
+This module provides LocalLLMBehavior, a behavior class that wraps local LLM backends
 (LlamaCppBackend, VLLMBackend) and implements the AgentBehavior interface,
-allowing local LLMs to power agents via the IPC server.
+allowing local GPU-accelerated LLMs to power agents via the IPC server.
+
+Unlike LLMAgentBehavior which uses external API services, LocalLLMBehavior
+uses in-process GPU-accelerated inference via BaseBackend implementations.
 """
 
-import json
 import logging
 from typing import TYPE_CHECKING
-
-from backends.base import BaseBackend, GenerationResult
 
 from .behavior import AgentBehavior
 from .memory import SlidingWindowMemory
 from .schemas import AgentDecision, Observation, ToolSchema
 
 if TYPE_CHECKING:
-    pass
+    from backends.base import BaseBackend
 
 logger = logging.getLogger(__name__)
 
@@ -47,17 +47,17 @@ class LocalLLMBehavior(AgentBehavior):
             memory_capacity=10
         )
 
-        # Use with IPC server
-        server = create_server(behaviors={"forager_001": behavior})
+        # Register with arena
+        arena.register("agent_001", behavior)
     """
 
     def __init__(
         self,
-        backend: BaseBackend,
+        backend: "BaseBackend",
         system_prompt: str = "You are an autonomous agent in a simulation environment.",
         memory_capacity: int = 10,
-        temperature: float | None = None,
-        max_tokens: int | None = None,
+        temperature: float = 0.7,
+        max_tokens: int = 256,
     ):
         """
         Initialize the local LLM behavior.
@@ -66,8 +66,8 @@ class LocalLLMBehavior(AgentBehavior):
             backend: Local LLM backend (LlamaCppBackend or VLLMBackend)
             system_prompt: System prompt describing the agent's role and task
             memory_capacity: Number of recent observations to keep in memory
-            temperature: Optional temperature override for generation
-            max_tokens: Optional max tokens override for generation
+            temperature: Temperature for generation (0-1)
+            max_tokens: Maximum tokens to generate per decision
         """
         self.backend = backend
         self.system_prompt = system_prompt
@@ -77,10 +77,10 @@ class LocalLLMBehavior(AgentBehavior):
 
         # Validate backend is available
         if not self.backend.is_available():
-            raise RuntimeError(f"Backend {self.backend.__class__.__name__} is not available")
+            raise RuntimeError("Backend is not available - model may not be loaded")
 
         logger.info(
-            f"Initialized LocalLLMBehavior with {self.backend.__class__.__name__} "
+            f"Initialized LocalLLMBehavior with {type(backend).__name__} "
             f"(memory_capacity={memory_capacity})"
         )
 
@@ -104,12 +104,21 @@ class LocalLLMBehavior(AgentBehavior):
 
             # Build prompt from system prompt, memory, and observation
             prompt = self._build_prompt(observation, tools)
+            logger.debug(f"Prompt length: {len(prompt)} chars (~{len(prompt)//4} tokens)")
 
             # Convert tools to dict format for backend
-            tool_dicts = [self._tool_schema_to_dict(tool) for tool in tools]
+            tool_dicts = [
+                {
+                    "name": tool.name,
+                    "description": tool.description,
+                    "parameters": tool.parameters,
+                }
+                for tool in tools
+            ]
 
             # Generate response using backend
             import time
+
             start_time = time.time()
             logger.debug(f"Generating decision for agent {observation.agent_id}")
             result = self.backend.generate_with_tools(
@@ -117,8 +126,40 @@ class LocalLLMBehavior(AgentBehavior):
             )
             elapsed_ms = (time.time() - start_time) * 1000
 
-            # Parse response into AgentDecision
-            decision = self._parse_decision(result, observation)
+            # Check for generation errors
+            if result.finish_reason == "error":
+                error_msg = result.metadata.get("error", "Unknown error")
+                logger.error(f"LLM generation error: {error_msg}")
+                return AgentDecision.idle(reasoning=f"LLM error: {error_msg}")
+
+            # Debug: log token usage and raw response
+            logger.debug(f"Tokens used: {result.tokens_used}")
+            logger.debug(f"Raw LLM response: {result.text[:500] if result.text else '(empty)'}")
+
+            # Try to parse from metadata first (pre-parsed by backend)
+            if "parsed_tool_call" in result.metadata:
+                parsed = result.metadata["parsed_tool_call"]
+                decision = AgentDecision(
+                    tool=parsed.get("tool", "idle"),
+                    params=parsed.get("params", {}),
+                    reasoning=parsed.get("reasoning", ""),
+                )
+            elif "tool_call" in result.metadata:
+                # Native tool call from vLLM
+                tool_call = result.metadata["tool_call"]
+                decision = AgentDecision(
+                    tool=tool_call["name"],
+                    params=tool_call["arguments"],
+                    reasoning=result.text or "LLM tool call",
+                )
+            else:
+                # Parse the raw text response using robust JSON extraction
+                try:
+                    decision = AgentDecision.from_llm_response(result.text)
+                except ValueError as e:
+                    logger.warning(f"Failed to parse LLM response: {e}")
+                    logger.debug(f"Raw response: {result.text}")
+                    decision = AgentDecision.idle(reasoning=f"Parse error: {e}")
 
             logger.info(
                 f"Agent {observation.agent_id} decided: {decision.tool} - {decision.reasoning} "
@@ -129,7 +170,7 @@ class LocalLLMBehavior(AgentBehavior):
 
         except Exception as e:
             logger.error(f"Error in LocalLLMBehavior.decide(): {e}", exc_info=True)
-            return AgentDecision.idle(reasoning=f"Error: {str(e)}")
+            return AgentDecision.idle(reasoning=f"Error: {e}")
 
     def _build_prompt(self, observation: Observation, tools: list[ToolSchema]) -> str:
         """
@@ -144,133 +185,70 @@ class LocalLLMBehavior(AgentBehavior):
         Returns:
             Formatted prompt string
         """
-        # Start with system prompt
-        parts = [self.system_prompt, ""]
+        sections = []
+
+        # Add system prompt
+        if self.system_prompt:
+            sections.append(self.system_prompt)
+            sections.append("")
 
         # Add memory context if available
         memory_items = self.memory.retrieve(limit=5)
         if memory_items and len(memory_items) > 1:  # Don't include if only current observation
-            parts.append("Recent observations:")
+            sections.append("## Recent History")
             # Memory items are returned most recent first, so reverse and skip last (current)
             for i, obs in enumerate(reversed(memory_items[1:]), 1):
-                parts.append(f"  {i}. Tick {obs.tick}: Position {obs.position}")
+                sections.append(f"  {i}. Tick {obs.tick}: Position {obs.position}")
                 if obs.nearby_resources:
-                    parts.append(f"     Resources nearby: {len(obs.nearby_resources)}")
+                    sections.append(f"     Resources nearby: {len(obs.nearby_resources)}")
                 if obs.nearby_hazards:
-                    parts.append(f"     Hazards nearby: {len(obs.nearby_hazards)}")
-            parts.append("")
+                    sections.append(f"     Hazards nearby: {len(obs.nearby_hazards)}")
+            sections.append("")
 
-        # Add current observation
-        parts.append("Current observation:")
-        parts.append(f"  Tick: {observation.tick}")
-        parts.append(f"  Position: {observation.position}")
-        parts.append(f"  Health: {observation.health}")
-        parts.append(f"  Energy: {observation.energy}")
+        # Current state
+        sections.append("## Current Situation")
+        sections.append(f"Position: {observation.position}")
+        sections.append(f"Health: {observation.health}")
+        sections.append(f"Energy: {observation.energy}")
+        sections.append(f"Tick: {observation.tick}")
 
+        # Nearby resources
         if observation.nearby_resources:
-            parts.append(f"  Nearby resources ({len(observation.nearby_resources)}):")
-            for r in observation.nearby_resources[:5]:  # Limit to 5 for brevity
-                parts.append(
-                    f"    - {r.name} ({r.type}) at distance {r.distance:.1f}, position {r.position}"
+            sections.append("\n## Nearby Resources")
+            for resource in observation.nearby_resources[:5]:  # Limit to 5 for brevity
+                sections.append(
+                    f"- {resource.name} ({resource.type}) at distance {resource.distance:.1f}, "
+                    f"position {resource.position}"
                 )
-
-        if observation.nearby_hazards:
-            parts.append(f"  Nearby hazards ({len(observation.nearby_hazards)}):")
-            for h in observation.nearby_hazards[:5]:  # Limit to 5 for brevity
-                parts.append(
-                    f"    - {h.name} ({h.type}) at distance {h.distance:.1f}, "
-                    f"damage {h.damage}, position {h.position}"
-                )
-
-        if observation.inventory:
-            parts.append(f"  Inventory ({len(observation.inventory)} items):")
-            for item in observation.inventory:
-                parts.append(f"    - {item.name} (x{item.quantity})")
         else:
-            parts.append("  Inventory: empty")
+            sections.append("\n## Nearby Resources\nNone visible")
 
-        parts.append("")
-        parts.append("Choose an action based on the observation above.")
+        # Nearby hazards
+        if observation.nearby_hazards:
+            sections.append("\n## Nearby Hazards")
+            for hazard in observation.nearby_hazards[:5]:  # Limit to 5 for brevity
+                damage_str = f", damage: {hazard.damage}" if hazard.damage > 0 else ""
+                sections.append(
+                    f"- {hazard.name} ({hazard.type}) at distance {hazard.distance:.1f}{damage_str}, "
+                    f"position {hazard.position}"
+                )
+        else:
+            sections.append("\n## Nearby Hazards\nNone visible")
 
-        return "\n".join(parts)
+        # Inventory
+        if observation.inventory:
+            sections.append("\n## Inventory")
+            for item in observation.inventory:
+                sections.append(f"- {item.name} x{item.quantity}")
+        else:
+            sections.append("\n## Inventory\nEmpty")
 
-    def _tool_schema_to_dict(self, tool: ToolSchema) -> dict:
-        """
-        Convert ToolSchema to dict format for backend.
+        # Add instruction for response format
+        sections.append("\n## Instructions")
+        sections.append("Based on the current situation, decide what action to take.")
+        sections.append("Consider your goals, nearby resources, and any hazards.")
 
-        Args:
-            tool: ToolSchema instance
-
-        Returns:
-            Dictionary with name, description, and parameters
-        """
-        return {
-            "name": tool.name,
-            "description": tool.description,
-            "parameters": tool.parameters,
-        }
-
-    def _parse_decision(self, result: GenerationResult, observation: Observation) -> AgentDecision:
-        """
-        Parse backend generation result into AgentDecision.
-
-        Handles various response formats:
-        - Native tool calls from VLLMBackend (in metadata)
-        - JSON tool calls from LlamaCppBackend (in text)
-        - Fallback to idle if parsing fails
-
-        Args:
-            result: Generation result from backend
-            observation: Current observation (for context)
-
-        Returns:
-            AgentDecision instance
-        """
-        # Check if backend returned a native tool call (e.g., vLLM)
-        if "tool_call" in result.metadata:
-            tool_call = result.metadata["tool_call"]
-            return AgentDecision(
-                tool=tool_call["name"],
-                params=tool_call["arguments"],
-                reasoning=result.text or "LLM tool call",
-            )
-
-        # Check if backend parsed a tool call from text (e.g., llama.cpp)
-        if "parsed_tool_call" in result.metadata:
-            parsed = result.metadata["parsed_tool_call"]
-            return AgentDecision(
-                tool=parsed.get("tool", "idle"),
-                params=parsed.get("params", {}),
-                reasoning=parsed.get("reasoning", "LLM decision"),
-            )
-
-        # Try to parse JSON from result text
-        try:
-            text = result.text.strip()
-
-            # Remove markdown code blocks if present
-            if text.startswith("```json"):
-                text = text[7:]
-            elif text.startswith("```"):
-                text = text[3:]
-            if text.endswith("```"):
-                text = text[:-3]
-
-            parsed = json.loads(text.strip())
-
-            # Extract fields
-            tool = parsed.get("tool") or parsed.get("action") or "idle"
-            params = parsed.get("params") or parsed.get("parameters") or {}
-            reasoning = parsed.get("reasoning") or parsed.get("thought") or "LLM decision"
-
-            return AgentDecision(tool=tool, params=params, reasoning=reasoning)
-
-        except (json.JSONDecodeError, AttributeError) as e:
-            logger.warning(f"Failed to parse LLM response as JSON: {e}")
-            logger.debug(f"Response text: {result.text}")
-
-            # Fallback: return idle
-            return AgentDecision.idle(reasoning="Failed to parse LLM response")
+        return "\n".join(sections)
 
     def on_tool_result(self, tool: str, result: dict) -> None:
         """
@@ -301,50 +279,47 @@ class LocalLLMBehavior(AgentBehavior):
             success: Whether the episode goal was achieved
             metrics: Optional metrics from the scenario
         """
-        logger.info(
-            f"Episode ended: success={success}, "
-            f"observations_stored={len(self.memory)}"
-        )
+        logger.info(f"Episode ended: success={success}, " f"observations_stored={len(self.memory)}")
         if metrics:
             logger.info(f"Episode metrics: {metrics}")
 
 
 def create_local_llm_behavior(
-    backend: BaseBackend,
-    system_prompt: str | None = None,
+    model_path: str,
+    system_prompt: str = "",
+    n_gpu_layers: int = -1,
+    temperature: float = 0.7,
+    max_tokens: int = 256,
     memory_capacity: int = 10,
-    temperature: float | None = None,
-    max_tokens: int | None = None,
 ) -> LocalLLMBehavior:
     """
-    Factory function to create a LocalLLMBehavior instance.
+    Factory function to create a LocalLLMBehavior with LlamaCppBackend.
+
+    This is a convenience function that handles backend creation.
+    For more control, create the backend manually and pass it to LocalLLMBehavior.
 
     Args:
-        backend: Local LLM backend (LlamaCppBackend or VLLMBackend)
-        system_prompt: System prompt describing the agent's role and task.
-                      If None, uses a default foraging prompt.
+        model_path: Path to the GGUF model file
+        system_prompt: System prompt for the agent
+        n_gpu_layers: GPU layers to offload (-1 = all, 0 = CPU only)
+        temperature: LLM temperature (0-1)
+        max_tokens: Maximum tokens per response
         memory_capacity: Number of recent observations to keep in memory
-        temperature: Optional temperature override for generation
-        max_tokens: Optional max tokens override for generation
 
     Returns:
-        LocalLLMBehavior instance
+        Configured LocalLLMBehavior instance
 
     Example:
-        from backends.llama_cpp_backend import LlamaCppBackend
-        from backends.base import BackendConfig
-
-        config = BackendConfig(model_path="path/to/model.gguf", n_gpu_layers=-1)
-        backend = LlamaCppBackend(config)
-
         behavior = create_local_llm_behavior(
-            backend=backend,
-            system_prompt="You are a foraging agent. Collect apples and avoid fire hazards.",
-            memory_capacity=10
+            model_path="models/mistral-7b.gguf",
+            system_prompt="You are a foraging agent.",
+            n_gpu_layers=-1
         )
     """
-    if system_prompt is None:
-        # Default foraging prompt
+    from backends import BackendConfig, LlamaCppBackend
+
+    # Use default foraging prompt if none provided
+    if not system_prompt:
         system_prompt = """You are an autonomous foraging agent in a simulation environment.
 
 Your goal is to:
@@ -354,6 +329,15 @@ Your goal is to:
 
 When you receive an observation, analyze the situation and choose the best action.
 Prioritize safety (avoid hazards) over collecting resources."""
+
+    config = BackendConfig(
+        model_path=model_path,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        n_gpu_layers=n_gpu_layers,
+    )
+
+    backend = LlamaCppBackend(config)
 
     return LocalLLMBehavior(
         backend=backend,

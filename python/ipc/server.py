@@ -12,6 +12,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException
 
+from agent_runtime.behavior import AgentBehavior
 from agent_runtime.runtime import AgentRuntime
 from agent_runtime.schemas import ToolSchema
 from agent_runtime.tool_dispatcher import ToolDispatcher
@@ -40,6 +41,7 @@ class IPCServer:
         self,
         runtime: AgentRuntime,
         behaviors: dict | None = None,
+        default_behavior: "AgentBehavior | None" = None,
         host: str = "127.0.0.1",
         port: int = 5000,
     ):
@@ -49,11 +51,13 @@ class IPCServer:
         Args:
             runtime: AgentRuntime instance to process agent decisions
             behaviors: Dictionary of agent_id -> AgentBehavior instances
+            default_behavior: Default behavior to use for unregistered agents
             host: Host address to bind to
             port: Port to listen on
         """
         self.runtime = runtime
         self.behaviors = behaviors if behaviors is not None else {}
+        self.default_behavior = default_behavior
         self.host = host
         self.port = port
         self.app: FastAPI | None = None
@@ -207,7 +211,9 @@ class IPCServer:
                 tick_request = TickRequest.from_dict(request_data)
                 tick = tick_request.tick
 
-                logger.info(f"[/tick] Processing tick {tick} with {len(tick_request.perceptions)} agents")
+                logger.info(
+                    f"[/tick] Processing tick {tick} with {len(tick_request.perceptions)} agents"
+                )
 
                 # Get tool schemas for agents
                 tool_schemas = []
@@ -228,8 +234,8 @@ class IPCServer:
                     # Convert perception to Observation
                     observation = perception_to_observation(perception)
 
-                    # Get behavior for this agent
-                    behavior = self.behaviors.get(agent_id)
+                    # Get behavior for this agent (or use default)
+                    behavior = self.behaviors.get(agent_id) or self.default_behavior
 
                     # If no specific behavior, check for default behavior
                     if behavior is None and "_default" in self.behaviors:
@@ -428,26 +434,25 @@ class IPCServer:
                 logger.debug(f"Resources: {len(observation.get('nearby_resources', []))}")
                 logger.debug(f"Hazards: {len(observation.get('nearby_hazards', []))}")
 
-                # Check if a behavior is registered for this agent
-                behavior = self.behaviors.get(agent_id)
-
-                # If no specific behavior, check for default behavior
-                if behavior is None and "_default" in self.behaviors:
-                    behavior = self.behaviors["_default"]
-                    logger.info(f"[/observe] Using default behavior for agent '{agent_id}'")
+                # Check if we have a registered behavior for this agent (or use default)
+                behavior = self.behaviors.get(agent_id) or self.default_behavior
 
                 if behavior:
+                    # Log which behavior type is being used
+                    behavior_type = "registered" if agent_id in self.behaviors else "default"
+                    logger.info(f"[/observe] Using {behavior_type} behavior for agent '{agent_id}'")
                     # Convert observation dict to Observation object
-                    from .converters import perception_to_observation
                     from ipc.messages import PerceptionMessage
+
+                    from .converters import perception_to_observation
 
                     # Create PerceptionMessage from observation dict
                     perception = PerceptionMessage(
                         agent_id=agent_id,
                         tick=observation.get("tick", 0),
                         position=observation.get("position", [0, 0, 0]),
-                        rotation=observation.get("rotation"),
-                        velocity=observation.get("velocity"),
+                        rotation=observation.get("rotation", [0, 0, 0]),
+                        velocity=observation.get("velocity", [0, 0, 0]),
                         custom_data={
                             "nearby_resources": observation.get("nearby_resources", []),
                             "nearby_hazards": observation.get("nearby_hazards", []),
@@ -536,7 +541,7 @@ class IPCServer:
 def create_server(
     runtime: AgentRuntime | None = None,
     behaviors: dict | None = None,
-    default_behavior: "AgentBehavior | None" = None,
+    default_behavior: AgentBehavior | None = None,
     host: str = "127.0.0.1",
     port: int = 5000,
 ) -> IPCServer:
@@ -546,7 +551,7 @@ def create_server(
     Args:
         runtime: AgentRuntime instance, or None to create a default one
         behaviors: Dictionary of agent_id -> AgentBehavior instances
-        default_behavior: Default behavior to use for all agents if no specific behavior is registered
+        default_behavior: Default behavior to use for agents not in behaviors dict
         host: Host address to bind to
         port: Port to listen on
 
@@ -554,25 +559,23 @@ def create_server(
         Configured IPCServer instance
 
     Example:
-        # Use default behavior for all agents
-        from agent_runtime.local_llm_behavior import create_local_llm_behavior
-        from backends.llama_cpp_backend import LlamaCppBackend
-        from backends.base import BackendConfig
+        from agent_runtime import create_local_llm_behavior
 
-        config = BackendConfig(model_path="model.gguf", n_gpu_layers=-1)
-        backend = LlamaCppBackend(config)
-        behavior = create_local_llm_behavior(backend)
+        # Create a default LLM behavior for all agents
+        default = create_local_llm_behavior(
+            model_path="models/mistral-7b.gguf",
+            system_prompt="You are a foraging agent."
+        )
 
-        server = create_server(default_behavior=behavior)
+        server = create_server(default_behavior=default)
     """
     if runtime is None:
         runtime = AgentRuntime(max_workers=4)
 
-    # If default_behavior provided and no specific behaviors, create behaviors dict
-    if default_behavior is not None:
-        if behaviors is None:
-            behaviors = {}
-        # Store reference to default behavior
-        behaviors["_default"] = default_behavior
-
-    return IPCServer(runtime=runtime, behaviors=behaviors, host=host, port=port)
+    return IPCServer(
+        runtime=runtime,
+        behaviors=behaviors,
+        default_behavior=default_behavior,
+        host=host,
+        port=port,
+    )
