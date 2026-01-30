@@ -2,7 +2,7 @@
 Local LLM Forager Demo - Run LLM-powered agent in foraging scene.
 
 This script demonstrates the LocalLLMBehavior integration:
-1. Loads a local GGUF model via llama.cpp
+1. Loads a local GGUF model via llama.cpp (or connects to vLLM server)
 2. Uses GPU-accelerated inference for decision making
 3. Connects to Godot foraging scene via IPC
 
@@ -28,18 +28,18 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Default system prompt for foraging scenario
-FORAGING_SYSTEM_PROMPT = """You are a foraging agent. You MUST respond with ONLY a JSON object, no other text.
+FORAGING_SYSTEM_PROMPT = """You are a foraging agent. Output ONLY valid JSON with no additional text.
 
 Rules:
-- Move toward nearest resource
 - Avoid hazards (distance < 3.0)
+- Move toward resources
 
-Response format (ONLY output this JSON, nothing else):
-{"tool": "move_to", "params": {"target_position": [x, y, z], "speed": 1.5}, "reasoning": "reason"}
+Output format:
+{"tool": "move_to", "params": {"target_position": [x, y, z], "speed": 1.5}, "reasoning": "why"}
+OR
+{"tool": "idle", "params": {}, "reasoning": "why"}
 
-Or to do nothing:
-{"tool": "idle", "params": {}, "reasoning": "reason"}
-"""
+Output JSON only:"""
 
 
 def main():
@@ -92,11 +92,27 @@ def main():
         default="foraging_agent_001",
         help="Agent ID to register behavior for (must match Godot scene)",
     )
+    parser.add_argument(
+        "--memory-capacity",
+        type=int,
+        default=10,
+        help="Number of recent observations to keep in memory",
+    )
+    parser.add_argument(
+        "--system-prompt",
+        type=str,
+        default=None,
+        help="Custom system prompt (uses default foraging prompt if not provided)",
+    )
 
     args = parser.parse_args()
 
     if args.debug:
         logging.getLogger().setLevel(logging.DEBUG)
+        # Also enable debug for specific modules
+        logging.getLogger("agent_runtime.local_llm_behavior").setLevel(logging.DEBUG)
+        logging.getLogger("backends.llama_cpp_backend").setLevel(logging.DEBUG)
+        logging.getLogger("ipc.server").setLevel(logging.DEBUG)
 
     logger.info("=" * 60)
     logger.info("Local LLM Forager Demo")
@@ -110,8 +126,11 @@ def main():
     logger.info(f"GPU Layers: {args.gpu_layers} ({gpu_desc})")
     logger.info(f"Temperature: {args.temperature}")
     logger.info(f"Max Tokens: {args.max_tokens}")
+    logger.info(f"Memory Capacity: {args.memory_capacity}")
     logger.info(f"Agent ID: {args.agent_id}")
     logger.info("=" * 60)
+
+    backend = None
 
     try:
         # Load LLM backend
@@ -125,11 +144,15 @@ def main():
         backend = LlamaCppBackend(config)
         logger.info("  Backend loaded successfully")
 
+        # Determine system prompt
+        system_prompt = args.system_prompt if args.system_prompt else FORAGING_SYSTEM_PROMPT
+
         # Create LocalLLMBehavior
         logger.info("Creating LocalLLMBehavior...")
         behavior = LocalLLMBehavior(
             backend=backend,
-            system_prompt=FORAGING_SYSTEM_PROMPT,
+            system_prompt=system_prompt,
+            memory_capacity=args.memory_capacity,
             temperature=args.temperature,
             max_tokens=args.max_tokens,
         )
@@ -180,14 +203,14 @@ def main():
         logger.info("\n")
         logger.info("=" * 60)
         logger.info("Shutting down gracefully...")
-        if "backend" in locals():
+        if backend is not None:
             backend.unload()
             logger.info("  Backend unloaded")
         logger.info("=" * 60)
         return 0
     except Exception as e:
         logger.error(f"Fatal error: {e}", exc_info=True)
-        if "backend" in locals():
+        if backend is not None:
             backend.unload()
         return 1
 

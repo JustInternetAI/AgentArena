@@ -86,12 +86,21 @@ func _discover_agents():
 
 func _discover_agents_in_node(parent_node: Node, team: String):
 	"""Discover agents in a specific parent node"""
+	print("[SceneController] Searching for agents in: ", parent_node.name, " (", parent_node.get_children().size(), " children)")
 	for child in parent_node.get_children():
-		if child.has_method("perceive") and child.has_method("call_tool"):
+		print("  Checking child: ", child.name)
+		var has_perceive = child.has_method("perceive")
+		var has_call_tool = child.has_method("call_tool")
+		print("    - has perceive(): ", has_perceive)
+		print("    - has call_tool(): ", has_call_tool)
+
+		if has_perceive and has_call_tool:
 			# This is a SimpleAgent (or subclass)
+			var agent_id_value = child.agent_id if "agent_id" in child else child.name
+			print("    ✓ FOUND AGENT! ID: ", agent_id_value)
 			var agent_data = {
 				"agent": child,
-				"id": child.agent_id if "agent_id" in child else child.name,
+				"id": agent_id_value,
 				"team": team,
 				"position": child.global_position
 			}
@@ -107,6 +116,8 @@ func _discover_agents_in_node(parent_node: Node, team: String):
 			_create_agent_visual(child, agent_data)
 
 			print("  - Discovered agent: %s (team: %s)" % [agent_data.id, team])
+		else:
+			print("    ✗ Not an agent (missing methods)")
 
 func _create_agent_visual(agent_node: Node, agent_data: Dictionary):
 	"""Create visual representation for an agent (if not already present)"""
@@ -320,14 +331,28 @@ func _setup_backend_communication():
 
 func _request_backend_decision():
 	"""Request decision from backend for the first agent (single-agent scenes)"""
+	print("[SceneController] _request_backend_decision called")
+	print("  agents.size() = ", agents.size())
+	print("  waiting_for_decision = ", waiting_for_decision)
+	print("  IPCService exists = ", IPCService != null)
+	if IPCService:
+		print("  IPCService.is_connected = ", IPCService.is_connected)
+
 	# Only request if we have an agent and not already waiting
-	if agents.size() == 0 or waiting_for_decision:
+	if agents.size() == 0:
+		print("  ✗ No agents found, skipping backend request")
+		return
+
+	if waiting_for_decision:
+		print("  ✗ Already waiting for decision, skipping")
 		return
 
 	# Check if backend is connected
 	if not IPCService or not IPCService.is_connected:
+		print("  ✗ Backend not connected, skipping")
 		return
 
+	print("  ✓ Sending observation to backend...")
 	waiting_for_decision = true
 
 	# Build observation for first agent (single-agent scene)

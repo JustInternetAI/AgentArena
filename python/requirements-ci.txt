@@ -34,3 +34,7 @@ pyyaml>=6.0.0  # YAML configuration files
 # Logging and monitoring
 structlog>=23.2.0
 python-json-logger>=2.0.7
+
+# Vector store dependencies (for long-term memory)
+faiss-cpu>=1.7.4
+sentence-transformers>=2.2.0

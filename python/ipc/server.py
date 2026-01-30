@@ -211,7 +211,9 @@ class IPCServer:
                 tick_request = TickRequest.from_dict(request_data)
                 tick = tick_request.tick
 
-                logger.debug(f"Processing tick {tick} with {len(tick_request.perceptions)} agents")
+                logger.info(
+                    f"[/tick] Processing tick {tick} with {len(tick_request.perceptions)} agents"
+                )
 
                 # Get tool schemas for agents
                 tool_schemas = []
@@ -235,6 +237,11 @@ class IPCServer:
                     # Get behavior for this agent (or use default)
                     behavior = self.behaviors.get(agent_id) or self.default_behavior
 
+                    # If no specific behavior, check for default behavior
+                    if behavior is None and "_default" in self.behaviors:
+                        behavior = self.behaviors["_default"]
+                        logger.debug(f"Using default behavior for agent {agent_id}")
+
                     if behavior:
                         # Call behavior.decide() with Observation and tools
                         try:
@@ -244,8 +251,8 @@ class IPCServer:
                             action_msg = decision_to_action(decision, agent_id, tick)
                             action_messages.append(action_msg)
 
-                            logger.debug(
-                                f"Agent {agent_id} decided: {decision.tool} - {decision.reasoning}"
+                            logger.info(
+                                f"[/tick] Agent {agent_id} decided: {decision.tool} - {decision.reasoning}"
                             )
                         except Exception as e:
                             logger.error(
@@ -298,8 +305,8 @@ class IPCServer:
                     },
                 )
 
-                logger.debug(
-                    f"Tick {tick} processed in {elapsed_ms:.2f}ms, "
+                logger.info(
+                    f"[/tick] Tick {tick} processed in {elapsed_ms:.2f}ms, "
                     f"{len(action_messages)} actions generated"
                 )
 
@@ -383,6 +390,7 @@ class IPCServer:
         @app.get("/tools/list")
         async def list_tools() -> dict[str, Any]:
             """Get list of available tools and their schemas."""
+            logger.info("[/tools/list] Tools requested")
             schemas = {}
             for name, schema in self.tool_dispatcher.schemas.items():
                 schemas[name] = {
@@ -391,6 +399,7 @@ class IPCServer:
                     "parameters": schema.parameters,
                     "returns": schema.returns,
                 }
+            logger.info(f"[/tools/list] Returning {len(schemas)} tools")
             return {"tools": schemas, "count": len(schemas)}
 
         @app.get("/metrics")
@@ -420,7 +429,7 @@ class IPCServer:
             try:
                 agent_id = observation.get("agent_id", "unknown")
 
-                logger.debug(f"Processing observation for agent {agent_id}")
+                logger.info(f"[/observe] Processing observation for agent '{agent_id}'")
                 logger.debug(f"Position: {observation.get('position')}")
                 logger.debug(f"Resources: {len(observation.get('nearby_resources', []))}")
                 logger.debug(f"Hazards: {len(observation.get('nearby_hazards', []))}")
@@ -429,54 +438,61 @@ class IPCServer:
                 behavior = self.behaviors.get(agent_id) or self.default_behavior
 
                 if behavior:
-                    # Use registered or default behavior to make decision
+                    # Log which behavior type is being used
                     behavior_type = "registered" if agent_id in self.behaviors else "default"
-                    logger.info(f"Using {behavior_type} behavior for agent {agent_id}")
+                    logger.info(f"[/observe] Using {behavior_type} behavior for agent '{agent_id}'")
+                    # Convert observation dict to Observation object
+                    from ipc.messages import PerceptionMessage
 
-                    # Convert observation dict to Observation schema
-                    from .messages import PerceptionMessage
+                    from .converters import perception_to_observation
 
                     # Create PerceptionMessage from observation dict
                     perception = PerceptionMessage(
                         agent_id=agent_id,
                         tick=observation.get("tick", 0),
                         position=observation.get("position", [0, 0, 0]),
-                        rotation=observation.get("rotation", [0.0, 0.0, 0.0]),
-                        velocity=observation.get("velocity", [0.0, 0.0, 0.0]),
-                        visible_entities=observation.get("visible_entities", []),
-                        inventory=observation.get("inventory", []),
-                        health=observation.get("health", 100.0),
-                        energy=observation.get("energy", 100.0),
+                        rotation=observation.get("rotation", [0, 0, 0]),
+                        velocity=observation.get("velocity", [0, 0, 0]),
                         custom_data={
                             "nearby_resources": observation.get("nearby_resources", []),
                             "nearby_hazards": observation.get("nearby_hazards", []),
+                            "inventory": observation.get("inventory", []),
+                            "health": observation.get("health", 100.0),
+                            "energy": observation.get("energy", 100.0),
                         },
                     )
 
-                    # Convert to runtime Observation
                     obs = perception_to_observation(perception)
 
                     # Get tool schemas
-                    tool_schemas = [
-                        ToolSchema(
-                            name=schema.name,
-                            description=schema.description,
-                            parameters=schema.parameters,
+                    tool_schemas = []
+                    for name, schema in self.tool_dispatcher.schemas.items():
+                        tool_schemas.append(
+                            ToolSchema(
+                                name=schema.name,
+                                description=schema.description,
+                                parameters=schema.parameters,
+                            )
                         )
-                        for schema in self.tool_dispatcher.schemas.values()
-                    ]
 
-                    # Get decision from behavior
-                    agent_decision = behavior.decide(obs, tool_schemas)
+                    try:
+                        # Call behavior.decide()
+                        agent_decision = behavior.decide(obs, tool_schemas)
 
-                    decision = {
-                        "tool": agent_decision.tool,
-                        "params": agent_decision.params,
-                        "reasoning": agent_decision.reasoning or "No reasoning provided",
-                    }
+                        decision = {
+                            "tool": agent_decision.tool,
+                            "params": agent_decision.params,
+                            "reasoning": agent_decision.reasoning or "Agent decision",
+                        }
+                    except Exception as e:
+                        logger.error(f"Error in behavior.decide(): {e}", exc_info=True)
+                        decision = {
+                            "tool": "idle",
+                            "params": {},
+                            "reasoning": f"Error: {str(e)}",
+                        }
                 else:
                     # Generate mock decision using rule-based logic
-                    logger.info(f"Using mock logic for agent {agent_id}")
                     decision = self._make_mock_decision(observation)
 
                 # Update metrics
@@ -547,7 +563,7 @@ def create_server(
 
         # Create a default LLM behavior for all agents
         default = create_local_llm_behavior(
-            model_path="models/llama-2-7b.gguf",
+            model_path="models/mistral-7b.gguf",
             system_prompt="You are a foraging agent."
         )
 

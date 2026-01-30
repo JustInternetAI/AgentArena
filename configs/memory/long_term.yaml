@@ -1,0 +1,103 @@
+# Long-Term Memory Configuration
+# Configuration for FAISS-based vector memory system
+
+memory:
+  # Memory type identifier
+  type: faiss
+
+  # Embedding model configuration
+  embedding:
+    # Model name from sentence-transformers
+    # Options:
+    #   - "all-MiniLM-L6-v2": Fast, 384D, good for most use cases (recommended)
+    #   - "all-mpnet-base-v2": Slower, 768D, higher quality
+    #   - "all-MiniLM-L12-v2": Balanced, 384D, better quality than L6
+    model: "all-MiniLM-L6-v2"
+
+    # Embedding dimension (auto-detected from model if not specified)
+    dim: 384
+
+  # FAISS index configuration
+  index:
+    # Index type:
+    #   - "Flat": Exact search, best for <10K memories
+    #   - "FlatIP": Exact search with cosine similarity
+    #   - "IVF100": Approximate search, good for 10K-1M memories
+    #   - "IVF1000": Approximate search, good for 1M+ memories
+    type: "Flat"
+
+    # Number of clusters to search (for IVF indices only)
+    nprobe: 10
+
+  # Persistence configuration
+  persistence:
+    # Directory to store memory files
+    data_dir: "./data/memory"
+
+    # Auto-save interval (in number of new memories, 0 to disable)
+    autosave_interval: 100
+
+    # Enable compression for saved files
+    compress: false
+
+  # Retrieval configuration
+  retrieval:
+    # Default number of results to return
+    default_k: 5
+
+    # Maximum number of results
+    max_k: 50
+
+    # Minimum similarity threshold (0.0 to 1.0, for FlatIP only)
+    # Memories below this threshold won't be returned
+    min_similarity: 0.3
+
+    # Enable result deduplication
+    deduplicate: true
+
+  # Performance settings
+  performance:
+    # Batch size for embedding generation
+    batch_size: 32
+
+    # Enable GPU acceleration for embeddings (if available)
+    use_gpu: false
+
+    # Maximum memory cache size (number of recent embeddings to keep in memory)
+    cache_size: 1000
+
+# Agent-specific memory configurations
+agents:
+  # Default configuration for all agents
+  default:
+    persist_path: "./data/memory/agent_default.faiss"
+    index_type: "Flat"
+
+  # Example: Resource gathering agent
+  resource_gatherer:
+    persist_path: "./data/memory/resource_gatherer.faiss"
+    embedding_model: "all-MiniLM-L6-v2"
+    index_type: "Flat"
+
+  # Example: Combat agent (needs fast retrieval)
+  combat:
+    persist_path: "./data/memory/combat_agent.faiss"
+    embedding_model: "all-MiniLM-L6-v2"
+    index_type: "FlatIP"  # Use cosine similarity
+
+  # Example: Exploration agent (many memories)
+  explorer:
+    persist_path: "./data/memory/explorer.faiss"
+    embedding_model: "all-MiniLM-L6-v2"
+    index_type: "IVF100"  # Approximate search for scale
+
+# Logging configuration
+logging:
+  # Enable debug logging for memory operations
+  debug: false
+
+  # Log query performance metrics
+  log_metrics: true
+
+  # Log file path (relative to project root)
+  log_file: "./logs/memory.log"

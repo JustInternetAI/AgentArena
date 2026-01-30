@@ -1,8 +1,9 @@
 """
-Local LLM agent behavior for GPU-accelerated backends.
+LocalLLMBehavior - Bridges local LLM backends to AgentBehavior API.
 
-This module provides LocalLLMBehavior, a Tier 2 behavior that bridges
-local LLM backends (like LlamaCppBackend) to the AgentBehavior interface.
+This module provides LocalLLMBehavior, a behavior class that wraps local LLM backends
+(LlamaCppBackend, VLLMBackend) and implements the AgentBehavior interface,
+allowing local GPU-accelerated LLMs to power agents via the IPC server.
 
 Unlike LLMAgentBehavior which uses external API services, LocalLLMBehavior
 uses in-process GPU-accelerated inference via BaseBackend implementations.
@@ -12,6 +13,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from .behavior import AgentBehavior
+from .memory import SlidingWindowMemory
 from .schemas import AgentDecision, Observation, ToolSchema
 
 if TYPE_CHECKING:
@@ -22,36 +24,38 @@ logger = logging.getLogger(__name__)
 
 class LocalLLMBehavior(AgentBehavior):
     """
-    Agent behavior using local GPU-accelerated LLM backend.
+    Agent behavior powered by local LLM backends.
 
-    This is a Tier 2 behavior that provides LLM-based decision making
-    using local models (llama.cpp, etc.) rather than external APIs.
+    This class wraps local backends (LlamaCppBackend, VLLMBackend) and implements
+    the AgentBehavior interface. It handles:
+    - Prompt construction with system prompts and observations
+    - Memory management with sliding window
+    - Tool calling via the backend's generate_with_tools() method
+    - Parsing LLM responses into AgentDecision objects
+    - Graceful error handling (returns idle on failures)
 
     Example:
-        from backends import BackendConfig, LlamaCppBackend
-        from agent_runtime import LocalLLMBehavior
+        from backends.llama_cpp_backend import LlamaCppBackend
+        from backends.base import BackendConfig
 
-        # Create backend
-        config = BackendConfig(
-            model_path="models/llama-2-7b.gguf",
-            n_gpu_layers=-1
-        )
+        config = BackendConfig(model_path="path/to/model.gguf", n_gpu_layers=-1)
         backend = LlamaCppBackend(config)
 
-        # Create behavior
         behavior = LocalLLMBehavior(
             backend=backend,
-            system_prompt="You are a foraging agent. Collect resources efficiently."
+            system_prompt="You are a foraging agent. Collect resources and avoid hazards.",
+            memory_capacity=10
         )
 
         # Register with arena
-        arena.register_behavior("agent_001", behavior)
+        arena.register("agent_001", behavior)
     """
 
     def __init__(
         self,
         backend: "BaseBackend",
-        system_prompt: str = "",
+        system_prompt: str = "You are an autonomous agent in a simulation environment.",
+        memory_capacity: int = 10,
         temperature: float = 0.7,
         max_tokens: int = 256,
     ):
@@ -59,25 +63,33 @@ class LocalLLMBehavior(AgentBehavior):
         Initialize the local LLM behavior.
 
         Args:
-            backend: A BaseBackend implementation (e.g., LlamaCppBackend)
-            system_prompt: System prompt providing agent context and goals
-            temperature: LLM temperature for response randomness (0-1)
+            backend: Local LLM backend (LlamaCppBackend or VLLMBackend)
+            system_prompt: System prompt describing the agent's role and task
+            memory_capacity: Number of recent observations to keep in memory
+            temperature: Temperature for generation (0-1)
             max_tokens: Maximum tokens to generate per decision
         """
         self.backend = backend
         self.system_prompt = system_prompt
+        self.memory = SlidingWindowMemory(capacity=memory_capacity)
         self.temperature = temperature
         self.max_tokens = max_tokens
 
-        # Validate backend is ready
-        if not backend.is_available():
+        # Validate backend is available
+        if not self.backend.is_available():
             raise RuntimeError("Backend is not available - model may not be loaded")
 
-        logger.info(f"LocalLLMBehavior initialized with backend: {type(backend).__name__}")
+        logger.info(
+            f"Initialized LocalLLMBehavior with {type(backend).__name__} "
+            f"(memory_capacity={memory_capacity})"
+        )
 
     def decide(self, observation: Observation, tools: list[ToolSchema]) -> AgentDecision:
         """
-        Decide what action to take using the local LLM.
+        Decide what action to take given the current observation.
+
+        Constructs a prompt from the system prompt, memory, and current observation,
+        then calls the backend's generate_with_tools() method to get a decision.
 
         Args:
             observation: Current tick's observation from Godot
@@ -87,11 +99,14 @@ class LocalLLMBehavior(AgentBehavior):
             AgentDecision specifying which tool to call and with what parameters
         """
         try:
-            # Build the prompt from observation and tools
+            # Store observation in memory
+            self.memory.store(observation)
+
+            # Build prompt from system prompt, memory, and observation
             prompt = self._build_prompt(observation, tools)
             logger.debug(f"Prompt length: {len(prompt)} chars (~{len(prompt)//4} tokens)")
 
-            # Convert ToolSchema list to dict format for backend
+            # Convert tools to dict format for backend
             tool_dicts = [
                 {
                     "name": tool.name,
@@ -102,11 +117,14 @@ class LocalLLMBehavior(AgentBehavior):
             ]
 
             # Generate response using backend
+            import time
+
+            start_time = time.time()
+            logger.debug(f"Generating decision for agent {observation.agent_id}")
             result = self.backend.generate_with_tools(
-                prompt=prompt,
-                tools=tool_dicts,
-                temperature=self.temperature,
+                prompt=prompt, tools=tool_dicts, temperature=self.temperature
             )
+            elapsed_ms = (time.time() - start_time) * 1000
 
             # Check for generation errors
             if result.finish_reason == "error":
@@ -121,19 +139,34 @@ class LocalLLMBehavior(AgentBehavior):
             # Try to parse from metadata first (pre-parsed by backend)
             if "parsed_tool_call" in result.metadata:
                 parsed = result.metadata["parsed_tool_call"]
-                return AgentDecision(
+                decision = AgentDecision(
                     tool=parsed.get("tool", "idle"),
                     params=parsed.get("params", {}),
                     reasoning=parsed.get("reasoning", ""),
                 )
+            elif "tool_call" in result.metadata:
+                # Native tool call from vLLM
+                tool_call = result.metadata["tool_call"]
+                decision = AgentDecision(
+                    tool=tool_call["name"],
+                    params=tool_call["arguments"],
+                    reasoning=result.text or "LLM tool call",
+                )
+            else:
+                # Parse the raw text response using robust JSON extraction
+                try:
+                    decision = AgentDecision.from_llm_response(result.text)
+                except ValueError as e:
+                    logger.warning(f"Failed to parse LLM response: {e}")
+                    logger.debug(f"Raw response: {result.text}")
+                    decision = AgentDecision.idle(reasoning=f"Parse error: {e}")
 
-            # Otherwise parse the raw text response
-            try:
-                return AgentDecision.from_llm_response(result.text)
-            except ValueError as e:
-                logger.warning(f"Failed to parse LLM response: {e}")
-                logger.debug(f"Raw response: {result.text}")
-                return AgentDecision.idle(reasoning=f"Parse error: {e}")
+            logger.info(
+                f"Agent {observation.agent_id} decided: {decision.tool} - {decision.reasoning} "
+                f"(LLM took {elapsed_ms:.0f}ms, {result.tokens_used} tokens)"
+            )
+
+            return decision
 
         except Exception as e:
             logger.error(f"Error in LocalLLMBehavior.decide(): {e}", exc_info=True)
@@ -141,20 +174,35 @@ class LocalLLMBehavior(AgentBehavior):
 
     def _build_prompt(self, observation: Observation, tools: list[ToolSchema]) -> str:
         """
-        Build the LLM prompt from observation and tools.
+        Build the prompt for LLM generation.
+
+        Includes system prompt, memory context, current observation, and available tools.
 
         Args:
-            observation: Current observation from Godot
-            tools: Available tool schemas
+            observation: Current observation
+            tools: Available tools
 
         Returns:
             Formatted prompt string
         """
         sections = []
 
-        # Add system prompt if provided
+        # Add system prompt
         if self.system_prompt:
             sections.append(self.system_prompt)
+            sections.append("")
+
+        # Add memory context if available
+        memory_items = self.memory.retrieve(limit=5)
+        if memory_items and len(memory_items) > 1:  # Don't include if only current observation
+            sections.append("## Recent History")
+            # Memory items are returned most recent first, so reverse and skip last (current)
+            for i, obs in enumerate(reversed(memory_items[1:]), 1):
+                sections.append(f"  {i}. Tick {obs.tick}: Position {obs.position}")
+                if obs.nearby_resources:
+                    sections.append(f"     Resources nearby: {len(obs.nearby_resources)}")
+                if obs.nearby_hazards:
+                    sections.append(f"     Hazards nearby: {len(obs.nearby_hazards)}")
             sections.append("")
 
         # Current state
@@ -167,9 +215,10 @@ class LocalLLMBehavior(AgentBehavior):
         # Nearby resources
         if observation.nearby_resources:
             sections.append("\n## Nearby Resources")
-            for resource in observation.nearby_resources:
+            for resource in observation.nearby_resources[:5]:  # Limit to 5 for brevity
                 sections.append(
-                    f"- {resource.name} ({resource.type}) at distance {resource.distance:.1f}"
+                    f"- {resource.name} ({resource.type}) at distance {resource.distance:.1f}, "
+                    f"position {resource.position}"
                 )
         else:
             sections.append("\n## Nearby Resources\nNone visible")
@@ -177,10 +226,11 @@ class LocalLLMBehavior(AgentBehavior):
         # Nearby hazards
         if observation.nearby_hazards:
             sections.append("\n## Nearby Hazards")
-            for hazard in observation.nearby_hazards:
+            for hazard in observation.nearby_hazards[:5]:  # Limit to 5 for brevity
                 damage_str = f", damage: {hazard.damage}" if hazard.damage > 0 else ""
                 sections.append(
-                    f"- {hazard.name} ({hazard.type}) at distance {hazard.distance:.1f}{damage_str}"
+                    f"- {hazard.name} ({hazard.type}) at distance {hazard.distance:.1f}{damage_str}, "
+                    f"position {hazard.position}"
                 )
         else:
             sections.append("\n## Nearby Hazards\nNone visible")
@@ -200,17 +250,38 @@ class LocalLLMBehavior(AgentBehavior):
 
         return "\n".join(sections)
 
+    def on_tool_result(self, tool: str, result: dict) -> None:
+        """
+        Called after a tool execution completes.
+
+        Can be overridden to update memory or adjust strategy based on tool results.
+
+        Args:
+            tool: Name of the tool that was executed
+            result: Result dictionary from the tool
+        """
+        logger.debug(f"Tool '{tool}' executed with result: {result}")
+
     def on_episode_start(self) -> None:
-        """Called when a new episode begins."""
-        logger.debug("LocalLLMBehavior: Episode started")
+        """
+        Called when a new episode begins.
+
+        Clears memory to start fresh.
+        """
+        logger.info("Episode started, clearing memory")
+        self.memory.clear()
 
     def on_episode_end(self, success: bool, metrics: dict | None = None) -> None:
-        """Called when an episode ends."""
-        logger.debug(f"LocalLLMBehavior: Episode ended, success={success}")
+        """
+        Called when an episode ends.
 
-    def on_tool_result(self, tool: str, result: dict) -> None:
-        """Called after a tool execution completes."""
-        logger.debug(f"LocalLLMBehavior: Tool {tool} returned {result}")
+        Args:
+            success: Whether the episode goal was achieved
+            metrics: Optional metrics from the scenario
+        """
+        logger.info(f"Episode ended: success={success}, " f"observations_stored={len(self.memory)}")
+        if metrics:
+            logger.info(f"Episode metrics: {metrics}")
 
 
 def create_local_llm_behavior(
@@ -219,6 +290,7 @@ def create_local_llm_behavior(
     n_gpu_layers: int = -1,
     temperature: float = 0.7,
     max_tokens: int = 256,
+    memory_capacity: int = 10,
 ) -> LocalLLMBehavior:
     """
     Factory function to create a LocalLLMBehavior with LlamaCppBackend.
@@ -232,18 +304,31 @@ def create_local_llm_behavior(
         n_gpu_layers: GPU layers to offload (-1 = all, 0 = CPU only)
         temperature: LLM temperature (0-1)
         max_tokens: Maximum tokens per response
+        memory_capacity: Number of recent observations to keep in memory
 
     Returns:
         Configured LocalLLMBehavior instance
 
     Example:
         behavior = create_local_llm_behavior(
-            model_path="models/llama-2-7b.gguf",
+            model_path="models/mistral-7b.gguf",
             system_prompt="You are a foraging agent.",
             n_gpu_layers=-1
         )
     """
     from backends import BackendConfig, LlamaCppBackend
+
+    # Use default foraging prompt if none provided
+    if not system_prompt:
+        system_prompt = """You are an autonomous foraging agent in a simulation environment.
+
+Your goal is to:
+1. Collect resources (like apples) to increase your score
+2. Avoid hazards (like fire) that can damage you
+3. Manage your health and energy efficiently
+
+When you receive an observation, analyze the situation and choose the best action.
+Prioritize safety (avoid hazards) over collecting resources."""
 
     config = BackendConfig(
         model_path=model_path,
@@ -257,6 +342,7 @@ def create_local_llm_behavior(
     return LocalLLMBehavior(
         backend=backend,
         system_prompt=system_prompt,
+        memory_capacity=memory_capacity,
         temperature=temperature,
         max_tokens=max_tokens,
     )

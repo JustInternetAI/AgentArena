@@ -1,4 +1,4 @@
-extends Node3D
+extends BaseAgent
 ## Player Controlled Agent - Manual testing replacement for LLM-driven agent
 ##
 ## Allows keyboard control of an agent to test scene mechanics, animations,
@@ -14,9 +14,6 @@ extends Node3D
 ##   Agent (Node3D with this script)
 ##     └── MixamoAgentVisual (or AgentVisual)
 
-signal tool_completed(tool_name: String, response: Dictionary)
-
-@export var agent_id: String = "player_agent"
 @export var move_speed: float = 5.0
 @export var run_speed: float = 10.0
 @export var rotation_speed: float = 10.0
@@ -41,6 +38,12 @@ var tool_bindings := {
 var current_observations := {}
 
 func _ready():
+	# Set default agent_id before calling super
+	if agent_id.is_empty():
+		agent_id = "player_agent"
+
+	super._ready()  # Call BaseAgent._ready()
+
 	print("PlayerControlledAgent '%s' initializing..." % agent_id)
 
 	# Find visual child

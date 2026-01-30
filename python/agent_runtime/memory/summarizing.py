@@ -64,7 +64,7 @@ class SummarizingMemory(AgentMemory):
         self.compression_trigger = compression_trigger
 
         self._summary: str = ""
-        self._buffer: list["Observation"] = []
+        self._buffer: list[Observation] = []
         self._total_observations: int = 0
 
     def store(self, observation: "Observation") -> None:
