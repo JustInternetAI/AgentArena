@@ -28,18 +28,18 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Default system prompt for foraging scenario
-FORAGING_SYSTEM_PROMPT = """You are a foraging agent. You MUST respond with ONLY a JSON object, no other text.
+FORAGING_SYSTEM_PROMPT = """You are a foraging agent. Output ONLY valid JSON with no additional text.
 
 Rules:
-- Move toward nearest resource
 - Avoid hazards (distance < 3.0)
+- Move toward resources
 
-Response format (ONLY output this JSON, nothing else):
-{"tool": "move_to", "params": {"target_position": [x, y, z], "speed": 1.5}, "reasoning": "reason"}
+Output format:
+{"tool": "move_to", "params": {"target_position": [x, y, z], "speed": 1.5}, "reasoning": "why"}
+OR
+{"tool": "idle", "params": {}, "reasoning": "why"}
 
-Or to do nothing:
-{"tool": "idle", "params": {}, "reasoning": "reason"}
-"""
+Output JSON only:"""
 
 
 def main():
