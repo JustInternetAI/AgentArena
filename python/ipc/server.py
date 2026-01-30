@@ -407,6 +407,68 @@ class IPCServer:
             """Get server performance metrics."""
             return self.metrics
 
+        @app.get("/inspector/requests")
+        async def get_inspector_requests(
+            agent_id: str | None = None,
+            tick: int | None = None,
+            tick_start: int | None = None,
+            tick_end: int | None = None
+        ):
+            """
+            Get captured LLM request/response data from the Prompt Inspector.
+
+            Query parameters:
+                agent_id: Filter by specific agent (optional)
+                tick: Get data for a specific tick (optional)
+                tick_start: Minimum tick number (inclusive, optional)
+                tick_end: Maximum tick number (inclusive, optional)
+
+            Returns:
+                List of decision captures with full LLM interaction data
+            """
+            from agent_runtime.prompt_inspector import get_global_inspector
+
+            inspector = get_global_inspector()
+
+            # Single capture query
+            if agent_id and tick is not None:
+                capture = inspector.get_capture(agent_id, tick)
+                if not capture:
+                    raise HTTPException(status_code=404, detail=f"No capture found for agent {agent_id} tick {tick}")
+                return {"captures": [capture.to_dict()], "count": 1}
+
+            # Agent-specific query
+            if agent_id:
+                captures = inspector.get_captures_for_agent(agent_id, tick_start, tick_end)
+                return {"captures": [c.to_dict() for c in captures], "count": len(captures)}
+
+            # All captures query
+            captures = inspector.get_all_captures(tick_start, tick_end)
+            return {"captures": [c.to_dict() for c in captures], "count": len(captures)}
+
+        @app.delete("/inspector/requests")
+        async def clear_inspector_requests():
+            """Clear all captured LLM request/response data from the Prompt Inspector."""
+            from agent_runtime.prompt_inspector import get_global_inspector
+
+            inspector = get_global_inspector()
+            inspector.clear()
+            return {"status": "cleared", "message": "All inspector captures have been cleared"}
+
+        @app.get("/inspector/config")
+        async def get_inspector_config():
+            """Get current Prompt Inspector configuration."""
+            from agent_runtime.prompt_inspector import get_global_inspector
+
+            inspector = get_global_inspector()
+            return {
+                "enabled": inspector.enabled,
+                "max_entries": inspector.max_entries,
+                "log_to_file": inspector.log_to_file,
+                "log_dir": str(inspector.log_dir),
+                "current_captures": len(inspector.captures)
+            }
+
         @app.post("/observe")
         async def process_observation(observation: dict[str, Any]) -> dict[str, Any]:
             """

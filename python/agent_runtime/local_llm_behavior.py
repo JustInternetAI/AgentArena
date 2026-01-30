@@ -10,11 +10,12 @@ uses in-process GPU-accelerated inference via BaseBackend implementations.
 """
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from .behavior import AgentBehavior
 from .memory import SlidingWindowMemory
 from .schemas import AgentDecision, Observation, ToolSchema
+from .prompt_inspector import PromptInspector, InspectorStage, get_global_inspector
 
 if TYPE_CHECKING:
     from backends.base import BaseBackend
@@ -58,6 +59,7 @@ class LocalLLMBehavior(AgentBehavior):
         memory_capacity: int = 10,
         temperature: float = 0.7,
         max_tokens: int = 256,
+        inspector: Optional[PromptInspector] = None,
     ):
         """
         Initialize the local LLM behavior.
@@ -68,12 +70,14 @@ class LocalLLMBehavior(AgentBehavior):
             memory_capacity: Number of recent observations to keep in memory
             temperature: Temperature for generation (0-1)
             max_tokens: Maximum tokens to generate per decision
+            inspector: Optional PromptInspector for debugging (uses global if None)
         """
         self.backend = backend
         self.system_prompt = system_prompt
         self.memory = SlidingWindowMemory(capacity=memory_capacity)
         self.temperature = temperature
         self.max_tokens = max_tokens
+        self.inspector = inspector or get_global_inspector()
 
         # Validate backend is available
         if not self.backend.is_available():
@@ -98,13 +102,65 @@ class LocalLLMBehavior(AgentBehavior):
         Returns:
             AgentDecision specifying which tool to call and with what parameters
         """
+        # Start inspector capture
+        capture = self.inspector.start_capture(observation.agent_id, observation.tick)
+
         try:
             # Store observation in memory
             self.memory.store(observation)
 
+            # Capture observation stage
+            if capture:
+                capture.add_entry(InspectorStage.OBSERVATION, {
+                    "agent_id": observation.agent_id,
+                    "tick": observation.tick,
+                    "position": observation.position,
+                    "health": observation.health,
+                    "energy": observation.energy,
+                    "nearby_resources": [
+                        {
+                            "name": r.name,
+                            "type": r.type,
+                            "distance": r.distance,
+                            "position": r.position
+                        }
+                        for r in observation.nearby_resources
+                    ],
+                    "nearby_hazards": [
+                        {
+                            "name": h.name,
+                            "type": h.type,
+                            "distance": h.distance,
+                            "damage": h.damage
+                        }
+                        for h in observation.nearby_hazards
+                    ],
+                    "inventory": [
+                        {"name": item.name, "quantity": item.quantity}
+                        for item in observation.inventory
+                    ]
+                })
+
             # Build prompt from system prompt, memory, and observation
             prompt = self._build_prompt(observation, tools)
             logger.debug(f"Prompt length: {len(prompt)} chars (~{len(prompt)//4} tokens)")
+
+            # Capture prompt building stage
+            if capture:
+                memory_items = self.memory.retrieve(limit=5)
+                capture.add_entry(InspectorStage.PROMPT_BUILDING, {
+                    "system_prompt": self.system_prompt,
+                    "memory_context": {
+                        "count": len(memory_items),
+                        "items": [
+                            {"tick": obs.tick, "position": obs.position}
+                            for obs in memory_items
+                        ]
+                    },
+                    "final_prompt": prompt,
+                    "prompt_length": len(prompt),
+                    "estimated_tokens": len(prompt) // 4
+                })
 
             # Convert tools to dict format for backend
             tool_dicts = [
@@ -116,6 +172,16 @@ class LocalLLMBehavior(AgentBehavior):
                 for tool in tools
             ]
 
+            # Capture LLM request stage
+            if capture:
+                capture.add_entry(InspectorStage.LLM_REQUEST, {
+                    "model": getattr(self.backend, 'model_name', 'unknown'),
+                    "prompt": prompt,
+                    "tools": tool_dicts,
+                    "temperature": self.temperature,
+                    "max_tokens": self.max_tokens
+                })
+
             # Generate response using backend
             import time
 
@@ -126,11 +192,34 @@ class LocalLLMBehavior(AgentBehavior):
             )
             elapsed_ms = (time.time() - start_time) * 1000
 
+            # Capture LLM response stage
+            if capture:
+                capture.add_entry(InspectorStage.LLM_RESPONSE, {
+                    "raw_text": result.text,
+                    "tokens_used": result.tokens_used,
+                    "finish_reason": result.finish_reason,
+                    "metadata": result.metadata,
+                    "latency_ms": elapsed_ms
+                })
+
             # Check for generation errors
             if result.finish_reason == "error":
                 error_msg = result.metadata.get("error", "Unknown error")
                 logger.error(f"LLM generation error: {error_msg}")
-                return AgentDecision.idle(reasoning=f"LLM error: {error_msg}")
+                decision = AgentDecision.idle(reasoning=f"LLM error: {error_msg}")
+
+                # Capture error decision
+                if capture:
+                    capture.add_entry(InspectorStage.DECISION, {
+                        "tool": decision.tool,
+                        "params": decision.params,
+                        "reasoning": decision.reasoning,
+                        "total_latency_ms": elapsed_ms,
+                        "error": error_msg
+                    })
+
+                self.inspector.finish_capture(observation.agent_id, observation.tick)
+                return decision
 
             # Debug: log token usage and raw response
             logger.debug(f"Tokens used: {result.tokens_used}")
@@ -161,15 +250,38 @@ class LocalLLMBehavior(AgentBehavior):
                     logger.debug(f"Raw response: {result.text}")
                     decision = AgentDecision.idle(reasoning=f"Parse error: {e}")
 
+            # Capture final decision stage
+            if capture:
+                capture.add_entry(InspectorStage.DECISION, {
+                    "tool": decision.tool,
+                    "params": decision.params,
+                    "reasoning": decision.reasoning,
+                    "total_latency_ms": elapsed_ms
+                })
+
             logger.info(
                 f"Agent {observation.agent_id} decided: {decision.tool} - {decision.reasoning} "
                 f"(LLM took {elapsed_ms:.0f}ms, {result.tokens_used} tokens)"
             )
 
+            # Finish capture and optionally write to file
+            self.inspector.finish_capture(observation.agent_id, observation.tick)
+
             return decision
 
         except Exception as e:
             logger.error(f"Error in LocalLLMBehavior.decide(): {e}", exc_info=True)
+
+            # Capture error in inspector
+            if capture:
+                capture.add_entry(InspectorStage.DECISION, {
+                    "tool": "idle",
+                    "params": {},
+                    "reasoning": f"Error: {e}",
+                    "error": str(e)
+                })
+                self.inspector.finish_capture(observation.agent_id, observation.tick)
+
             return AgentDecision.idle(reasoning=f"Error: {e}")
 
     def _build_prompt(self, observation: Observation, tools: list[ToolSchema]) -> str:
