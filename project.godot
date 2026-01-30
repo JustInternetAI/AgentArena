@@ -13,7 +13,7 @@ config_version=5
 config/name="Agent Arena"
 config/description="AI Agent Benchmarking Platform"
 config/version="0.1.0"
-run/main_scene="uid://dyr7xuv3evk0g"
+run/main_scene="res://scenes/foraging_player.tscn"
 config/features=PackedStringArray("4.5", "Forward Plus")
 config/icon="res://icon.svg"
 
