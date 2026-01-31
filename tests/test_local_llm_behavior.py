@@ -175,7 +175,7 @@ class TestLocalLLMBehavior:
 
         # Check that the last call included memory context
         prompt, _, _ = backend.generate_with_tools_calls[-1]
-        assert "## Recent History" in prompt
+        assert "## Recent History" in prompt  # Updated to match new format
 
     def test_decide_handles_resources_in_observation(self):
         """Test that decide() includes resources in prompt."""
