@@ -245,7 +245,13 @@ class IPCServer:
                     if behavior:
                         # Call behavior.decide() with Observation and tools
                         try:
+                            # Set trace context before decide() for reasoning trace logging
+                            behavior._set_trace_context(agent_id, tick)
+
                             decision = behavior.decide(observation, tool_schemas)
+
+                            # End trace after decide() to persist trace to disk
+                            behavior._end_trace()
 
                             # Convert decision to ActionMessage
                             action_msg = decision_to_action(decision, agent_id, tick)
@@ -259,6 +265,8 @@ class IPCServer:
                                 f"Error in behavior.decide() for agent {agent_id}: {e}",
                                 exc_info=True,
                             )
+                            # End trace even on error
+                            behavior._end_trace()
                             # Fallback to idle
                             from agent_runtime.schemas import AgentDecision
 
@@ -476,8 +484,15 @@ class IPCServer:
                         )
 
                     try:
+                        # Set trace context before decide() for reasoning trace logging
+                        tick = observation.get("tick", 0)
+                        behavior._set_trace_context(agent_id, tick)
+
                         # Call behavior.decide()
                         agent_decision = behavior.decide(obs, tool_schemas)
+
+                        # End trace after decide() to persist trace to disk
+                        behavior._end_trace()
 
                         decision = {
                             "tool": agent_decision.tool,
@@ -486,6 +501,8 @@ class IPCServer:
                         }
                     except Exception as e:
                         logger.error(f"Error in behavior.decide(): {e}", exc_info=True)
+                        # End trace even on error
+                        behavior._end_trace()
                         decision = {
                             "tool": "idle",
                             "params": {},

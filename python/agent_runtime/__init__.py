@@ -9,6 +9,7 @@ from .arena import AgentArena
 from .behavior import AgentBehavior, LLMAgentBehavior, SimpleAgentBehavior
 from .local_llm_behavior import LocalLLMBehavior, create_local_llm_behavior
 from .memory import AgentMemory, RAGMemory, SlidingWindowMemory, SummarizingMemory
+from .reasoning_trace import ReasoningTrace, TraceStep, TraceStore
 from .runtime import AgentRuntime
 from .schemas import (
     AgentDecision,
@@ -43,6 +44,10 @@ __all__ = [
     "SlidingWindowMemory",
     "SummarizingMemory",
     "RAGMemory",
+    # Tracing
+    "TraceStep",
+    "ReasoningTrace",
+    "TraceStore",
     # Observation/Decision schemas
     "Observation",
     "AgentDecision",

@@ -50,29 +50,46 @@ class SimpleForager(AgentBehavior):
         # Store observation in memory
         self.memory.store(observation)
 
+        # Log observation for tracing
+        self.log_step(
+            "observation",
+            {
+                "tick": observation.tick,
+                "position": observation.position,
+                "nearby_resources": len(observation.nearby_resources),
+                "nearby_hazards": len(observation.nearby_hazards),
+            },
+        )
+
         # Priority 1: Avoid nearby hazards
         for hazard in observation.nearby_hazards:
             if hazard.distance < 3.0:
                 # Calculate safe position away from hazard
                 safe_pos = self._calculate_escape_position(observation.position, hazard.position)
-                return AgentDecision(
+                decision = AgentDecision(
                     tool="move_to",
                     params={"target_position": safe_pos, "speed": 2.0},
                     reasoning=f"Avoiding {hazard.name} at distance {hazard.distance:.1f}",
                 )
+                self.log_step("decision", {"tool": decision.tool, "reasoning": decision.reasoning})
+                return decision
 
         # Priority 2: Move to nearest resource
         if observation.nearby_resources:
             nearest = min(observation.nearby_resources, key=lambda r: r.distance)
             if nearest.distance < 10.0:
-                return AgentDecision(
+                decision = AgentDecision(
                     tool="move_to",
                     params={"target_position": nearest.position, "speed": 1.5},
                     reasoning=f"Moving to {nearest.name} at distance {nearest.distance:.1f}",
                 )
+                self.log_step("decision", {"tool": decision.tool, "reasoning": decision.reasoning})
+                return decision
 
         # Default: Idle
-        return AgentDecision.idle(reasoning="No resources nearby, waiting")
+        decision = AgentDecision.idle(reasoning="No resources nearby, waiting")
+        self.log_step("decision", {"tool": decision.tool, "reasoning": decision.reasoning})
+        return decision
 
     def _calculate_escape_position(self, agent_pos, hazard_pos):
         """
@@ -102,6 +119,7 @@ class SimpleForager(AgentBehavior):
 
     def on_episode_start(self):
         """Called when a new episode begins - clear memory."""
+        super().on_episode_start()  # Handle trace episode start
         self.memory.clear()
 
     def on_episode_end(self, success, metrics=None):
@@ -112,5 +130,4 @@ class SimpleForager(AgentBehavior):
             success: Whether the episode goal was achieved
             metrics: Optional metrics from the scenario
         """
-        # Could log performance here
-        pass
+        super().on_episode_end(success, metrics)  # Handle trace episode end

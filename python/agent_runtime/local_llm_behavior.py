@@ -91,6 +91,12 @@ class LocalLLMBehavior(AgentBehavior):
         Constructs a prompt from the system prompt, memory, and current observation,
         then calls the backend's generate_with_tools() method to get a decision.
 
+        If tracing is enabled (via enable_tracing()), each step is automatically logged:
+        - observation: The input observation
+        - prompt: The constructed prompt
+        - llm_response: The raw LLM response
+        - decision: The parsed decision
+
         Args:
             observation: Current tick's observation from Godot
             tools: List of available tools with their schemas
@@ -102,9 +108,31 @@ class LocalLLMBehavior(AgentBehavior):
             # Store observation in memory
             self.memory.store(observation)
 
+            # Debug: log trace status
+            logger.debug(
+                f"Trace store: {self._trace_store}, agent_id: {self._agent_id}, tick: {self._current_tick}"
+            )
+
+            # Log observation (if tracing enabled)
+            self.log_step(
+                "observation",
+                {
+                    "agent_id": observation.agent_id,
+                    "tick": observation.tick,
+                    "position": observation.position,
+                    "health": observation.health,
+                    "energy": observation.energy,
+                    "nearby_resources": len(observation.nearby_resources),
+                    "nearby_hazards": len(observation.nearby_hazards),
+                },
+            )
+
             # Build prompt from system prompt, memory, and observation
             prompt = self._build_prompt(observation, tools)
-            logger.debug(f"Prompt length: {len(prompt)} chars (~{len(prompt)//4} tokens)")
+            logger.debug(f"Prompt length: {len(prompt)} chars (~{len(prompt) // 4} tokens)")
+
+            # Log prompt (if tracing enabled)
+            self.log_step("prompt", prompt)
 
             # Convert tools to dict format for backend
             tool_dicts = [
@@ -136,6 +164,17 @@ class LocalLLMBehavior(AgentBehavior):
             logger.debug(f"Tokens used: {result.tokens_used}")
             logger.debug(f"Raw LLM response: {result.text[:500] if result.text else '(empty)'}")
 
+            # Log LLM response (if tracing enabled)
+            self.log_step(
+                "llm_response",
+                {
+                    "text": result.text,
+                    "tokens_used": result.tokens_used,
+                    "finish_reason": result.finish_reason,
+                    "elapsed_ms": elapsed_ms,
+                },
+            )
+
             # Try to parse from metadata first (pre-parsed by backend)
             if "parsed_tool_call" in result.metadata:
                 parsed = result.metadata["parsed_tool_call"]
@@ -164,6 +203,16 @@ class LocalLLMBehavior(AgentBehavior):
             logger.info(
                 f"Agent {observation.agent_id} decided: {decision.tool} - {decision.reasoning} "
                 f"(LLM took {elapsed_ms:.0f}ms, {result.tokens_used} tokens)"
+            )
+
+            # Log decision (if tracing enabled)
+            self.log_step(
+                "decision",
+                {
+                    "tool": decision.tool,
+                    "params": decision.params,
+                    "reasoning": decision.reasoning,
+                },
             )
 
             return decision
@@ -266,8 +315,9 @@ class LocalLLMBehavior(AgentBehavior):
         """
         Called when a new episode begins.
 
-        Clears memory to start fresh.
+        Clears memory to start fresh. If tracing is enabled, starts a new trace episode.
         """
+        super().on_episode_start()  # Handle trace episode start
         logger.info("Episode started, clearing memory")
         self.memory.clear()
 
@@ -279,9 +329,10 @@ class LocalLLMBehavior(AgentBehavior):
             success: Whether the episode goal was achieved
             metrics: Optional metrics from the scenario
         """
-        logger.info(f"Episode ended: success={success}, " f"observations_stored={len(self.memory)}")
+        logger.info(f"Episode ended: success={success}, observations_stored={len(self.memory)}")
         if metrics:
             logger.info(f"Episode metrics: {metrics}")
+        super().on_episode_end(success, metrics)  # Handle trace episode end
 
 
 def create_local_llm_behavior(

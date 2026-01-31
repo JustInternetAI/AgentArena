@@ -28,18 +28,21 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Default system prompt for foraging scenario
-FORAGING_SYSTEM_PROMPT = """You are a foraging agent. Output ONLY valid JSON with no additional text.
+FORAGING_SYSTEM_PROMPT = """You are a foraging agent. Respond with ONLY a single JSON object. No text before or after.
 
-Rules:
-- Avoid hazards (distance < 3.0)
-- Move toward resources
+RULES:
+1. AVOID hazards if distance < 3.0 (move away)
+2. MOVE toward the nearest resource to collect it
+3. If at a resource (distance 0), move to the next nearest resource
+4. IDLE only if no resources are visible
 
-Output format:
-{"tool": "move_to", "params": {"target_position": [x, y, z], "speed": 1.5}, "reasoning": "why"}
-OR
-{"tool": "idle", "params": {}, "reasoning": "why"}
+RESPOND WITH EXACTLY ONE JSON OBJECT IN THIS FORMAT:
+{"tool": "move_to", "params": {"target_position": [x, y, z], "speed": 1.5}, "reasoning": "brief reason"}
 
-Output JSON only:"""
+OR:
+{"tool": "idle", "params": {}, "reasoning": "brief reason"}
+
+IMPORTANT: Output ONLY the JSON. No markdown, no code blocks, no explanation."""
 
 
 def main():
@@ -104,6 +107,11 @@ def main():
         default=None,
         help="Custom system prompt (uses default foraging prompt if not provided)",
     )
+    parser.add_argument(
+        "--trace",
+        action="store_true",
+        help="Enable reasoning trace logging (view with: python -m tools.inspect_agent --watch)",
+    )
 
     args = parser.parse_args()
 
@@ -111,6 +119,8 @@ def main():
         logging.getLogger().setLevel(logging.DEBUG)
         # Also enable debug for specific modules
         logging.getLogger("agent_runtime.local_llm_behavior").setLevel(logging.DEBUG)
+        logging.getLogger("agent_runtime.behavior").setLevel(logging.DEBUG)
+        logging.getLogger("agent_runtime.reasoning_trace").setLevel(logging.DEBUG)
         logging.getLogger("backends.llama_cpp_backend").setLevel(logging.DEBUG)
         logging.getLogger("ipc.server").setLevel(logging.DEBUG)
 
@@ -157,6 +167,13 @@ def main():
             max_tokens=args.max_tokens,
         )
         logger.info("  LocalLLMBehavior created")
+
+        # Enable tracing if requested
+        if args.trace:
+            behavior.enable_tracing()
+            logger.info(
+                "  Reasoning trace enabled (view with: python -m tools.inspect_agent --watch)"
+            )
 
         # Create arena and register behavior
         logger.info("Creating AgentArena...")

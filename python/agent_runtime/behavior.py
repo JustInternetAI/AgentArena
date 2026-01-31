@@ -25,9 +25,11 @@ See docs/learners/ for tutorials at each tier.
 """
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from .reasoning_trace import TraceStore
     from .schemas import AgentDecision, Observation, SimpleContext, ToolSchema
 
 
@@ -74,6 +76,103 @@ class AgentBehavior(ABC):
                 return AgentDecision.idle(reasoning="No resources visible")
     """
 
+    # Tracing support (set via enable_tracing())
+    _trace_store: "TraceStore | None" = None
+    _agent_id: str | None = None
+    _current_tick: int = 0
+
+    def enable_tracing(self, traces_dir: Path | str | None = None) -> None:
+        """
+        Enable reasoning trace logging for this agent.
+
+        When enabled, you can call `log_step()` in your decide() method to
+        record each step of the decision process. Traces are stored as JSONL
+        files and can be inspected using the CLI:
+
+            python -m tools.inspect_agent --last-decision
+            python -m tools.inspect_agent --watch
+
+        Args:
+            traces_dir: Directory to store traces (default: ~/.agent_arena/traces)
+
+        Example:
+            agent = MyAgent()
+            agent.enable_tracing()
+            # Now log_step() calls will be recorded
+        """
+        import logging
+
+        from .reasoning_trace import TraceStore
+
+        if traces_dir is not None:
+            self._trace_store = TraceStore(traces_dir)
+        else:
+            self._trace_store = TraceStore.get_instance()
+
+        logging.getLogger(__name__).info(
+            f"Tracing enabled - traces will be saved to: {self._trace_store.traces_dir}"
+        )
+
+    def log_step(self, name: str, data: Any) -> None:
+        """
+        Log a reasoning step for inspection.
+
+        Call this in your decide() method to record key decision steps
+        (memory retrieval, prompt building, LLM response, parsing, etc.).
+
+        Steps are only logged if tracing is enabled via enable_tracing().
+
+        Args:
+            name: Step name (e.g., "observation", "prompt", "response", "decision")
+            data: Step data (any JSON-serializable value, or object with to_dict())
+
+        Example:
+            def decide(self, observation, tools):
+                self.log_step("observation", observation)
+
+                relevant = self.memory.query(observation, k=5)
+                self.log_step("retrieved", relevant)
+
+                prompt = self.build_prompt(observation, tools, relevant)
+                self.log_step("prompt", prompt)
+
+                response = self.complete(prompt)
+                self.log_step("response", response)
+
+                decision = self.parse_response(response, tools)
+                self.log_step("decision", decision)
+
+                return decision
+        """
+        import logging
+
+        if self._trace_store is not None:
+            logging.getLogger(__name__).debug(f"Logging trace step: {name}")
+            self._trace_store.add_step(
+                agent_id=self._agent_id or "unknown",
+                tick=self._current_tick,
+                name=name,
+                data=data,
+            )
+        else:
+            logging.getLogger(__name__).debug(f"Trace store is None, skipping step: {name}")
+
+    def _set_trace_context(self, agent_id: str, tick: int) -> None:
+        """Set the current trace context (called by framework before decide())."""
+        self._agent_id = agent_id
+        self._current_tick = tick
+
+    def _end_trace(self) -> None:
+        """End the current trace (called by framework after decide())."""
+        import logging
+
+        if self._trace_store is not None and self._agent_id is not None:
+            trace = self._trace_store.end_trace(self._agent_id)
+            if trace:
+                logging.getLogger(__name__).debug(
+                    f"Trace ended: {trace.trace_id} with {len(trace.steps)} steps"
+                )
+
     @abstractmethod
     def decide(self, observation: "Observation", tools: list["ToolSchema"]) -> "AgentDecision":
         """
@@ -105,20 +204,25 @@ class AgentBehavior(ABC):
         Called when a new episode begins.
 
         Override to reset state, clear memory, etc.
+        If tracing is enabled, a new episode is started in the trace store.
         """
-        pass
+        # Start a new trace episode if tracing is enabled
+        if self._trace_store is not None and self._agent_id is not None:
+            self._trace_store.set_episode(self._agent_id)
 
     def on_episode_end(self, success: bool, metrics: dict | None = None) -> None:
         """
         Called when an episode ends.
 
         Override to perform cleanup, learning, or logging.
+        If tracing is enabled, the final trace is ended.
 
         Args:
             success: Whether the episode goal was achieved
             metrics: Optional metrics from the scenario
         """
-        pass
+        # End any pending trace
+        self._end_trace()
 
 
 class SimpleAgentBehavior(AgentBehavior):
