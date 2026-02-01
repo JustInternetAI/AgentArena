@@ -942,6 +942,96 @@ Advanced learners need to inspect and debug agent memory contents. Currently the
 
 ---
 
+#### B-35: SpatialMemory Integration - World Map for Agents 🔄 IN PROGRESS
+**Priority**: High
+**Component**: Memory / Agent Runtime
+**Size**: M
+**Status**: Core implementation complete, prompt integration done
+
+**Problem Statement**:
+Agents can only see objects currently in their line-of-sight. Once an object goes out of view, the agent forgets it existed. This prevents agents from:
+- Navigating back to known resource locations
+- Planning paths around remembered hazards
+- Building a mental model of the world
+
+**Goal**: Give agents a persistent "world map" that remembers all objects they've seen, even when out of line-of-sight.
+
+**Implementation Tasks**:
+
+**Core Memory System** (Complete):
+- [x] Create `WorldObject` dataclass in `schemas.py` for tracked objects
+- [x] Create `SpatialMemory` class with grid-based spatial indexing
+- [x] Implement `update_from_observation()` to extract and store objects
+- [x] Implement `query_near_position()` for proximity queries
+- [x] Implement `query_by_type()` for type-based filtering
+- [x] Implement `mark_collected()` / `mark_destroyed()` for status tracking
+- [x] Implement `summarize()` for LLM context generation
+- [x] Add optional semantic search layer (FAISS + sentence-transformers)
+- [x] Create unit tests (`test_spatial_memory.py`)
+
+**Framework Integration** (Complete):
+- [x] Add `world_map` property to `AgentBehavior` base class (lazy initialized)
+- [x] Add `_update_world_map()` method called by framework each tick
+- [x] Add automatic update call in `ipc/server.py` before `decide()`
+- [x] Add `mark_collected()` helper method to `AgentBehavior`
+- [x] Update `on_episode_start()` to clear world map
+- [x] Export `SpatialMemory` from `agent_runtime.memory`
+
+**Prompt Integration** (Complete):
+- [x] Update `LocalLLMBehavior._build_prompt()` to include remembered objects
+- [x] Update `LLMForager._build_context()` to include remembered objects
+- [x] Filter out currently visible objects to avoid duplication
+- [x] Sort remembered objects by distance from current position
+- [x] Include staleness info (ticks since last seen)
+
+**Documentation** (Complete):
+- [x] Create `docs/memory_architecture.md` with design philosophy
+- [x] Update `docs/memory_system.md` with SpatialMemory docs
+- [x] Document common pitfalls (vectors vs structured storage)
+
+**Future Enhancements** (Pending):
+- [ ] Add confidence decay based on staleness
+- [ ] Add persistence (save/load world map across sessions)
+- [ ] Add visualization tools for debugging world map contents
+- [ ] Add integration with pathfinding (avoid remembered hazards)
+
+**Architecture Notes**:
+
+Storage is **in-memory, transient** (cleared each episode):
+```python
+self._objects: dict[str, WorldObject] = {}     # name -> object
+self._spatial_grid: dict[tuple, set[str]] = {} # grid cell -> object names
+```
+
+Design follows "vector memory for meaning, structured memory for state":
+- Spatial queries are **deterministic** (not fuzzy similarity)
+- O(1) grid-based lookups
+- Optional semantic layer for queries like "food to collect"
+
+**Files Changed**:
+| File | Changes |
+|------|---------|
+| `python/agent_runtime/schemas.py` | Added `WorldObject` dataclass |
+| `python/agent_runtime/memory/spatial.py` | New `SpatialMemory` class |
+| `python/agent_runtime/memory/__init__.py` | Export `SpatialMemory` |
+| `python/agent_runtime/behavior.py` | Added `world_map` property |
+| `python/ipc/server.py` | Auto-update world map before decide() |
+| `python/agent_runtime/local_llm_behavior.py` | Include in prompt |
+| `python/user_agents/examples/llm_forager.py` | Include in prompt |
+| `docs/memory_architecture.md` | Design philosophy doc |
+| `docs/memory_system.md` | API documentation |
+| `python/test_spatial_memory.py` | Unit tests |
+
+**Acceptance Criteria**:
+- [x] Agents remember objects after they go out of line-of-sight
+- [x] LLM prompts include "Remembered Objects (out of sight)" section
+- [x] Collected resources are filtered out of queries
+- [x] World map cleared at episode start
+- [x] No external dependencies for core functionality (FAISS optional)
+- [x] Tests pass
+
+---
+
 #### B-33: Tier 3 Reasoning Trace System
 **Priority**: Medium
 **Component**: Agent Runtime
@@ -997,11 +1087,172 @@ Advanced learners want agents that learn from experience. They need hooks to ref
 
 ---
 
+#### B-36a: Physics-Based Movement - Phase 1: Collision Detection
+**Priority**: Medium
+**Component**: Godot / Agent
+**Size**: M
+**Design Doc**: [docs/design/physics_based_movement.md](design/physics_based_movement.md)
+
+**Problem Statement**:
+Agents currently move by directly setting `global_position`, passing through all obstacles (trees, walls, hazards). This creates unrealistic behavior and removes spatial navigation challenges.
+
+**Goal**: Implement physics-based collision so agents are blocked by solid obstacles.
+
+**Implementation Tasks**:
+
+**Godot Changes**:
+- [ ] Change `BaseAgent` from `extends Node3D` to `extends CharacterBody3D`
+- [ ] Update `SimpleAgent._process()` to `_physics_process()` with `move_and_slide()`
+- [ ] Add `CollisionShape3D` (CapsuleShape3D) to agent scene
+- [ ] Add collision detection callback `_on_collision()`
+- [ ] Set up collision layers (Agents=4, Obstacles=2, Hazards=3)
+
+**Obstacle Setup**:
+- [ ] Add `StaticBody3D` + `CollisionShape3D` to tree prefabs
+- [ ] Add collision to rocks, walls in foraging scene
+- [ ] Configure collision masks correctly
+
+**Hazard Behavior**:
+- [ ] Fire: `Area3D` - agent passes through, takes damage while inside
+- [ ] Pit: `Area3D` - traps agent for N ticks, continuous damage
+- [ ] Add `take_damage()` method to BaseAgent
+
+**Files Changed**:
+| File | Changes |
+|------|---------|
+| `scripts/base_agent.gd` | `extends Node3D` → `extends CharacterBody3D` |
+| `scripts/simple_agent.gd` | Physics-based movement |
+| `scenes/agents/simple_agent.tscn` | Add CollisionShape3D |
+| `scenes/foraging.tscn` | Add collision to obstacles |
+| `scenes/prefabs/tree.tscn` | Add StaticBody3D |
+
+**Acceptance Criteria**:
+- [ ] Agent cannot walk through trees/walls
+- [ ] Agent slides along obstacles (doesn't stick)
+- [ ] Agent can walk into fire (takes damage per tick)
+- [ ] Agent gets trapped in pit
+- [ ] Existing scenes still function
+
+**Blocked By**: None
+**Blocks**: B-36b
+
+---
+
+#### B-36b: Physics-Based Movement - Phase 2: Experience Memory
+**Priority**: Medium
+**Component**: Python / Memory
+**Size**: M
+**Depends On**: B-36a
+**Design Doc**: [docs/design/physics_based_movement.md](design/physics_based_movement.md)
+
+**Problem Statement**:
+When agents collide with obstacles or take damage, they have no way to remember and learn from these experiences. The LLM makes the same mistakes repeatedly.
+
+**Goal**: Store collision and damage events in memory so the LLM can learn from experience.
+
+**Implementation Tasks**:
+
+**Python Schema**:
+- [ ] Add `ExperienceEvent` dataclass to `schemas.py`
+- [ ] Fields: tick, event_type, description, position, object_name, damage_taken
+
+**SpatialMemory Extension**:
+- [ ] Add `_experiences: list[ExperienceEvent]` storage
+- [ ] Add `record_experience(event)` method
+- [ ] Add `get_recent_experiences(limit)` method
+- [ ] Store collision locations as "obstacle" WorldObjects
+
+**IPC Protocol**:
+- [ ] Extend tool result to include `blocked`, `blocked_by`, `blocked_at`
+- [ ] Add damage event reporting from Godot to Python
+- [ ] Add trap event reporting
+
+**Prompt Integration**:
+- [ ] Add "Recent Experiences" section to LLM prompt
+- [ ] Format: "Tick 5: Movement blocked by Tree_003 at (5.2, 0, 3.1)"
+- [ ] Format: "Tick 8: Took 10 damage from Fire_001"
+- [ ] Add "Known Obstacles" section from collision memory
+
+**Godot Reporting**:
+- [ ] Report collisions via IPC when `move_and_slide()` hits obstacle
+- [ ] Report damage events from fire/pit hazards
+- [ ] Include object name and position in reports
+
+**Files Changed**:
+| File | Changes |
+|------|---------|
+| `python/agent_runtime/schemas.py` | Add `ExperienceEvent` |
+| `python/agent_runtime/memory/spatial.py` | Experience storage |
+| `python/agent_runtime/local_llm_behavior.py` | Prompt integration |
+| `python/ipc/server.py` | Handle experience events |
+| `scripts/simple_agent.gd` | Report collisions |
+| `scripts/hazards/fire.gd` | Report damage |
+| `scripts/hazards/pit.gd` | Report trap events |
+
+**Acceptance Criteria**:
+- [ ] Collision events logged in Python
+- [ ] Damage events logged in Python
+- [ ] Experiences appear in LLM prompt
+- [ ] Agent avoids previously-collided locations
+- [ ] Experience memory cleared on episode start
+
+**Blocked By**: B-36a
+**Blocks**: B-36c (optional)
+
+---
+
+#### B-36c: Physics-Based Movement - Phase 3: Pathfinding (Optional)
+**Priority**: Low
+**Component**: Godot / Navigation
+**Size**: L
+**Depends On**: B-36b
+**Design Doc**: [docs/design/physics_based_movement.md](design/physics_based_movement.md)
+
+**Problem Statement**:
+If the LLM struggles with spatial navigation, we may want automated pathfinding as a fallback or comparison baseline.
+
+**Goal**: Add optional pathfinding using Godot's NavigationAgent3D.
+
+**Implementation Tasks**:
+
+**Navigation Setup**:
+- [ ] Add `NavigationRegion3D` to foraging scene
+- [ ] Bake navigation mesh excluding obstacles
+- [ ] Add `NavigationAgent3D` to SimpleAgent
+
+**Navigation Tool**:
+- [ ] Add `navigate_to` tool that uses pathfinding
+- [ ] Keep `move_to` as direct movement for comparison
+- [ ] Tool finds path around obstacles automatically
+
+**Stuck Detection**:
+- [ ] Detect when agent hasn't moved significantly for N ticks
+- [ ] Suggest using `navigate_to` when stuck
+- [ ] Optional: Auto-switch to pathfinding on repeated failures
+
+**Files Changed**:
+| File | Changes |
+|------|---------|
+| `scenes/foraging.tscn` | Add NavigationRegion3D |
+| `scripts/simple_agent.gd` | NavigationAgent3D support |
+| `python/tools/navigation.py` | New navigate_to tool |
+
+**Acceptance Criteria**:
+- [ ] `navigate_to` finds paths around obstacles
+- [ ] Navigation mesh properly excludes trees/walls
+- [ ] Stuck detection identifies when agent is trapped
+- [ ] LLM can choose between direct movement and pathfinding
+
+**Blocked By**: B-36b
+**Blocks**: None
+
+---
+
 ## Total Backlog Summary
 
-- **High Priority**: 8 items
-- **Medium Priority**: 18 items
-- **Low Priority**: 8 items
-- **Total**: 34 items
+- **High Priority**: 9 items (1 in progress)
+- **Medium Priority**: 20 items (+2 from physics movement)
+- **Low Priority**: 9 items (+1 from physics movement)
+- **Total**: 38 items (+3 from physics movement)
 
 **Estimated Timeline**: 6-12 months for all items with 2 developers

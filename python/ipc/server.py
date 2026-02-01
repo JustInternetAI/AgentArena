@@ -70,6 +70,8 @@ class IPCServer:
             "total_tools_executed": 0,
             "total_observations_processed": 0,
         }
+        # Track last tick per agent to detect episode resets
+        self._last_tick_per_agent: dict[str, int] = {}
 
     def _register_all_tools(self) -> None:
         """Register all available tools with the dispatcher."""
@@ -245,8 +247,21 @@ class IPCServer:
                     if behavior:
                         # Call behavior.decide() with Observation and tools
                         try:
+                            # Detect episode reset (tick went backwards or restarted)
+                            last_tick = self._last_tick_per_agent.get(agent_id, -1)
+                            if tick <= last_tick and tick <= 1:
+                                # New episode detected - clear memory
+                                logger.info(
+                                    f"Episode reset detected for {agent_id} (tick {tick} <= {last_tick})"
+                                )
+                                behavior.on_episode_start()
+                            self._last_tick_per_agent[agent_id] = tick
+
                             # Set trace context before decide() for reasoning trace logging
                             behavior._set_trace_context(agent_id, tick)
+
+                            # Update world map with current observation (spatial memory)
+                            behavior._update_world_map(observation)
 
                             decision = behavior.decide(observation, tool_schemas)
 

@@ -4,6 +4,8 @@
 
 Agent Arena provides a comprehensive memory system for LLM-driven agents to store, retrieve, and leverage past experiences. The memory system supports multiple strategies ranging from simple sliding windows to advanced vector-based semantic retrieval.
 
+> **See also:** [Memory Architecture Guide](memory_architecture.md) for design philosophy, when to use each memory type, and common pitfalls.
+
 ## Memory Types
 
 ### 1. Sliding Window Memory (`SlidingWindowMemory`)
@@ -46,7 +48,50 @@ memory.store(observation)
 summary = memory.summarize()  # Includes compressed + recent observations
 ```
 
-### 3. RAG Memory (`RAGMemory`)
+### 3. Spatial Memory (`SpatialMemory`)
+
+Structured world map for tracking object positions. Uses grid-based spatial indexing for fast proximity queries.
+
+**Use Cases:**
+- Remembering where resources and hazards are located
+- Navigating back to known locations
+- Tracking collected/destroyed objects
+- Building a mental map of the environment
+
+**Example:**
+```python
+from agent_runtime.memory import SpatialMemory
+
+memory = SpatialMemory()
+
+# Update with current observation (call each tick)
+memory.update_from_observation(observation)
+
+# Query by position
+nearby = memory.query_near_position(
+    position=(10, 0, 5),
+    radius=30,
+    object_type="resource"
+)
+
+# Query by type
+resources = memory.get_resources()
+hazards = memory.get_hazards()
+
+# Mark objects as collected
+memory.mark_collected("Berry1")
+
+# Get summary for LLM context
+summary = memory.summarize()
+```
+
+**Key Properties:**
+- Deterministic queries (not fuzzy like vector search)
+- O(1) grid-based spatial lookups
+- Tracks object status (active, collected, destroyed)
+- Remembers objects even when out of line-of-sight
+
+### 4. RAG Memory (`RAGMemory`)
 
 Vector-based semantic retrieval using FAISS and sentence transformers for similarity search.
 

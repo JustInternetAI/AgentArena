@@ -26,6 +26,28 @@ def pickup_item(item_id: str) -> dict[str, Any]:
     }
 
 
+def collect(target: str) -> dict[str, Any]:
+    """
+    Collect a resource from the world.
+
+    This is the user-friendly version of pickup_item, using "target"
+    to match the natural language in prompts.
+
+    Args:
+        target: Name of the resource to collect (e.g., "Berry1", "Stone")
+
+    Returns:
+        Success status and collected resource info
+    """
+    logger.debug(f"Collecting resource: {target}")
+
+    return {
+        "success": True,
+        "collected": target,
+        "message": f"Collected {target}",
+    }
+
+
 def drop_item(item_id: str) -> dict[str, bool]:
     """
     Drop an item from inventory.
@@ -93,6 +115,20 @@ def craft_item(recipe: str, ingredients: list[str]) -> dict[str, Any]:
 
 def register_inventory_tools(dispatcher: Any) -> None:
     """Register inventory tools with dispatcher."""
+    dispatcher.register_tool(
+        name="collect",
+        function=collect,
+        description="Collect a resource from the world",
+        parameters={
+            "type": "object",
+            "properties": {
+                "target": {"type": "string", "description": "Name of the resource to collect"},
+            },
+            "required": ["target"],
+        },
+        returns={"type": "object"},
+    )
+
     dispatcher.register_tool(
         name="pickup_item",
         function=pickup_item,

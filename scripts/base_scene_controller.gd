@@ -32,6 +32,11 @@ var perception_radius: float = 50.0  # Max distance agent can perceive objects
 var line_of_sight_enabled: bool = true  # Set to false to disable LOS checks (x-ray vision)
 var los_collision_mask: int = 2  # Collision layer for obstacles that block vision
 
+# Debug: Observation logging (press F9 to toggle, F10 for verbose mode)
+var debug_observations: bool = false  # Enable to log observations each tick
+var debug_observations_verbose: bool = false  # Show full observation details
+var _last_observation_cache: Dictionary = {}  # For change detection
+
 # Metrics
 var start_time: float = 0.0
 var scene_completed: bool = false
@@ -186,6 +191,11 @@ func _on_tick_advanced(tick: int):
 	# Send perception to each agent
 	for agent_data in agents:
 		var observations = _build_observations_for_agent(agent_data)
+
+		# Debug logging if enabled
+		if debug_observations:
+			_log_observation_debug(agent_data, observations, tick)
+
 		agent_data.agent.perceive(observations)
 
 	# Call scene-specific tick logic
@@ -320,6 +330,103 @@ func is_within_perception(agent_pos: Vector3, target_pos: Vector3) -> bool:
 	"""Check if a target is within the agent's perception radius"""
 	return agent_pos.distance_to(target_pos) <= perception_radius
 
+## Observation Debug Logging
+
+func _unhandled_input(event):
+	"""Handle debug key presses"""
+	if event is InputEventKey and event.pressed:
+		if event.keycode == KEY_F9:
+			debug_observations = not debug_observations
+			print("[DEBUG] Observation logging: %s" % ("ON" if debug_observations else "OFF"))
+		elif event.keycode == KEY_F10:
+			debug_observations_verbose = not debug_observations_verbose
+			print("[DEBUG] Verbose mode: %s" % ("ON" if debug_observations_verbose else "OFF"))
+
+func _log_observation_debug(agent_data: Dictionary, observations: Dictionary, tick: int):
+	"""Log observation data for debugging LOS and visibility."""
+	var agent_id = agent_data.id
+	var agent_pos = agent_data.position
+
+	# Get previous observation for change detection
+	var prev_obs = _last_observation_cache.get(agent_id, {})
+	var prev_resources = prev_obs.get("resource_names", [])
+	var prev_hazards = prev_obs.get("hazard_names", [])
+
+	# Extract current visible names
+	var current_resources = []
+	var current_hazards = []
+
+	if observations.has("nearby_resources"):
+		for r in observations.nearby_resources:
+			current_resources.append(r.name if r is Dictionary else str(r))
+
+	if observations.has("nearby_hazards"):
+		for h in observations.nearby_hazards:
+			current_hazards.append(h.name if h is Dictionary else str(h))
+
+	# Detect changes
+	var gained_resources = []
+	var lost_resources = []
+	var gained_hazards = []
+	var lost_hazards = []
+
+	for name in current_resources:
+		if name not in prev_resources:
+			gained_resources.append(name)
+
+	for name in prev_resources:
+		if name not in current_resources:
+			lost_resources.append(name)
+
+	for name in current_hazards:
+		if name not in prev_hazards:
+			gained_hazards.append(name)
+
+	for name in prev_hazards:
+		if name not in current_hazards:
+			lost_hazards.append(name)
+
+	# Update cache
+	_last_observation_cache[agent_id] = {
+		"resource_names": current_resources,
+		"hazard_names": current_hazards
+	}
+
+	# Print debug output
+	var has_changes = gained_resources.size() > 0 or lost_resources.size() > 0 or gained_hazards.size() > 0 or lost_hazards.size() > 0
+
+	if debug_observations_verbose or has_changes:
+		print("\n[OBS] Tick %d | Agent: %s | Pos: (%.1f, %.1f, %.1f)" % [
+			tick, agent_id, agent_pos.x, agent_pos.y, agent_pos.z
+		])
+
+		if debug_observations_verbose:
+			print("  Visible: %d resources, %d hazards" % [current_resources.size(), current_hazards.size()])
+			if current_resources.size() > 0:
+				print("    Resources: %s" % ", ".join(current_resources))
+			if current_hazards.size() > 0:
+				print("    Hazards: %s" % ", ".join(current_hazards))
+
+		if gained_resources.size() > 0:
+			print("  >> GAINED visibility: %s" % ", ".join(gained_resources))
+		if lost_resources.size() > 0:
+			print("  << LOST visibility: %s" % ", ".join(lost_resources))
+		if gained_hazards.size() > 0:
+			print("  >> GAINED hazard visibility: %s" % ", ".join(gained_hazards))
+		if lost_hazards.size() > 0:
+			print("  << LOST hazard visibility: %s" % ", ".join(lost_hazards))
+
+func enable_observation_debug(verbose: bool = false):
+	"""Programmatically enable observation debugging."""
+	debug_observations = true
+	debug_observations_verbose = verbose
+	print("[DEBUG] Observation logging enabled (verbose=%s)" % verbose)
+
+func disable_observation_debug():
+	"""Programmatically disable observation debugging."""
+	debug_observations = false
+	print("[DEBUG] Observation logging disabled")
+
 ## Backend decision communication
 
 func _setup_backend_communication():
@@ -386,6 +493,7 @@ func _convert_observation_to_backend_format(agent_data: Dictionary, observation:
 	"""
 	var backend_obs = {
 		"agent_id": agent_data.id,
+		"tick": observation.get("tick", simulation_manager.current_tick),
 		"position": [observation.position.x, observation.position.y, observation.position.z] if observation.has("position") and observation.position is Vector3 else observation.get("position", [0, 0, 0]),
 		"nearby_resources": [],
 		"nearby_hazards": []

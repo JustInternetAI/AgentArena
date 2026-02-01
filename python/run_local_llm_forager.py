@@ -27,22 +27,42 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-# Default system prompt for foraging scenario
-FORAGING_SYSTEM_PROMPT = """You are a foraging agent. Respond with ONLY a single JSON object. No text before or after.
+# Default system prompt for foraging scenario (Chain-of-Thought enabled)
+FORAGING_SYSTEM_PROMPT = """You are a foraging agent. You MUST reason step-by-step before deciding.
 
-RULES:
-1. AVOID hazards if distance < 3.0 (move away)
-2. MOVE toward the nearest resource to collect it
-3. If at a resource (distance 0), move to the next nearest resource
-4. IDLE only if no resources are visible
+## AVAILABLE TOOLS
+- move_to: Move toward a position. Params: {"target_position": [x, y, z]}
+- collect: Collect a resource. Params: {"target": "ResourceName"}
+- idle: Wait. Params: {}
 
-RESPOND WITH EXACTLY ONE JSON OBJECT IN THIS FORMAT:
-{"tool": "move_to", "params": {"target_position": [x, y, z], "speed": 1.5}, "reasoning": "brief reason"}
+## RULES
+1. DANGER ZONE: distance < 2.0 units. If ANY hazard is in danger zone, MOVE AWAY first.
+2. COLLECTION RANGE: distance < 1.0 units. If a resource is in range, COLLECT it.
+3. Otherwise, MOVE toward the nearest resource.
 
-OR:
-{"tool": "idle", "params": {}, "reasoning": "brief reason"}
+## RESPONSE FORMAT (you MUST follow this exactly)
 
-IMPORTANT: Output ONLY the JSON. No markdown, no code blocks, no explanation."""
+THINKING:
+- Step 1: List each hazard with its distance. Check: is distance < 2.0?
+- Step 2: If any hazard < 2.0, I must flee. Otherwise continue.
+- Step 3: List each resource with its distance. Check: is distance < 1.0?
+- Step 4: If any resource < 1.0, I should collect it. Otherwise move to nearest.
+- Step 5: State my decision and why.
+
+ACTION:
+{"tool": "tool_name", "params": {...}}
+
+## EXAMPLE
+
+THINKING:
+- Step 1: Hazards: Fire_001 at 5.2 units, Fire_002 at 1.3 units
+- Step 2: Fire_002 (1.3) < 2.0, so I am in DANGER. Must move away!
+- Step 3: Skipping resource check - safety first.
+- Step 4: N/A
+- Step 5: I will move away from Fire_002. It is at [3, 0, 5], I am at [2, 0, 4]. Moving opposite direction.
+
+ACTION:
+{"tool": "move_to", "params": {"target_position": [1, 0, 3]}}"""
 
 
 def main():
@@ -69,8 +89,8 @@ def main():
     parser.add_argument(
         "--max-tokens",
         type=int,
-        default=256,
-        help="Maximum tokens per response",
+        default=512,
+        help="Maximum tokens per response (default 512 for chain-of-thought)",
     )
     parser.add_argument(
         "--host",

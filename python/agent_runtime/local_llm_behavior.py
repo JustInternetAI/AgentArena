@@ -57,7 +57,7 @@ class LocalLLMBehavior(AgentBehavior):
         system_prompt: str = "You are an autonomous agent in a simulation environment.",
         memory_capacity: int = 10,
         temperature: float = 0.7,
-        max_tokens: int = 256,
+        max_tokens: int = 512,
     ):
         """
         Initialize the local LLM behavior.
@@ -261,6 +261,14 @@ class LocalLLMBehavior(AgentBehavior):
         sections.append(f"Energy: {observation.energy}")
         sections.append(f"Tick: {observation.tick}")
 
+        # Add analysis hints (but let LLM reason)
+        danger_hazards = [h for h in observation.nearby_hazards if h.distance < 2.0]
+        collect_resources = [r for r in observation.nearby_resources if r.distance < 1.0]
+
+        sections.append("\n## Quick Analysis")
+        sections.append(f"Hazards in danger zone (< 2.0): {len(danger_hazards)}")
+        sections.append(f"Resources in collection range (< 1.0): {len(collect_resources)}")
+
         # Nearby resources
         if observation.nearby_resources:
             sections.append("\n## Nearby Resources")
@@ -284,6 +292,40 @@ class LocalLLMBehavior(AgentBehavior):
         else:
             sections.append("\n## Nearby Hazards\nNone visible")
 
+        # Remembered objects from world_map (out of sight but known)
+        visible_names = {r.name for r in observation.nearby_resources}
+        visible_names.update(h.name for h in observation.nearby_hazards)
+
+        remembered_resources = [
+            obj for obj in self.world_map.get_resources() if obj.name not in visible_names
+        ]
+        remembered_hazards = [
+            obj for obj in self.world_map.get_hazards() if obj.name not in visible_names
+        ]
+
+        if remembered_resources or remembered_hazards:
+            sections.append("\n## Remembered Objects (out of sight)")
+            if remembered_resources:
+                # Sort by distance from current position
+                remembered_resources.sort(key=lambda obj: obj.distance_to(observation.position))
+                sections.append("Resources:")
+                for obj in remembered_resources[:5]:
+                    dist = obj.distance_to(observation.position)
+                    stale = observation.tick - obj.last_seen_tick
+                    sections.append(
+                        f"- {obj.name} ({obj.subtype}) at position {obj.position}, "
+                        f"~{dist:.1f} units away (last seen {stale} ticks ago)"
+                    )
+            if remembered_hazards:
+                remembered_hazards.sort(key=lambda obj: obj.distance_to(observation.position))
+                sections.append("Hazards:")
+                for obj in remembered_hazards[:3]:
+                    dist = obj.distance_to(observation.position)
+                    sections.append(
+                        f"- {obj.name} ({obj.subtype}) at position {obj.position}, "
+                        f"~{dist:.1f} units away, damage: {obj.damage}"
+                    )
+
         # Inventory
         if observation.inventory:
             sections.append("\n## Inventory")
@@ -292,10 +334,12 @@ class LocalLLMBehavior(AgentBehavior):
         else:
             sections.append("\n## Inventory\nEmpty")
 
-        # Add instruction for response format
-        sections.append("\n## Instructions")
-        sections.append("Based on the current situation, decide what action to take.")
-        sections.append("Consider your goals, nearby resources, and any hazards.")
+        # Add instruction for response format (CoT)
+        sections.append("\n## Your Task")
+        sections.append(
+            "Follow the RESPONSE FORMAT from your instructions. "
+            "Show your THINKING step by step, then output your ACTION as JSON."
+        )
 
         return "\n".join(sections)
 

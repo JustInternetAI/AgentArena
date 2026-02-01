@@ -11,7 +11,7 @@ BEGINNER TIER: SimpleAgentBehavior
 
 INTERMEDIATE TIER: AgentBehavior
     - User returns AgentDecision with tool, params, and reasoning
-    - User manages memory using built-in SlidingWindowMemory
+    - Built-in world_map (SpatialMemory) for tracking object positions
     - User implements lifecycle hooks (on_episode_start, on_tool_result)
     - Focus: State tracking, explicit parameters, memory patterns
 
@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from .memory.spatial import SpatialMemory
     from .reasoning_trace import TraceStore
     from .schemas import AgentDecision, Observation, SimpleContext, ToolSchema
 
@@ -44,42 +45,110 @@ class AgentBehavior(ABC):
     This is the intermediate tier interface. For beginners, see
     SimpleAgentBehavior. For advanced LLM integration, see LLMAgentBehavior.
 
+    Built-in Features:
+        - world_map: SpatialMemory that automatically tracks all resources,
+          hazards, and entities the agent has seen. Updated each tick.
+        - Tracing support for debugging decision logic.
+
     Example:
         from agent_runtime import AgentBehavior, Observation, AgentDecision, ToolSchema
-        from agent_runtime.memory import SlidingWindowMemory
 
         class MyAgent(AgentBehavior):
-            def __init__(self):
-                self.memory = SlidingWindowMemory(capacity=50)
-
-            def on_episode_start(self):
-                self.memory.clear()
-
             def decide(self, observation: Observation, tools: list[ToolSchema]) -> AgentDecision:
-                self.memory.store(observation)
+                # world_map is automatically updated each tick
+                # Query remembered objects (even those out of sight)
+                remembered = self.world_map.query_near_position(
+                    observation.position, radius=50, object_type="resource"
+                )
 
-                # Find nearest resource
+                # Prefer visible resources, fall back to remembered ones
                 if observation.nearby_resources:
                     target = observation.nearby_resources[0]
-                    if target.distance < 2.0:
-                        return AgentDecision(
-                            tool="collect",
-                            params={"resource_id": target.name},
-                            reasoning=f"Collecting {target.name}"
-                        )
                     return AgentDecision(
                         tool="move_to",
                         params={"target_position": list(target.position)},
-                        reasoning=f"Moving to {target.name}"
+                        reasoning=f"Moving to visible {target.name}"
+                    )
+                elif remembered:
+                    target = remembered[0].obj
+                    return AgentDecision(
+                        tool="move_to",
+                        params={"target_position": list(target.position)},
+                        reasoning=f"Moving to remembered {target.name}"
                     )
 
-                return AgentDecision.idle(reasoning="No resources visible")
+                return AgentDecision.idle(reasoning="No resources known")
     """
 
     # Tracing support (set via enable_tracing())
     _trace_store: "TraceStore | None" = None
     _agent_id: str | None = None
     _current_tick: int = 0
+
+    # Spatial memory for world mapping (lazy initialized)
+    _world_map: "SpatialMemory | None" = None
+
+    @property
+    def world_map(self) -> "SpatialMemory":
+        """
+        Spatial memory tracking objects the agent has seen.
+
+        The world_map is automatically updated each tick with resources,
+        hazards, and entities from the current observation. Objects persist
+        in memory even when they go out of line-of-sight.
+
+        Use this to:
+        - Find remembered resources when nothing is visible
+        - Navigate back to known locations
+        - Track which resources have been collected
+        - Build a mental map of the environment
+
+        Example:
+            # Query nearby remembered resources
+            nearby = self.world_map.query_near_position(
+                position=observation.position,
+                radius=30,
+                object_type="resource"
+            )
+
+            # Get all known hazards
+            hazards = self.world_map.get_hazards()
+
+            # Mark a resource as collected
+            self.world_map.mark_collected("Berry1")
+
+            # Get summary for LLM context
+            map_summary = self.world_map.summarize()
+        """
+        if self._world_map is None:
+            from .memory.spatial import SpatialMemory
+
+            self._world_map = SpatialMemory(enable_semantic=False)
+        return self._world_map
+
+    def _update_world_map(self, observation: "Observation") -> None:
+        """Update world map with current observation (called by framework)."""
+        self.world_map.update_from_observation(observation)
+
+    def mark_collected(self, resource_name: str) -> bool:
+        """
+        Mark a resource as collected in the world map.
+
+        Call this when your agent successfully collects a resource
+        so it won't try to navigate back to it.
+
+        Args:
+            resource_name: Name of the collected resource
+
+        Returns:
+            True if resource was found and marked, False otherwise
+
+        Example:
+            # After collecting a resource
+            if result.get("success"):
+                self.mark_collected("Berry1")
+        """
+        return self.world_map.mark_collected(resource_name)
 
     def enable_tracing(self, traces_dir: Path | str | None = None) -> None:
         """
@@ -204,8 +273,16 @@ class AgentBehavior(ABC):
         Called when a new episode begins.
 
         Override to reset state, clear memory, etc.
-        If tracing is enabled, a new episode is started in the trace store.
+        The world_map is automatically cleared. If tracing is enabled,
+        a new episode is started in the trace store.
+
+        If you override this method, call super().on_episode_start() to
+        ensure the world map is cleared.
         """
+        # Clear world map for new episode
+        if self._world_map is not None:
+            self._world_map.clear()
+
         # Start a new trace episode if tracing is enabled
         if self._trace_store is not None and self._agent_id is not None:
             self._trace_store.set_episode(self._agent_id)
