@@ -415,7 +415,7 @@ class IPCServer:
             tick_end: int | None = None
         ):
             """
-            Get captured LLM request/response data from the Prompt Inspector.
+            Get captured reasoning traces from the TraceStore.
 
             Query parameters:
                 agent_id: Filter by specific agent (optional)
@@ -424,11 +424,11 @@ class IPCServer:
                 tick_end: Maximum tick number (inclusive, optional)
 
             Returns:
-                List of decision captures with full LLM interaction data
+                List of reasoning traces with full decision-making data
             """
-            from agent_runtime.prompt_inspector import get_global_inspector
+            from agent_runtime.reasoning_trace import get_global_trace_store
 
-            inspector = get_global_inspector()
+            inspector = get_global_trace_store()
 
             # Single capture query
             if agent_id and tick is not None:
@@ -448,25 +448,99 @@ class IPCServer:
 
         @app.delete("/inspector/requests")
         async def clear_inspector_requests():
-            """Clear all captured LLM request/response data from the Prompt Inspector."""
-            from agent_runtime.prompt_inspector import get_global_inspector
+            """Clear all captured reasoning traces from the TraceStore."""
+            from agent_runtime.reasoning_trace import get_global_trace_store
 
-            inspector = get_global_inspector()
+            inspector = get_global_trace_store()
             inspector.clear()
             return {"status": "cleared", "message": "All inspector captures have been cleared"}
 
         @app.get("/inspector/config")
         async def get_inspector_config():
-            """Get current Prompt Inspector configuration."""
-            from agent_runtime.prompt_inspector import get_global_inspector
+            """Get current TraceStore configuration."""
+            from agent_runtime.reasoning_trace import get_global_trace_store
 
-            inspector = get_global_inspector()
+            inspector = get_global_trace_store()
             return {
                 "enabled": inspector.enabled,
                 "max_entries": inspector.max_entries,
                 "log_to_file": inspector.log_to_file,
                 "log_dir": str(inspector.log_dir),
-                "current_captures": len(inspector.captures)
+                "current_captures": len(inspector.traces),
+                "episode_id": inspector.episode_id
+            }
+
+        @app.get("/traces/episode/{episode_id}")
+        async def get_episode_traces(episode_id: str):
+            """
+            Get all reasoning traces for a specific episode.
+
+            This loads traces from the JSONL file on disk.
+
+            Args:
+                episode_id: Episode identifier (e.g., "ep_20260131_120000")
+
+            Returns:
+                List of all traces from that episode
+            """
+            from agent_runtime.reasoning_trace import get_global_trace_store
+
+            trace_store = get_global_trace_store()
+            traces = trace_store.get_episode_traces(episode_id)
+
+            if not traces:
+                raise HTTPException(status_code=404, detail=f"No traces found for episode {episode_id}")
+
+            return {
+                "episode_id": episode_id,
+                "traces": [t.to_dict() for t in traces],
+                "count": len(traces)
+            }
+
+        @app.post("/traces/episode/start")
+        async def start_episode(episode_id: str | None = None):
+            """
+            Start a new episode for trace collection.
+
+            Args:
+                episode_id: Optional custom episode ID (auto-generated if not provided)
+
+            Returns:
+                The episode ID that was started
+            """
+            from agent_runtime.reasoning_trace import get_global_trace_store
+            import datetime
+
+            trace_store = get_global_trace_store()
+
+            if not episode_id:
+                timestamp = datetime.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+                episode_id = f"ep_{timestamp}"
+
+            trace_store.start_episode(episode_id)
+
+            return {
+                "episode_id": episode_id,
+                "message": f"Started episode {episode_id}"
+            }
+
+        @app.post("/traces/episode/end")
+        async def end_episode():
+            """
+            End the current episode and close the trace file.
+
+            Returns:
+                The episode ID that was ended
+            """
+            from agent_runtime.reasoning_trace import get_global_trace_store
+
+            trace_store = get_global_trace_store()
+            episode_id = trace_store.episode_id
+            trace_store.end_episode()
+
+            return {
+                "episode_id": episode_id,
+                "message": f"Ended episode {episode_id}"
             }
 
         @app.post("/observe")

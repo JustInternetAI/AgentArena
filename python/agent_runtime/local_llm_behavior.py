@@ -15,7 +15,10 @@ from typing import TYPE_CHECKING, Optional
 from .behavior import AgentBehavior
 from .memory import SlidingWindowMemory
 from .schemas import AgentDecision, Observation, ToolSchema
-from .prompt_inspector import PromptInspector, InspectorStage, get_global_inspector
+from .reasoning_trace import TraceStore, TraceStepName, get_global_trace_store
+
+# Backwards compatibility
+from .reasoning_trace import PromptInspector, InspectorStage, get_global_inspector
 
 if TYPE_CHECKING:
     from backends.base import BaseBackend
@@ -102,8 +105,9 @@ class LocalLLMBehavior(AgentBehavior):
         Returns:
             AgentDecision specifying which tool to call and with what parameters
         """
-        # Start inspector capture
+        # Start trace capture
         capture = self.inspector.start_capture(observation.agent_id, observation.tick)
+        self._current_trace = capture  # Enable log_step() calls
 
         try:
             # Store observation in memory
@@ -111,7 +115,7 @@ class LocalLLMBehavior(AgentBehavior):
 
             # Capture observation stage
             if capture:
-                capture.add_entry(InspectorStage.OBSERVATION, {
+                capture.add_step(TraceStepName.OBSERVATION, {
                     "agent_id": observation.agent_id,
                     "tick": observation.tick,
                     "position": observation.position,
@@ -148,7 +152,7 @@ class LocalLLMBehavior(AgentBehavior):
             # Capture prompt building stage
             if capture:
                 memory_items = self.memory.retrieve(limit=5)
-                capture.add_entry(InspectorStage.PROMPT_BUILDING, {
+                capture.add_step(TraceStepName.PROMPT_BUILDING, {
                     "system_prompt": self.system_prompt,
                     "memory_context": {
                         "count": len(memory_items),
@@ -174,7 +178,7 @@ class LocalLLMBehavior(AgentBehavior):
 
             # Capture LLM request stage
             if capture:
-                capture.add_entry(InspectorStage.LLM_REQUEST, {
+                capture.add_step(TraceStepName.LLM_REQUEST, {
                     "model": getattr(self.backend, 'model_name', 'unknown'),
                     "prompt": prompt,
                     "tools": tool_dicts,
@@ -194,7 +198,7 @@ class LocalLLMBehavior(AgentBehavior):
 
             # Capture LLM response stage
             if capture:
-                capture.add_entry(InspectorStage.LLM_RESPONSE, {
+                capture.add_step(TraceStepName.LLM_RESPONSE, {
                     "raw_text": result.text,
                     "tokens_used": result.tokens_used,
                     "finish_reason": result.finish_reason,
@@ -210,7 +214,7 @@ class LocalLLMBehavior(AgentBehavior):
 
                 # Capture error decision
                 if capture:
-                    capture.add_entry(InspectorStage.DECISION, {
+                    capture.add_step(TraceStepName.DECISION, {
                         "tool": decision.tool,
                         "params": decision.params,
                         "reasoning": decision.reasoning,
@@ -219,6 +223,7 @@ class LocalLLMBehavior(AgentBehavior):
                     })
 
                 self.inspector.finish_capture(observation.agent_id, observation.tick)
+                self._current_trace = None  # Clear for next decision
                 return decision
 
             # Debug: log token usage and raw response
@@ -252,7 +257,7 @@ class LocalLLMBehavior(AgentBehavior):
 
             # Capture final decision stage
             if capture:
-                capture.add_entry(InspectorStage.DECISION, {
+                capture.add_step(TraceStepName.DECISION, {
                     "tool": decision.tool,
                     "params": decision.params,
                     "reasoning": decision.reasoning,
@@ -266,6 +271,7 @@ class LocalLLMBehavior(AgentBehavior):
 
             # Finish capture and optionally write to file
             self.inspector.finish_capture(observation.agent_id, observation.tick)
+            self._current_trace = None  # Clear for next decision
 
             return decision
 
@@ -274,13 +280,14 @@ class LocalLLMBehavior(AgentBehavior):
 
             # Capture error in inspector
             if capture:
-                capture.add_entry(InspectorStage.DECISION, {
+                capture.add_step(TraceStepName.DECISION, {
                     "tool": "idle",
                     "params": {},
                     "reasoning": f"Error: {e}",
                     "error": str(e)
                 })
                 self.inspector.finish_capture(observation.agent_id, observation.tick)
+                self._current_trace = None  # Clear for next decision
 
             return AgentDecision.idle(reasoning=f"Error: {e}")
 

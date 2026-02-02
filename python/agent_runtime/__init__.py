@@ -9,6 +9,21 @@ from .arena import AgentArena
 from .behavior import AgentBehavior, LLMAgentBehavior, SimpleAgentBehavior
 from .local_llm_behavior import LocalLLMBehavior, create_local_llm_behavior
 from .memory import AgentMemory, RAGMemory, SlidingWindowMemory, SummarizingMemory
+from .reasoning_trace import (
+    TraceStore,
+    ReasoningTrace,
+    TraceStep,
+    TraceStepName,
+    get_global_trace_store,
+    set_global_trace_store,
+    # Backwards compatibility
+    PromptInspector,
+    DecisionCapture,
+    InspectorEntry,
+    InspectorStage,
+    get_global_inspector,
+    set_global_inspector,
+)
 from .runtime import AgentRuntime
 from .schemas import (
     AgentDecision,
@@ -43,6 +58,20 @@ __all__ = [
     "SlidingWindowMemory",
     "SummarizingMemory",
     "RAGMemory",
+    # Reasoning Trace (new)
+    "TraceStore",
+    "ReasoningTrace",
+    "TraceStep",
+    "TraceStepName",
+    "get_global_trace_store",
+    "set_global_trace_store",
+    # Reasoning Trace (backwards compatibility)
+    "PromptInspector",
+    "DecisionCapture",
+    "InspectorEntry",
+    "InspectorStage",
+    "get_global_inspector",
+    "set_global_inspector",
     # Observation/Decision schemas
     "Observation",
     "AgentDecision",

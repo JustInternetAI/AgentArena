@@ -25,10 +25,11 @@ See docs/learners/ for tutorials at each tier.
 """
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
     from .schemas import AgentDecision, Observation, SimpleContext, ToolSchema
+    from .reasoning_trace import ReasoningTrace
 
 
 class AgentBehavior(ABC):
@@ -74,6 +75,9 @@ class AgentBehavior(ABC):
                 return AgentDecision.idle(reasoning="No resources visible")
     """
 
+    # Reasoning trace support (issue #45)
+    _current_trace: Optional["ReasoningTrace"] = None
+
     @abstractmethod
     def decide(self, observation: "Observation", tools: list["ToolSchema"]) -> "AgentDecision":
         """
@@ -87,6 +91,33 @@ class AgentBehavior(ABC):
             AgentDecision specifying which tool to call and with what parameters
         """
         pass
+
+    def log_step(self, name: str, data: dict[str, Any], duration_ms: Optional[float] = None) -> None:
+        """
+        Log a reasoning step for debugging and analysis.
+
+        This method integrates with the TraceStore system from issue #45.
+        Call this during decide() to record intermediate reasoning steps.
+
+        Args:
+            name: Step name (e.g., "retrieved", "prompt", "response")
+            data: Arbitrary data for this step (will be JSON-serialized)
+            duration_ms: Optional duration of this step in milliseconds
+
+        Example:
+            def decide(self, observation, tools):
+                # Log memory retrieval
+                relevant = self.memory.query(observation, k=5)
+                self.log_step("retrieved", {"count": len(relevant), "items": relevant})
+
+                # Log prompt
+                prompt = self.build_prompt(observation, relevant)
+                self.log_step("prompt", {"text": prompt, "length": len(prompt)})
+
+                # ... rest of decision logic
+        """
+        if self._current_trace:
+            self._current_trace.add_step(name, data, duration_ms)
 
     def on_tool_result(self, tool: str, result: dict) -> None:
         """
