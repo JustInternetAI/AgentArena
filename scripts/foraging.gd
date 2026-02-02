@@ -39,6 +39,9 @@ func _on_scene_ready():
 	if agents.size() > 0:
 		last_position = agents[0].position
 
+	# Connect to agent damage signals for metrics tracking
+	_connect_agent_damage_signals()
+
 func _initialize_scene():
 	"""Initialize resource and hazard tracking"""
 	active_resources.clear()
@@ -133,8 +136,8 @@ func _on_scene_tick(tick: int):
 	# Check for resource collection
 	_check_resource_collection()
 
-	# Check for hazard damage
-	_check_hazard_damage()
+	# NOTE: Hazard damage is now handled by BaseHazard class via Area3D overlaps
+	# The agent's damage_taken signal is connected in _connect_agent_damage_signals()
 
 	# Check completion
 	if resources_collected >= MAX_RESOURCES:
@@ -183,6 +186,8 @@ func _build_observations_for_agent(agent_data: Dictionary) -> Dictionary:
 	# Build observation dictionary
 	return {
 		"position": agent_pos,
+		"health": agent_node.current_health if "current_health" in agent_node else 100.0,
+		"max_health": agent_node.max_health if "max_health" in agent_node else 100.0,
 		"resources_collected": resources_collected,
 		"resources_remaining": MAX_RESOURCES - resources_collected,
 		"damage_taken": damage_taken,
@@ -194,6 +199,32 @@ func _build_observations_for_agent(agent_data: Dictionary) -> Dictionary:
 func _on_agent_tool_completed(agent_data: Dictionary, tool_name: String, response: Dictionary):
 	"""Handle tool execution completion from agent"""
 	print("Foraging: Agent '%s' completed tool '%s': %s" % [agent_data.id, tool_name, response])
+
+func _connect_agent_damage_signals():
+	"""Connect to agent damage_taken signals for metrics tracking"""
+	for agent_data in agents:
+		var agent = agent_data.agent
+		if agent.has_signal("damage_taken"):
+			# Use bind to pass agent_data to the callback
+			agent.damage_taken.connect(_on_agent_damage_taken.bind(agent_data))
+			print("Foraging: Connected to damage_taken signal for agent '%s'" % agent_data.id)
+
+func _on_agent_damage_taken(amount: float, source: Node, source_type: String, agent_data: Dictionary):
+	"""Handle damage taken by agent - update metrics"""
+	damage_taken += amount
+
+	# Record event
+	if event_bus != null:
+		event_bus.emit_event("hazard_damage", {
+			"hazard_name": String(source.name) if source else "unknown",
+			"hazard_type": source_type,
+			"damage": amount,
+			"position": agent_data.agent.global_position,
+			"tick": simulation_manager.current_tick,
+			"agent_health": agent_data.agent.current_health if "current_health" in agent_data.agent else 0.0
+		})
+
+	print("⚠ Agent took %.1f damage from %s! Total damage: %.1f" % [amount, source_type, damage_taken])
 
 func _check_resource_collection():
 	"""Check if agent is near any uncollected resources"""

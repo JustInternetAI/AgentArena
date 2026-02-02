@@ -16,7 +16,12 @@ from agent_runtime.behavior import AgentBehavior
 from agent_runtime.runtime import AgentRuntime
 from agent_runtime.schemas import ToolSchema
 from agent_runtime.tool_dispatcher import ToolDispatcher
-from tools import register_inventory_tools, register_movement_tools, register_world_query_tools
+from tools import (
+    register_inventory_tools,
+    register_movement_tools,
+    register_navigation_tools,
+    register_world_query_tools,
+)
 
 from .converters import decision_to_action, perception_to_observation
 from .messages import (
@@ -78,6 +83,7 @@ class IPCServer:
         register_movement_tools(self.tool_dispatcher)
         register_inventory_tools(self.tool_dispatcher)
         register_world_query_tools(self.tool_dispatcher)
+        register_navigation_tools(self.tool_dispatcher)
         logger.info(f"Registered {len(self.tool_dispatcher.tools)} tools")
 
     def _make_mock_decision(self, observation: dict[str, Any]) -> dict[str, Any]:
@@ -429,6 +435,105 @@ class IPCServer:
         async def get_metrics():
             """Get server performance metrics."""
             return self.metrics
+
+        @app.get("/memory/{agent_id}")
+        async def get_memory(agent_id: str) -> dict[str, Any]:
+            """
+            Get memory dump for an agent.
+
+            This endpoint returns the full memory state for debugging and analysis.
+            Use the inspect_memory CLI tool to query this endpoint.
+
+            Args:
+                agent_id: Agent identifier
+
+            Returns:
+                Memory dump dictionary with success status
+            """
+            # Get behavior for this agent
+            behavior = self.behaviors.get(agent_id) or self.default_behavior
+
+            if not behavior:
+                return {"success": False, "error": f"Unknown agent: {agent_id}"}
+
+            # Try to get memory from world_map (SpatialMemory)
+            if hasattr(behavior, "world_map") and behavior.world_map is not None:
+                return {"success": True, "memory": behavior.world_map.dump()}
+
+            # Try generic memory attribute
+            if hasattr(behavior, "memory") and behavior.memory is not None:
+                return {"success": True, "memory": behavior.memory.dump()}
+
+            return {"success": False, "error": "No memory available for this agent"}
+
+        @app.post("/experience")
+        async def report_experience(data: dict[str, Any]) -> dict[str, Any]:
+            """
+            Report an experience event from Godot.
+
+            Called when agents experience collisions, damage, or traps.
+            The experience is stored in the agent's SpatialMemory for
+            inclusion in future LLM prompts.
+
+            Args:
+                data: Experience data containing:
+                    - agent_id: Agent identifier
+                    - tick: Simulation tick when event occurred
+                    - event_type: "collision", "damage", or "trapped"
+                    - description: Human-readable description
+                    - position: [x, y, z] position where event occurred
+                    - object_name: Name of object involved (optional)
+                    - damage_taken: Amount of damage (for damage events)
+                    - metadata: Additional event data (optional)
+
+            Returns:
+                {"success": True} on success, or error details
+            """
+            from agent_runtime.schemas import ExperienceEvent
+
+            try:
+                agent_id = data.get("agent_id")
+                if not agent_id:
+                    return {"success": False, "error": "Missing agent_id"}
+
+                # Get behavior for this agent
+                behavior = self.behaviors.get(agent_id) or self.default_behavior
+                if not behavior:
+                    logger.warning(f"[/experience] No behavior for agent '{agent_id}'")
+                    return {"success": False, "error": f"Unknown agent: {agent_id}"}
+
+                # Create ExperienceEvent
+                event = ExperienceEvent(
+                    tick=data.get("tick", 0),
+                    event_type=data.get("event_type", "unknown"),
+                    description=data.get("description", ""),
+                    position=tuple(data.get("position", [0, 0, 0])),
+                    object_name=data.get("object_name"),
+                    damage_taken=data.get("damage_taken", 0.0),
+                    metadata=data.get("metadata", {}),
+                )
+
+                # Store in spatial memory
+                # Note: Check for 'is not None' because SpatialMemory.__len__ returns 0
+                # when empty, which would make an empty world_map evaluate as falsy
+                if hasattr(behavior, "world_map"):
+                    world_map = behavior.world_map  # Triggers lazy initialization
+                    if world_map is not None:
+                        world_map.record_experience(event)
+                        logger.info(
+                            f"[/experience] Recorded {event.event_type} for agent '{agent_id}' "
+                            f"at tick {event.tick}: {event.description}"
+                        )
+                        return {"success": True}
+
+                logger.warning(
+                    f"[/experience] Agent '{agent_id}' has no world_map, experience not stored"
+                )
+                return {"success": False, "error": "Agent has no world_map"}
+
+            except Exception as e:
+                logger.error(f"[/experience] Error processing experience: {e}")
+                return {"success": False, "error": str(e)}
 
         @app.post("/observe")
         async def process_observation(observation: dict[str, Any]) -> dict[str, Any]:

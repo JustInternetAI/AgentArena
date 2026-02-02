@@ -31,7 +31,7 @@ from typing import TYPE_CHECKING, Any
 from .base import AgentMemory
 
 if TYPE_CHECKING:
-    from ..schemas import Observation, WorldObject
+    from ..schemas import ExperienceEvent, Observation, WorldObject
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +113,10 @@ class SpatialMemory(AgentMemory):
         # Staleness tracking
         self._stale_threshold = stale_threshold
         self._current_tick = 0
+
+        # Experience tracking
+        self._experiences: list["ExperienceEvent"] = []
+        self._max_experiences: int = 50
 
         if enable_semantic:
             self._init_semantic_memory()
@@ -534,13 +538,97 @@ class SpatialMemory(AgentMemory):
 
         return "".join(parts)
 
+    # Experience tracking methods
+
+    def record_experience(self, event: "ExperienceEvent") -> None:
+        """Record a significant experience.
+
+        Stores the experience and, for collisions, also marks the
+        collision location as an obstacle in the world map.
+
+        Args:
+            event: The experience event to record
+        """
+        from ..schemas import WorldObject
+
+        self._experiences.append(event)
+        if len(self._experiences) > self._max_experiences:
+            self._experiences.pop(0)
+
+        # Also mark collision locations as obstacles
+        if event.event_type == "collision" and event.object_name:
+            self._store_or_update(
+                WorldObject(
+                    name=event.object_name,
+                    object_type="obstacle",
+                    subtype="collision",
+                    position=event.position,
+                    last_seen_tick=event.tick,
+                )
+            )
+
+        logger.debug(
+            f"Recorded experience: {event.event_type} at tick {event.tick} "
+            f"({len(self._experiences)} total)"
+        )
+
+    def get_recent_experiences(self, limit: int = 10) -> list["ExperienceEvent"]:
+        """Get recent experiences for LLM context.
+
+        Args:
+            limit: Maximum number of experiences to return
+
+        Returns:
+            List of most recent experiences (newest last)
+        """
+        return self._experiences[-limit:]
+
+    def clear_experiences(self) -> None:
+        """Clear experience history (call on episode start)."""
+        self._experiences.clear()
+        logger.debug("Cleared experience history")
+
     def clear(self) -> None:
-        """Clear all stored objects."""
+        """Clear all stored objects and experiences."""
         self._objects.clear()
         self._spatial_grid.clear()
+        self._experiences.clear()
         if self._semantic_memory:
             self._semantic_memory.clear()
         logger.info("Cleared spatial memory")
+
+    def dump(self) -> dict:
+        """
+        Dump full spatial memory state for inspection/debugging.
+
+        Returns:
+            Dictionary containing complete memory state
+        """
+        all_objects = list(self._objects.values())
+        active_objects = [o for o in all_objects if o.status == "active"]
+        collected_objects = [o for o in all_objects if o.status == "collected"]
+
+        return {
+            "type": "SpatialMemory",
+            "stats": {
+                "total_objects": len(all_objects),
+                "active_objects": len(active_objects),
+                "collected_objects": len(collected_objects),
+                "experience_count": len(self._experiences),
+                "current_tick": self._current_tick,
+            },
+            "objects": [obj.to_dict() for obj in all_objects],
+            "objects_by_type": {
+                "resources": [o.to_dict() for o in self.get_resources(include_collected=True)],
+                "hazards": [o.to_dict() for o in self.get_hazards()],
+                "obstacles": [o.to_dict() for o in self.query_by_type("obstacle")],
+            },
+            "experiences": [exp.to_dict() for exp in self._experiences],
+            "grid_stats": {
+                "cell_size": self._grid_size,
+                "occupied_cells": len(self._spatial_grid),
+            },
+        }
 
     def __len__(self) -> int:
         """Return number of known objects."""

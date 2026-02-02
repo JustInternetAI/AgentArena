@@ -108,6 +108,30 @@ func _register_default_tools():
 		}
 	})
 
+	# Navigation/Exploration tools
+	register_tool("plan_path", {
+		"name": "plan_path",
+		"description": "Plan a path to a target position. Returns waypoints and distance.",
+		"parameters": {
+			"target_position": {"type": "array", "description": "Target [x, y, z] position"},
+			"avoid_hazards": {"type": "boolean", "description": "Route around hazards", "default": true}
+		}
+	})
+
+	register_tool("explore_direction", {
+		"name": "explore_direction",
+		"description": "Get a position to explore in a direction (north, south, east, west, etc.)",
+		"parameters": {
+			"direction": {"type": "string", "description": "Direction to explore"}
+		}
+	})
+
+	register_tool("get_exploration_status", {
+		"name": "get_exploration_status",
+		"description": "Get exploration percentage and frontier locations",
+		"parameters": {}
+	})
+
 	print("Registered ", get_tool_count(), " default tools")
 
 func register_tool(tool_name: String, schema: Dictionary) -> bool:

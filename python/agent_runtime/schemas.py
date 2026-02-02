@@ -102,6 +102,48 @@ class WorldObject:
 
 
 @dataclass
+class ExperienceEvent:
+    """A significant event the agent experienced.
+
+    Used by SpatialMemory to track collisions, damage, and other
+    experiences so the LLM can learn from past mistakes.
+    """
+
+    tick: int
+    event_type: str  # "collision", "damage", "trapped", "collected"
+    description: str
+    position: tuple[float, float, float]
+    object_name: str | None = None
+    damage_taken: float = 0.0
+    metadata: dict = field(default_factory=dict)
+
+    def to_dict(self) -> dict:
+        """Convert to dictionary."""
+        return {
+            "tick": self.tick,
+            "event_type": self.event_type,
+            "description": self.description,
+            "position": list(self.position),
+            "object_name": self.object_name,
+            "damage_taken": self.damage_taken,
+            "metadata": self.metadata,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "ExperienceEvent":
+        """Create from dictionary."""
+        return cls(
+            tick=data["tick"],
+            event_type=data["event_type"],
+            description=data["description"],
+            position=tuple(data["position"]),
+            object_name=data.get("object_name"),
+            damage_taken=data.get("damage_taken", 0.0),
+            metadata=data.get("metadata", {}),
+        )
+
+
+@dataclass
 class EntityInfo:
     """Information about a visible entity."""
 
@@ -131,6 +173,67 @@ class HazardInfo:
     position: tuple[float, float, float]
     distance: float
     damage: float = 0.0
+
+
+@dataclass
+class ExploreTarget:
+    """A potential exploration target."""
+
+    direction: str  # "north", "south", "east", "west", etc.
+    distance: float
+    position: tuple[float, float, float]
+
+
+@dataclass
+class ExplorationInfo:
+    """Information about world exploration status.
+
+    Tracks what percentage of the world the agent has seen and
+    provides information about unexplored frontiers.
+    """
+
+    exploration_percentage: float  # 0-100
+    total_cells: int
+    seen_cells: int
+    frontiers_by_direction: dict[str, float]  # direction -> distance to nearest frontier
+    explore_targets: list[ExploreTarget] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "ExplorationInfo":
+        """Create from dictionary."""
+        targets = []
+        for t in data.get("explore_targets", []):
+            targets.append(
+                ExploreTarget(
+                    direction=t["direction"],
+                    distance=t["distance"],
+                    position=tuple(t["position"]),
+                )
+            )
+        return cls(
+            exploration_percentage=data.get("exploration_percentage", 0.0),
+            total_cells=data.get("total_cells", 0),
+            seen_cells=data.get("seen_cells", 0),
+            frontiers_by_direction=data.get("frontiers_by_direction", {}),
+            explore_targets=targets,
+        )
+
+    def to_dict(self) -> dict:
+        """Convert to dictionary."""
+        return {
+            "exploration_percentage": self.exploration_percentage,
+            "total_cells": self.total_cells,
+            "seen_cells": self.seen_cells,
+            "frontiers_by_direction": self.frontiers_by_direction,
+            "explore_targets": [
+                {
+                    "direction": t.direction,
+                    "distance": t.distance,
+                    "position": list(t.position),
+                }
+                for t in self.explore_targets
+            ],
+        }
 
 
 @dataclass
@@ -212,6 +315,7 @@ class Observation:
     inventory: list[ItemInfo] = field(default_factory=list)
     health: float = 100.0
     energy: float = 100.0
+    exploration: ExplorationInfo | None = None  # World exploration status
     custom: dict = field(default_factory=dict)
 
     @classmethod
@@ -308,6 +412,11 @@ class Observation:
                 )
             )
 
+        # Parse exploration data
+        exploration = None
+        if "exploration" in data and data["exploration"]:
+            exploration = ExplorationInfo.from_dict(data["exploration"])
+
         return cls(
             agent_id=data["agent_id"],
             tick=data["tick"],
@@ -320,6 +429,7 @@ class Observation:
             inventory=inventory,
             health=data.get("health", 100.0),
             energy=data.get("energy", 100.0),
+            exploration=exploration,
             custom=data.get("custom", {}),
         )
 
@@ -375,6 +485,7 @@ class Observation:
             ],
             "health": self.health,
             "energy": self.energy,
+            "exploration": self.exploration.to_dict() if self.exploration else None,
             "custom": self.custom,
         }
 

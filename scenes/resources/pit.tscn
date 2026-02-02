@@ -1,6 +1,6 @@
 [gd_scene load_steps=4 format=3 uid="uid://bbgca5y0d2287"]
 
-[ext_resource type="Script" path="res://scripts/resources/pit.gd" id="1_pit"]
+[ext_resource type="Script" path="res://scripts/hazards/pit.gd" id="1_pit"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_pit"]
 albedo_color = Color(0.3, 0.2, 0.15, 1)
@@ -17,6 +17,8 @@ radius = 0.6
 height = 0.3
 
 [node name="Pit" type="Area3D"]
+collision_layer = 4
+collision_mask = 8
 script = ExtResource("1_pit")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="."]

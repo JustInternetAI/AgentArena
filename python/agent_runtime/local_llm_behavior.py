@@ -326,6 +326,60 @@ class LocalLLMBehavior(AgentBehavior):
                         f"~{dist:.1f} units away, damage: {obj.damage}"
                     )
 
+        # Recent Experiences (collisions, damage, traps)
+        # Note: Always access world_map - it's lazy-loaded and always returns a valid instance.
+        # Don't use truthiness check as SpatialMemory.__len__ returns object count which may be 0.
+        experiences = self.world_map.get_recent_experiences(limit=5)
+        if experiences:
+            sections.append("\n## Recent Experiences")
+            for exp in experiences:
+                if exp.event_type == "collision":
+                    sections.append(
+                        f"- Tick {exp.tick}: Movement BLOCKED by {exp.object_name} "
+                        f"at position {exp.position}"
+                    )
+                elif exp.event_type == "damage":
+                    sections.append(
+                        f"- Tick {exp.tick}: Took {exp.damage_taken:.1f} damage from "
+                        f"{exp.object_name} at {exp.position}"
+                    )
+                elif exp.event_type == "trapped":
+                    ticks_trapped = exp.metadata.get("trap_duration", "?")
+                    sections.append(
+                        f"- Tick {exp.tick}: TRAPPED by {exp.object_name}! "
+                        f"Lost {ticks_trapped} ticks"
+                    )
+
+        # Known Obstacles from collisions
+        obstacles = self.world_map.query_by_type("obstacle")
+        if obstacles:
+            sections.append("\n## Known Obstacles (from collisions)")
+            for obstacle in obstacles[:5]:
+                sections.append(f"- {obstacle.name} at {obstacle.position}")
+
+        # Exploration Status
+        if observation.exploration:
+            exploration = observation.exploration
+            sections.append("\n## Exploration Status")
+            sections.append(f"Area explored: {exploration.exploration_percentage:.1f}%")
+
+            if exploration.frontiers_by_direction:
+                sections.append("Unexplored frontiers:")
+                # Sort by distance (nearest first)
+                sorted_frontiers = sorted(
+                    exploration.frontiers_by_direction.items(), key=lambda x: x[1]
+                )
+                for direction, distance in sorted_frontiers[:5]:
+                    sections.append(f"- {direction.upper()}: {distance:.1f} units away")
+
+            if exploration.explore_targets:
+                sections.append("\nSuggested exploration targets:")
+                for target in exploration.explore_targets[:3]:
+                    sections.append(
+                        f"- {target.direction.upper()}: position {target.position}, "
+                        f"{target.distance:.1f} units away"
+                    )
+
         # Inventory
         if observation.inventory:
             sections.append("\n## Inventory")
@@ -361,9 +415,11 @@ class LocalLLMBehavior(AgentBehavior):
 
         Clears memory to start fresh. If tracing is enabled, starts a new trace episode.
         """
-        super().on_episode_start()  # Handle trace episode start
+        super().on_episode_start()  # Handle trace episode start and world_map clearing
         logger.info("Episode started, clearing memory")
         self.memory.clear()
+        # Note: world_map clearing is handled by super().on_episode_start()
+        # which checks _world_map is not None (avoiding SpatialMemory truthiness issue)
 
     def on_episode_end(self, success: bool, metrics: dict | None = None) -> None:
         """

@@ -32,9 +32,16 @@ var perception_radius: float = 50.0  # Max distance agent can perceive objects
 var line_of_sight_enabled: bool = true  # Set to false to disable LOS checks (x-ray vision)
 var los_collision_mask: int = 2  # Collision layer for obstacles that block vision
 
-# Debug: Observation logging (press F9 to toggle, F10 for verbose mode)
+# Exploration tracking
+var visibility_tracker: VisibilityTracker = null
+var exploration_enabled: bool = true  # Set to false to disable exploration tracking
+var world_bounds_min: Vector2 = Vector2(-25, -25)  # Override in subclass for different world sizes
+var world_bounds_max: Vector2 = Vector2(25, 25)
+
+# Debug: Observation logging (press F9 to toggle, F10 for verbose mode, F11 for exploration overlay)
 var debug_observations: bool = false  # Enable to log observations each tick
 var debug_observations_verbose: bool = false  # Show full observation details
+var debug_exploration_overlay: bool = false  # Show exploration grid overlay
 var _last_observation_cache: Dictionary = {}  # For change detection
 
 # Metrics
@@ -66,6 +73,10 @@ func _ready():
 	_discover_agents()
 
 	print("✓ SceneController discovered %d agent(s)" % agents.size())
+
+	# Setup exploration tracking
+	if exploration_enabled:
+		_setup_visibility_tracker()
 
 	# Setup backend communication
 	_setup_backend_communication()
@@ -131,14 +142,16 @@ func _create_agent_visual(agent_node: Node, agent_data: Dictionary):
 	if existing_visual == null:
 		existing_visual = agent_node.get_node_or_null("MixamoAgentVisual")
 
+	# Calculate common values
+	var team_color = _get_team_color(agent_data.team)
+	var agent_display_name = agent_data.id if agent_data.team == "single" else "%s_%s" % [agent_data.team, agent_data.id]
+
 	if existing_visual != null:
 		# Visual already exists in scene, just configure it
-		var color = _get_team_color(agent_data.team)
 		if existing_visual.has_method("set_team_color"):
-			existing_visual.set_team_color(color)
-		var display_name = agent_data.id if agent_data.team == "single" else "%s_%s" % [agent_data.team, agent_data.id]
+			existing_visual.set_team_color(team_color)
 		if existing_visual.has_method("set_agent_name"):
-			existing_visual.set_agent_name(display_name)
+			existing_visual.set_agent_name(agent_display_name)
 		return
 
 	# Create new visual at runtime (fallback for dynamically created agents)
@@ -153,14 +166,12 @@ func _create_agent_visual(agent_node: Node, agent_data: Dictionary):
 	agent_node.add_child(visual_instance)
 
 	# Set team color
-	var color = _get_team_color(agent_data.team)
 	if visual_instance.has_method("set_team_color"):
-		visual_instance.set_team_color(color)
+		visual_instance.set_team_color(team_color)
 
 	# Set agent name
-	var display_name = agent_data.id if agent_data.team == "single" else "%s_%s" % [agent_data.team, agent_data.id]
 	if visual_instance.has_method("set_agent_name"):
-		visual_instance.set_agent_name(display_name)
+		visual_instance.set_agent_name(agent_display_name)
 
 func _get_team_color(team: String) -> Color:
 	"""Get color for team"""
@@ -187,6 +198,10 @@ func _on_tick_advanced(tick: int):
 	# Update agent positions
 	for agent_data in agents:
 		agent_data.position = agent_data.agent.global_position
+
+	# Update exploration tracking for each agent
+	for agent_data in agents:
+		_update_exploration(agent_data)
 
 	# Send perception to each agent
 	for agent_data in agents:
@@ -215,7 +230,7 @@ func _on_scene_stopped():
 	"""Override: Called when simulation stops"""
 	pass
 
-func _on_scene_tick(tick: int):
+func _on_scene_tick(_tick: int):
 	"""Override: Called each simulation tick after observations sent
 
 	Base implementation requests backend decision. Override in subclass
@@ -341,6 +356,8 @@ func _unhandled_input(event):
 		elif event.keycode == KEY_F10:
 			debug_observations_verbose = not debug_observations_verbose
 			print("[DEBUG] Verbose mode: %s" % ("ON" if debug_observations_verbose else "OFF"))
+		elif event.keycode == KEY_F11:
+			_toggle_exploration_overlay()
 
 func _log_observation_debug(agent_data: Dictionary, observations: Dictionary, tick: int):
 	"""Log observation data for debugging LOS and visibility."""
@@ -370,21 +387,21 @@ func _log_observation_debug(agent_data: Dictionary, observations: Dictionary, ti
 	var gained_hazards = []
 	var lost_hazards = []
 
-	for name in current_resources:
-		if name not in prev_resources:
-			gained_resources.append(name)
+	for obj_name in current_resources:
+		if obj_name not in prev_resources:
+			gained_resources.append(obj_name)
 
-	for name in prev_resources:
-		if name not in current_resources:
-			lost_resources.append(name)
+	for obj_name in prev_resources:
+		if obj_name not in current_resources:
+			lost_resources.append(obj_name)
 
-	for name in current_hazards:
-		if name not in prev_hazards:
-			gained_hazards.append(name)
+	for obj_name in current_hazards:
+		if obj_name not in prev_hazards:
+			gained_hazards.append(obj_name)
 
-	for name in prev_hazards:
-		if name not in current_hazards:
-			lost_hazards.append(name)
+	for obj_name in prev_hazards:
+		if obj_name not in current_hazards:
+			lost_hazards.append(obj_name)
 
 	# Update cache
 	_last_observation_cache[agent_id] = {
@@ -426,6 +443,128 @@ func disable_observation_debug():
 	"""Programmatically disable observation debugging."""
 	debug_observations = false
 	print("[DEBUG] Observation logging disabled")
+
+## Exploration tracking
+
+func _setup_visibility_tracker():
+	"""Initialize visibility tracker for exploration."""
+	visibility_tracker = VisibilityTracker.new()
+	visibility_tracker.name = "VisibilityTracker"
+	visibility_tracker.cell_size = 2.0  # 2 meter cells
+	visibility_tracker.use_raycasting = line_of_sight_enabled
+	add_child(visibility_tracker)
+
+	# Set world bounds
+	visibility_tracker.set_world_bounds(world_bounds_min, world_bounds_max)
+	visibility_tracker.set_los_collision_mask(los_collision_mask)
+
+	print("✓ VisibilityTracker initialized (bounds: %s to %s)" % [world_bounds_min, world_bounds_max])
+
+func _update_exploration(agent_data: Dictionary):
+	"""Update exploration tracking for an agent."""
+	if visibility_tracker and exploration_enabled:
+		visibility_tracker.update_visibility(
+			agent_data.position,
+			perception_radius,
+			agent_data.agent
+		)
+
+func get_exploration_summary(agent_pos: Vector3) -> Dictionary:
+	"""Get exploration summary for an agent position."""
+	if visibility_tracker and exploration_enabled:
+		return visibility_tracker.get_exploration_summary(agent_pos)
+	return {}
+
+func reset_exploration():
+	"""Reset exploration tracking (call on scene reset)."""
+	if visibility_tracker:
+		visibility_tracker.clear()
+
+func _toggle_exploration_overlay():
+	"""Toggle the exploration debug overlay."""
+	if visibility_tracker:
+		debug_exploration_overlay = visibility_tracker.toggle_debug_visualization()
+		print("[DEBUG] Exploration overlay: %s (%.1f%% explored)" % [
+			"ON" if debug_exploration_overlay else "OFF",
+			visibility_tracker._exploration_percentage
+		])
+	else:
+		print("[DEBUG] Exploration overlay not available (no VisibilityTracker)")
+
+func set_exploration_overlay(enabled: bool):
+	"""Programmatically enable/disable exploration overlay."""
+	if visibility_tracker:
+		visibility_tracker.set_debug_visualization(enabled)
+		debug_exploration_overlay = enabled
+
+## Navigation query methods
+
+func query_plan_path(from_pos: Vector3, to_pos: Vector3, avoid_hazards: bool = true) -> Dictionary:
+	"""Query path planning using Godot's NavigationServer3D."""
+	var nav_map = NavigationServer3D.get_maps()[0] if NavigationServer3D.get_maps().size() > 0 else RID()
+	if not nav_map.is_valid():
+		return {
+			"success": false,
+			"blocked": true,
+			"reason": "No navigation map available"
+		}
+
+	# Get path from NavigationServer3D
+	var path = NavigationServer3D.map_get_path(nav_map, from_pos, to_pos, true)
+
+	if path.size() == 0:
+		return {
+			"success": false,
+			"blocked": true,
+			"reason": "No path found to target"
+		}
+
+	# Calculate total distance
+	var total_distance = 0.0
+	for i in range(path.size() - 1):
+		total_distance += path[i].distance_to(path[i + 1])
+
+	# Convert path to array of arrays for JSON serialization
+	var waypoints = []
+	for point in path:
+		waypoints.append([point.x, point.y, point.z])
+
+	return {
+		"success": true,
+		"waypoints": waypoints,
+		"distance": total_distance,
+		"blocked": false,
+		"avoid_hazards": avoid_hazards
+	}
+
+func query_explore_direction(agent_pos: Vector3, direction: String) -> Dictionary:
+	"""Get exploration target in a specific direction."""
+	if not visibility_tracker or not exploration_enabled:
+		return {
+			"success": false,
+			"has_unexplored": false,
+			"reason": "Exploration tracking not enabled"
+		}
+
+	return visibility_tracker.get_unexplored_position_in_direction(agent_pos, direction)
+
+func query_exploration_status(agent_pos: Vector3) -> Dictionary:
+	"""Get current exploration status."""
+	if not visibility_tracker or not exploration_enabled:
+		return {
+			"success": false,
+			"exploration_percentage": 0.0,
+			"frontiers": {},
+			"suggested_targets": []
+		}
+
+	var summary = visibility_tracker.get_exploration_summary(agent_pos)
+	return {
+		"success": true,
+		"exploration_percentage": summary.get("exploration_percentage", 0.0),
+		"frontiers": summary.get("frontiers_by_direction", {}),
+		"suggested_targets": summary.get("explore_targets", [])
+	}
 
 ## Backend decision communication
 
@@ -495,6 +634,8 @@ func _convert_observation_to_backend_format(agent_data: Dictionary, observation:
 		"agent_id": agent_data.id,
 		"tick": observation.get("tick", simulation_manager.current_tick),
 		"position": [observation.position.x, observation.position.y, observation.position.z] if observation.has("position") and observation.position is Vector3 else observation.get("position", [0, 0, 0]),
+		"health": observation.get("health", 100.0),
+		"max_health": observation.get("max_health", 100.0),
 		"nearby_resources": [],
 		"nearby_hazards": []
 	}
@@ -529,15 +670,21 @@ func _convert_observation_to_backend_format(agent_data: Dictionary, observation:
 				haz_dict["position"] = hazard.position
 			backend_obs.nearby_hazards.append(haz_dict)
 
+	# Add exploration data if tracking is enabled
+	if exploration_enabled and visibility_tracker:
+		var agent_pos = agent_data.position
+		var exploration = get_exploration_summary(agent_pos)
+		backend_obs["exploration"] = exploration
+
 	return backend_obs
 
 func _on_decision_received(response: Array):
 	"""Handle decision response from backend"""
 	waiting_for_decision = false
 
-	var result_code = response[0]
+	var _result_code = response[0]
 	var response_code = response[1]
-	var response_headers = response[2]
+	var _response_headers = response[2]
 	var body = response[3]
 
 	# Parse response

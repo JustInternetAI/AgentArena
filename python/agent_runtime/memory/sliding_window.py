@@ -134,6 +134,22 @@ class SlidingWindowMemory(AgentMemory):
         """
         self._observations.clear()
 
+    def dump(self) -> dict:
+        """
+        Dump full memory state for inspection/debugging.
+
+        Returns:
+            Dictionary containing complete memory state
+        """
+        return {
+            "type": "SlidingWindowMemory",
+            "stats": {
+                "observation_count": len(self._observations),
+                "capacity": self.capacity,
+            },
+            "observations": [obs.to_dict() for obs in self._observations],
+        }
+
     def __len__(self) -> int:
         """
         Get number of observations in memory.
