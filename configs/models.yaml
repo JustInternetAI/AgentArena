@@ -84,6 +84,52 @@ models:
           file: "Meta-Llama-3-8B-Instruct.Q8_0.gguf"
           sha256: null
 
+  # Qwen2.5 models - excellent for structured JSON output
+  qwen2.5-7b-instruct:
+    huggingface_id: "bartowski/Qwen2.5-7B-Instruct-GGUF"
+    description: "Excellent structured output and JSON, great for agents"
+    size_class: "medium"
+    formats:
+      gguf:
+        q4_k_m:
+          file: "Qwen2.5-7B-Instruct-Q4_K_M.gguf"
+          sha256: null
+        q5_k_m:
+          file: "Qwen2.5-7B-Instruct-Q5_K_M.gguf"
+          sha256: null
+        q8_0:
+          file: "Qwen2.5-7B-Instruct-Q8_0.gguf"
+          sha256: null
+
+  qwen2.5-14b-instruct:
+    huggingface_id: "bartowski/Qwen2.5-14B-Instruct-GGUF"
+    description: "Higher quality Qwen, excellent reasoning and JSON output"
+    size_class: "large"
+    formats:
+      gguf:
+        q4_k_m:
+          file: "Qwen2.5-14B-Instruct-Q4_K_M.gguf"
+          sha256: null
+        q5_k_m:
+          file: "Qwen2.5-14B-Instruct-Q5_K_M.gguf"
+          sha256: null
+        q8_0:
+          file: "Qwen2.5-14B-Instruct-Q8_0.gguf"
+          sha256: null
+
+  qwen2.5-32b-instruct:
+    huggingface_id: "bartowski/Qwen2.5-32B-Instruct-GGUF"
+    description: "Top tier Qwen, best quality for complex reasoning"
+    size_class: "xlarge"
+    formats:
+      gguf:
+        q4_k_m:
+          file: "Qwen2.5-32B-Instruct-Q4_K_M.gguf"
+          sha256: null
+        q5_k_m:
+          file: "Qwen2.5-32B-Instruct-Q5_K_M.gguf"
+          sha256: null
+
   # Larger models for high quality
   llama-2-13b-chat:
     huggingface_id: "TheBloke/Llama-2-13B-Chat-GGUF"

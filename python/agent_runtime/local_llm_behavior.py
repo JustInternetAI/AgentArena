@@ -10,15 +10,11 @@ uses in-process GPU-accelerated inference via BaseBackend implementations.
 """
 
 import logging
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from .behavior import AgentBehavior
 from .memory import SlidingWindowMemory
 from .schemas import AgentDecision, Observation, ToolSchema
-from .reasoning_trace import TraceStore, TraceStepName, get_global_trace_store
-
-# Backwards compatibility
-from .reasoning_trace import PromptInspector, InspectorStage, get_global_inspector
 
 if TYPE_CHECKING:
     from backends.base import BaseBackend
@@ -61,8 +57,7 @@ class LocalLLMBehavior(AgentBehavior):
         system_prompt: str = "You are an autonomous agent in a simulation environment.",
         memory_capacity: int = 10,
         temperature: float = 0.7,
-        max_tokens: int = 256,
-        inspector: Optional[PromptInspector] = None,
+        max_tokens: int = 512,
     ):
         """
         Initialize the local LLM behavior.
@@ -73,14 +68,12 @@ class LocalLLMBehavior(AgentBehavior):
             memory_capacity: Number of recent observations to keep in memory
             temperature: Temperature for generation (0-1)
             max_tokens: Maximum tokens to generate per decision
-            inspector: Optional PromptInspector for debugging (uses global if None)
         """
         self.backend = backend
         self.system_prompt = system_prompt
         self.memory = SlidingWindowMemory(capacity=memory_capacity)
         self.temperature = temperature
         self.max_tokens = max_tokens
-        self.inspector = inspector or get_global_inspector()
 
         # Validate backend is available
         if not self.backend.is_available():
@@ -98,6 +91,12 @@ class LocalLLMBehavior(AgentBehavior):
         Constructs a prompt from the system prompt, memory, and current observation,
         then calls the backend's generate_with_tools() method to get a decision.
 
+        If tracing is enabled (via enable_tracing()), each step is automatically logged:
+        - observation: The input observation
+        - prompt: The constructed prompt
+        - llm_response: The raw LLM response
+        - decision: The parsed decision
+
         Args:
             observation: Current tick's observation from Godot
             tools: List of available tools with their schemas
@@ -105,66 +104,35 @@ class LocalLLMBehavior(AgentBehavior):
         Returns:
             AgentDecision specifying which tool to call and with what parameters
         """
-        # Start trace capture
-        capture = self.inspector.start_capture(observation.agent_id, observation.tick)
-        self._current_trace = capture  # Enable log_step() calls
-
         try:
             # Store observation in memory
             self.memory.store(observation)
 
-            # Capture observation stage
-            if capture:
-                capture.add_step(TraceStepName.OBSERVATION, {
+            # Debug: log trace status
+            logger.debug(
+                f"Trace store: {self._trace_store}, agent_id: {self._agent_id}, tick: {self._current_tick}"
+            )
+
+            # Log observation (if tracing enabled)
+            self.log_step(
+                "observation",
+                {
                     "agent_id": observation.agent_id,
                     "tick": observation.tick,
                     "position": observation.position,
                     "health": observation.health,
                     "energy": observation.energy,
-                    "nearby_resources": [
-                        {
-                            "name": r.name,
-                            "type": r.type,
-                            "distance": r.distance,
-                            "position": r.position
-                        }
-                        for r in observation.nearby_resources
-                    ],
-                    "nearby_hazards": [
-                        {
-                            "name": h.name,
-                            "type": h.type,
-                            "distance": h.distance,
-                            "damage": h.damage
-                        }
-                        for h in observation.nearby_hazards
-                    ],
-                    "inventory": [
-                        {"name": item.name, "quantity": item.quantity}
-                        for item in observation.inventory
-                    ]
-                })
+                    "nearby_resources": len(observation.nearby_resources),
+                    "nearby_hazards": len(observation.nearby_hazards),
+                },
+            )
 
             # Build prompt from system prompt, memory, and observation
             prompt = self._build_prompt(observation, tools)
-            logger.debug(f"Prompt length: {len(prompt)} chars (~{len(prompt)//4} tokens)")
+            logger.debug(f"Prompt length: {len(prompt)} chars (~{len(prompt) // 4} tokens)")
 
-            # Capture prompt building stage
-            if capture:
-                memory_items = self.memory.retrieve(limit=5)
-                capture.add_step(TraceStepName.PROMPT_BUILDING, {
-                    "system_prompt": self.system_prompt,
-                    "memory_context": {
-                        "count": len(memory_items),
-                        "items": [
-                            {"tick": obs.tick, "position": obs.position}
-                            for obs in memory_items
-                        ]
-                    },
-                    "final_prompt": prompt,
-                    "prompt_length": len(prompt),
-                    "estimated_tokens": len(prompt) // 4
-                })
+            # Log prompt (if tracing enabled)
+            self.log_step("prompt", prompt)
 
             # Convert tools to dict format for backend
             tool_dicts = [
@@ -176,16 +144,6 @@ class LocalLLMBehavior(AgentBehavior):
                 for tool in tools
             ]
 
-            # Capture LLM request stage
-            if capture:
-                capture.add_step(TraceStepName.LLM_REQUEST, {
-                    "model": getattr(self.backend, 'model_name', 'unknown'),
-                    "prompt": prompt,
-                    "tools": tool_dicts,
-                    "temperature": self.temperature,
-                    "max_tokens": self.max_tokens
-                })
-
             # Generate response using backend
             import time
 
@@ -196,39 +154,26 @@ class LocalLLMBehavior(AgentBehavior):
             )
             elapsed_ms = (time.time() - start_time) * 1000
 
-            # Capture LLM response stage
-            if capture:
-                capture.add_step(TraceStepName.LLM_RESPONSE, {
-                    "raw_text": result.text,
-                    "tokens_used": result.tokens_used,
-                    "finish_reason": result.finish_reason,
-                    "metadata": result.metadata,
-                    "latency_ms": elapsed_ms
-                })
-
             # Check for generation errors
             if result.finish_reason == "error":
                 error_msg = result.metadata.get("error", "Unknown error")
                 logger.error(f"LLM generation error: {error_msg}")
-                decision = AgentDecision.idle(reasoning=f"LLM error: {error_msg}")
-
-                # Capture error decision
-                if capture:
-                    capture.add_step(TraceStepName.DECISION, {
-                        "tool": decision.tool,
-                        "params": decision.params,
-                        "reasoning": decision.reasoning,
-                        "total_latency_ms": elapsed_ms,
-                        "error": error_msg
-                    })
-
-                self.inspector.finish_capture(observation.agent_id, observation.tick)
-                self._current_trace = None  # Clear for next decision
-                return decision
+                return AgentDecision.idle(reasoning=f"LLM error: {error_msg}")
 
             # Debug: log token usage and raw response
             logger.debug(f"Tokens used: {result.tokens_used}")
             logger.debug(f"Raw LLM response: {result.text[:500] if result.text else '(empty)'}")
+
+            # Log LLM response (if tracing enabled)
+            self.log_step(
+                "llm_response",
+                {
+                    "text": result.text,
+                    "tokens_used": result.tokens_used,
+                    "finish_reason": result.finish_reason,
+                    "elapsed_ms": elapsed_ms,
+                },
+            )
 
             # Try to parse from metadata first (pre-parsed by backend)
             if "parsed_tool_call" in result.metadata:
@@ -255,40 +200,25 @@ class LocalLLMBehavior(AgentBehavior):
                     logger.debug(f"Raw response: {result.text}")
                     decision = AgentDecision.idle(reasoning=f"Parse error: {e}")
 
-            # Capture final decision stage
-            if capture:
-                capture.add_step(TraceStepName.DECISION, {
-                    "tool": decision.tool,
-                    "params": decision.params,
-                    "reasoning": decision.reasoning,
-                    "total_latency_ms": elapsed_ms
-                })
-
             logger.info(
                 f"Agent {observation.agent_id} decided: {decision.tool} - {decision.reasoning} "
                 f"(LLM took {elapsed_ms:.0f}ms, {result.tokens_used} tokens)"
             )
 
-            # Finish capture and optionally write to file
-            self.inspector.finish_capture(observation.agent_id, observation.tick)
-            self._current_trace = None  # Clear for next decision
+            # Log decision (if tracing enabled)
+            self.log_step(
+                "decision",
+                {
+                    "tool": decision.tool,
+                    "params": decision.params,
+                    "reasoning": decision.reasoning,
+                },
+            )
 
             return decision
 
         except Exception as e:
             logger.error(f"Error in LocalLLMBehavior.decide(): {e}", exc_info=True)
-
-            # Capture error in inspector
-            if capture:
-                capture.add_step(TraceStepName.DECISION, {
-                    "tool": "idle",
-                    "params": {},
-                    "reasoning": f"Error: {e}",
-                    "error": str(e)
-                })
-                self.inspector.finish_capture(observation.agent_id, observation.tick)
-                self._current_trace = None  # Clear for next decision
-
             return AgentDecision.idle(reasoning=f"Error: {e}")
 
     def _build_prompt(self, observation: Observation, tools: list[ToolSchema]) -> str:
@@ -331,6 +261,14 @@ class LocalLLMBehavior(AgentBehavior):
         sections.append(f"Energy: {observation.energy}")
         sections.append(f"Tick: {observation.tick}")
 
+        # Add analysis hints (but let LLM reason)
+        danger_hazards = [h for h in observation.nearby_hazards if h.distance < 2.0]
+        collect_resources = [r for r in observation.nearby_resources if r.distance < 1.0]
+
+        sections.append("\n## Quick Analysis")
+        sections.append(f"Hazards in danger zone (< 2.0): {len(danger_hazards)}")
+        sections.append(f"Resources in collection range (< 1.0): {len(collect_resources)}")
+
         # Nearby resources
         if observation.nearby_resources:
             sections.append("\n## Nearby Resources")
@@ -354,6 +292,94 @@ class LocalLLMBehavior(AgentBehavior):
         else:
             sections.append("\n## Nearby Hazards\nNone visible")
 
+        # Remembered objects from world_map (out of sight but known)
+        visible_names = {r.name for r in observation.nearby_resources}
+        visible_names.update(h.name for h in observation.nearby_hazards)
+
+        remembered_resources = [
+            obj for obj in self.world_map.get_resources() if obj.name not in visible_names
+        ]
+        remembered_hazards = [
+            obj for obj in self.world_map.get_hazards() if obj.name not in visible_names
+        ]
+
+        if remembered_resources or remembered_hazards:
+            sections.append("\n## Remembered Objects (out of sight)")
+            if remembered_resources:
+                # Sort by distance from current position
+                remembered_resources.sort(key=lambda obj: obj.distance_to(observation.position))
+                sections.append("Resources:")
+                for obj in remembered_resources[:5]:
+                    dist = obj.distance_to(observation.position)
+                    stale = observation.tick - obj.last_seen_tick
+                    sections.append(
+                        f"- {obj.name} ({obj.subtype}) at position {obj.position}, "
+                        f"~{dist:.1f} units away (last seen {stale} ticks ago)"
+                    )
+            if remembered_hazards:
+                remembered_hazards.sort(key=lambda obj: obj.distance_to(observation.position))
+                sections.append("Hazards:")
+                for obj in remembered_hazards[:3]:
+                    dist = obj.distance_to(observation.position)
+                    sections.append(
+                        f"- {obj.name} ({obj.subtype}) at position {obj.position}, "
+                        f"~{dist:.1f} units away, damage: {obj.damage}"
+                    )
+
+        # Recent Experiences (collisions, damage, traps)
+        # Note: Always access world_map - it's lazy-loaded and always returns a valid instance.
+        # Don't use truthiness check as SpatialMemory.__len__ returns object count which may be 0.
+        experiences = self.world_map.get_recent_experiences(limit=5)
+        if experiences:
+            sections.append("\n## Recent Experiences")
+            for exp in experiences:
+                if exp.event_type == "collision":
+                    sections.append(
+                        f"- Tick {exp.tick}: Movement BLOCKED by {exp.object_name} "
+                        f"at position {exp.position}"
+                    )
+                elif exp.event_type == "damage":
+                    sections.append(
+                        f"- Tick {exp.tick}: Took {exp.damage_taken:.1f} damage from "
+                        f"{exp.object_name} at {exp.position}"
+                    )
+                elif exp.event_type == "trapped":
+                    ticks_trapped = exp.metadata.get("trap_duration", "?")
+                    sections.append(
+                        f"- Tick {exp.tick}: TRAPPED by {exp.object_name}! "
+                        f"Lost {ticks_trapped} ticks"
+                    )
+
+        # Known Obstacles from collisions
+        obstacles = self.world_map.query_by_type("obstacle")
+        if obstacles:
+            sections.append("\n## Known Obstacles (from collisions)")
+            for obstacle in obstacles[:5]:
+                sections.append(f"- {obstacle.name} at {obstacle.position}")
+
+        # Exploration Status
+        if observation.exploration:
+            exploration = observation.exploration
+            sections.append("\n## Exploration Status")
+            sections.append(f"Area explored: {exploration.exploration_percentage:.1f}%")
+
+            if exploration.frontiers_by_direction:
+                sections.append("Unexplored frontiers:")
+                # Sort by distance (nearest first)
+                sorted_frontiers = sorted(
+                    exploration.frontiers_by_direction.items(), key=lambda x: x[1]
+                )
+                for direction, distance in sorted_frontiers[:5]:
+                    sections.append(f"- {direction.upper()}: {distance:.1f} units away")
+
+            if exploration.explore_targets:
+                sections.append("\nSuggested exploration targets:")
+                for target in exploration.explore_targets[:3]:
+                    sections.append(
+                        f"- {target.direction.upper()}: position {target.position}, "
+                        f"{target.distance:.1f} units away"
+                    )
+
         # Inventory
         if observation.inventory:
             sections.append("\n## Inventory")
@@ -362,10 +388,12 @@ class LocalLLMBehavior(AgentBehavior):
         else:
             sections.append("\n## Inventory\nEmpty")
 
-        # Add instruction for response format
-        sections.append("\n## Instructions")
-        sections.append("Based on the current situation, decide what action to take.")
-        sections.append("Consider your goals, nearby resources, and any hazards.")
+        # Add instruction for response format (CoT)
+        sections.append("\n## Your Task")
+        sections.append(
+            "Follow the RESPONSE FORMAT from your instructions. "
+            "Show your THINKING step by step, then output your ACTION as JSON."
+        )
 
         return "\n".join(sections)
 
@@ -385,10 +413,13 @@ class LocalLLMBehavior(AgentBehavior):
         """
         Called when a new episode begins.
 
-        Clears memory to start fresh.
+        Clears memory to start fresh. If tracing is enabled, starts a new trace episode.
         """
+        super().on_episode_start()  # Handle trace episode start and world_map clearing
         logger.info("Episode started, clearing memory")
         self.memory.clear()
+        # Note: world_map clearing is handled by super().on_episode_start()
+        # which checks _world_map is not None (avoiding SpatialMemory truthiness issue)
 
     def on_episode_end(self, success: bool, metrics: dict | None = None) -> None:
         """
@@ -398,9 +429,10 @@ class LocalLLMBehavior(AgentBehavior):
             success: Whether the episode goal was achieved
             metrics: Optional metrics from the scenario
         """
-        logger.info(f"Episode ended: success={success}, " f"observations_stored={len(self.memory)}")
+        logger.info(f"Episode ended: success={success}, observations_stored={len(self.memory)}")
         if metrics:
             logger.info(f"Episode metrics: {metrics}")
+        super().on_episode_end(success, metrics)  # Handle trace episode end
 
 
 def create_local_llm_behavior(

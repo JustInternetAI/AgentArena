@@ -78,6 +78,20 @@ class AgentMemory(ABC):
         """
         pass
 
+    @abstractmethod
+    def dump(self) -> dict:
+        """
+        Dump full memory state for inspection/debugging.
+
+        Returns a dictionary containing the complete memory state that can be
+        serialized to JSON for analysis. This is useful for debugging agent
+        behavior and understanding what the agent "remembers".
+
+        Returns:
+            Dictionary containing complete memory state
+        """
+        pass
+
     def __len__(self) -> int:
         """
         Get number of observations in memory.

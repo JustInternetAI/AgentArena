@@ -25,6 +25,10 @@ var _target_position: Vector3 = Vector3.ZERO
 var _is_moving: bool = false
 var _movement_speed: float = 1.0
 
+# Collision deduplication - prevent reporting same collision multiple times per tick
+var _reported_collisions_this_tick: Dictionary = {}  # object_name -> true
+var _last_collision_report_tick: int = -1
+
 func _ready():
 	super._ready()  # Call BaseAgent._ready() for ID generation if needed
 
@@ -97,6 +101,35 @@ func call_tool(tool_name: String, parameters: Dictionary = {}) -> Dictionary:
 		print("[SimpleAgent]   - _is_moving: ", _is_moving)
 		print("[SimpleAgent]   - Distance to target: ", global_position.distance_to(_target_position))
 
+	# Handle navigation query tools locally (they need Godot data)
+	if tool_name == "plan_path":
+		var scene_controller = _get_scene_controller()
+		if scene_controller:
+			var target = parameters.get("target_position", [0, 0, 0])
+			var target_vec = Vector3(target[0], target[1], target[2]) if target is Array else target
+			var avoid = parameters.get("avoid_hazards", true)
+			var path_result = scene_controller.query_plan_path(global_position, target_vec, avoid)
+			print("[SimpleAgent] plan_path result: ", path_result)
+			return path_result
+		return {"success": false, "error": "No scene controller"}
+
+	if tool_name == "explore_direction":
+		var scene_controller = _get_scene_controller()
+		if scene_controller:
+			var direction = parameters.get("direction", "north")
+			var explore_result = scene_controller.query_explore_direction(global_position, direction)
+			print("[SimpleAgent] explore_direction result: ", explore_result)
+			return explore_result
+		return {"success": false, "error": "No scene controller"}
+
+	if tool_name == "get_exploration_status":
+		var scene_controller = _get_scene_controller()
+		if scene_controller:
+			var status_result = scene_controller.query_exploration_status(global_position)
+			print("[SimpleAgent] get_exploration_status result: ", status_result)
+			return status_result
+		return {"success": false, "error": "No scene controller"}
+
 	var result = ToolRegistryService.execute_tool(agent_id, tool_name, parameters)
 	print("[SimpleAgent] ToolRegistryService.execute_tool returned: ", result)
 	print("[SimpleAgent] ==== call_tool END ====")
@@ -123,43 +156,130 @@ func send_tick(tick: int, perceptions: Array) -> void:
 
 	IPCService.send_tick(agent_id, tick, perceptions)
 
-func _process(delta):
-	"""Handle movement each frame"""
-	# Debug: Print every 60 frames if moving
-	if _is_moving and Engine.get_process_frames() % 60 == 0:
-		print("[SimpleAgent._process] Frame check - _is_moving=", _is_moving, " pos=", global_position, " target=", _target_position)
+func _physics_process(_delta):
+	"""Handle physics-based movement each frame"""
+	if not _is_moving:
+		velocity = Vector3.ZERO
+		return
 
-	if _is_moving:
-		var distance = global_position.distance_to(_target_position)
+	var distance = global_position.distance_to(_target_position)
 
-		# Stop if close enough (0.1 unit tolerance)
-		if distance < 0.1:
-			print("[SimpleAgent._process] ✓ Reached target! Final position: ", global_position)
-			_is_moving = false
-			global_position = _target_position
-			return
+	# Stop if close enough (0.5 unit tolerance for physics-based movement)
+	if distance < 0.5:
+		print("[SimpleAgent._physics_process] ✓ Reached target! Final position: ", global_position)
+		_is_moving = false
+		velocity = Vector3.ZERO
+		return
 
-		# Move toward target
-		var direction = (_target_position - global_position).normalized()
-		var move_distance = _movement_speed * move_speed * delta
+	# Calculate movement direction and velocity
+	var direction = (_target_position - global_position).normalized()
+	velocity = direction * _movement_speed * move_speed
 
-		# Debug print every 60 frames (~1 second)
-		if Engine.get_process_frames() % 60 == 0:
-			print("[SimpleAgent._process] Moving...")
-			print("  Current position: ", global_position)
-			print("  Target position: ", _target_position)
-			print("  Distance remaining: ", distance)
-			print("  Direction: ", direction)
-			print("  Move distance this frame: ", move_distance)
-			print("  Effective speed: ", move_distance / delta)
+	# Use move_and_slide for physics-based movement with collision
+	move_and_slide()
 
-		# Don't overshoot the target
-		if move_distance > distance:
-			global_position = _target_position
-			_is_moving = false
-			print("[SimpleAgent._process] ✓ Reached target (overshoot prevention)! Final position: ", global_position)
-		else:
-			global_position += direction * move_distance
+	# Check for collisions after movement
+	if get_slide_collision_count() > 0:
+		for i in range(get_slide_collision_count()):
+			var collision = get_slide_collision(i)
+			_on_collision(collision)
+
+	# Debug print every 60 frames (~1 second)
+	if Engine.get_process_frames() % 60 == 0:
+		print("[SimpleAgent._physics_process] Moving...")
+		print("  Current position: ", global_position)
+		print("  Target position: ", _target_position)
+		print("  Distance remaining: ", distance)
+		print("  Velocity: ", velocity)
+
+func _on_collision(collision: KinematicCollision3D):
+	"""Handle collision with obstacle - emit signal and report to Python backend"""
+	var collider = collision.get_collider()
+	var collision_point = collision.get_position()
+	var collision_normal = collision.get_normal()
+	var collider_name = collider.name if collider else "obstacle"
+	var current_tick = _get_current_tick()
+
+	# Reset collision tracking if tick has changed
+	if current_tick != _last_collision_report_tick:
+		_reported_collisions_this_tick.clear()
+		_last_collision_report_tick = current_tick
+
+	# Skip if we already reported this collision this tick
+	if _reported_collisions_this_tick.has(collider_name):
+		return
+
+	# Mark as reported
+	_reported_collisions_this_tick[collider_name] = true
+
+	print("[SimpleAgent] Collision detected!")
+	print("  Collider: ", collider_name)
+	print("  Position: ", collision_point)
+	print("  Normal: ", collision_normal)
+
+	# Emit signal for scene controller to handle
+	collision_detected.emit(collision)
+
+	# Report to Python backend via IPC
+	_report_experience_to_backend({
+		"agent_id": agent_id,
+		"tick": current_tick,
+		"event_type": "collision",
+		"description": "Movement blocked by " + collider_name,
+		"position": [collision_point.x, collision_point.y, collision_point.z],
+		"object_name": collider_name
+	})
+
+func _report_experience_to_backend(data: Dictionary):
+	"""Send experience event to Python backend."""
+	if not IPCService or not IPCService.is_backend_connected():
+		return
+
+	# Use HTTPRequest for async POST
+	var http = HTTPRequest.new()
+	add_child(http)
+	http.request_completed.connect(_on_experience_reported.bind(http))
+
+	var json = JSON.stringify(data)
+	var headers = ["Content-Type: application/json"]
+	var error = http.request("http://127.0.0.1:5000/experience", headers, HTTPClient.METHOD_POST, json)
+	if error != OK:
+		print("[SimpleAgent] Failed to send experience to backend: ", error)
+		http.queue_free()
+
+func _on_experience_reported(_result, _response_code, _headers, _body, http: HTTPRequest):
+	"""Clean up HTTP request after experience is reported"""
+	http.queue_free()
+
+func _get_current_tick() -> int:
+	"""Get current simulation tick from SimulationManager"""
+	# Try to find SimulationManager in the scene tree
+	var sim_manager = get_tree().root.get_node_or_null("ForagingScene/SimulationManager")
+	if sim_manager and "current_tick" in sim_manager:
+		return sim_manager.current_tick
+	return 0
+
+func _get_scene_controller() -> Node:
+	"""Get reference to the scene controller managing this agent."""
+	# Try common scene controller paths
+	var paths = [
+		"/root/ForagingScene",
+		"/root/Main",
+		"/root/ArenaScene"
+	]
+	for path in paths:
+		var controller = get_tree().root.get_node_or_null(path.trim_prefix("/root/"))
+		if controller and controller.has_method("query_plan_path"):
+			return controller
+
+	# Fallback: search parent nodes
+	var parent = get_parent()
+	while parent:
+		if parent.has_method("query_plan_path"):
+			return parent
+		parent = parent.get_parent()
+
+	return null
 
 # Signal handlers
 func _on_tool_response(response_agent_id: String, tool_name: String, response: Dictionary):

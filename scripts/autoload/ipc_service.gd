@@ -16,7 +16,7 @@ signal tick_response(agent_id: String, response: Dictionary)
 var ipc_client: IPCClient
 var server_url := "http://127.0.0.1:5000"
 var is_ready := false
-var is_connected := false  # Track connection status
+var connection_active := false  # Track connection status
 
 func _ready():
 	print("=== IPCService Initializing ===")
@@ -71,7 +71,7 @@ func execute_tool(agent_id: String, tool_name: String, parameters: Dictionary) -
 	# Execute through IPCClient
 	return ipc_client.execute_tool(tool_name, params_with_agent)
 
-func send_tick(agent_id: String, tick: int, perceptions: Array) -> void:
+func send_tick(_agent_id: String, tick: int, perceptions: Array) -> void:
 	"""Send a tick update for a specific agent"""
 	if not is_ready:
 		push_error("IPCService not ready yet!")
@@ -96,7 +96,7 @@ func _on_ipc_response_received(response: Dictionary):
 	# Check if this is a connection success response (health check)
 	if response.has("status") and (response["status"] == "healthy" or response["status"] == "ok"):
 		print("[IPCService] Connected to Python backend successfully!")
-		is_connected = true
+		connection_active = true
 		connected_to_server.emit()
 		return
 
@@ -117,7 +117,7 @@ func _on_ipc_response_received(response: Dictionary):
 func _on_ipc_connection_failed(error: String):
 	"""Handle connection failure"""
 	push_error("[IPCService] Connection failed: " + error)
-	is_connected = false
+	connection_active = false
 	connection_failed.emit(error)
 
 func _notification(what):

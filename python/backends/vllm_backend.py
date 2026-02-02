@@ -310,7 +310,9 @@ Or if no tool is needed:
             result.metadata["parsed_tool_call"] = parsed
 
         except json.JSONDecodeError:
-            logger.warning("Failed to parse tool call JSON from response")
+            # This is expected for Chain-of-Thought format (THINKING: ... ACTION: ...)
+            # The downstream AgentDecision.from_llm_response() handles CoT parsing
+            logger.debug("Backend JSON parse failed (expected for CoT format)")
             result.metadata["parse_error"] = True
 
         return result

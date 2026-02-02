@@ -27,19 +27,42 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-# Default system prompt for foraging scenario
-FORAGING_SYSTEM_PROMPT = """You are a foraging agent. Output ONLY valid JSON with no additional text.
+# Default system prompt for foraging scenario (Chain-of-Thought enabled)
+FORAGING_SYSTEM_PROMPT = """You are a foraging agent. You MUST reason step-by-step before deciding.
 
-Rules:
-- Avoid hazards (distance < 3.0)
-- Move toward resources
+## AVAILABLE TOOLS
+- move_to: Move toward a position. Params: {"target_position": [x, y, z]}
+- collect: Collect a resource. Params: {"target": "ResourceName"}
+- idle: Wait. Params: {}
 
-Output format:
-{"tool": "move_to", "params": {"target_position": [x, y, z], "speed": 1.5}, "reasoning": "why"}
-OR
-{"tool": "idle", "params": {}, "reasoning": "why"}
+## RULES
+1. DANGER ZONE: distance < 2.0 units. If ANY hazard is in danger zone, MOVE AWAY first.
+2. COLLECTION RANGE: distance < 1.0 units. If a resource is in range, COLLECT it.
+3. Otherwise, MOVE toward the nearest resource.
 
-Output JSON only:"""
+## RESPONSE FORMAT (you MUST follow this exactly)
+
+THINKING:
+- Step 1: List each hazard with its distance. Check: is distance < 2.0?
+- Step 2: If any hazard < 2.0, I must flee. Otherwise continue.
+- Step 3: List each resource with its distance. Check: is distance < 1.0?
+- Step 4: If any resource < 1.0, I should collect it. Otherwise move to nearest.
+- Step 5: State my decision and why.
+
+ACTION:
+{"tool": "tool_name", "params": {...}}
+
+## EXAMPLE
+
+THINKING:
+- Step 1: Hazards: Fire_001 at 5.2 units, Fire_002 at 1.3 units
+- Step 2: Fire_002 (1.3) < 2.0, so I am in DANGER. Must move away!
+- Step 3: Skipping resource check - safety first.
+- Step 4: N/A
+- Step 5: I will move away from Fire_002. It is at [3, 0, 5], I am at [2, 0, 4]. Moving opposite direction.
+
+ACTION:
+{"tool": "move_to", "params": {"target_position": [1, 0, 3]}}"""
 
 
 def main():
@@ -66,8 +89,8 @@ def main():
     parser.add_argument(
         "--max-tokens",
         type=int,
-        default=256,
-        help="Maximum tokens per response",
+        default=512,
+        help="Maximum tokens per response (default 512 for chain-of-thought)",
     )
     parser.add_argument(
         "--host",
@@ -104,6 +127,11 @@ def main():
         default=None,
         help="Custom system prompt (uses default foraging prompt if not provided)",
     )
+    parser.add_argument(
+        "--trace",
+        action="store_true",
+        help="Enable reasoning trace logging (view with: python -m tools.inspect_agent --watch)",
+    )
 
     args = parser.parse_args()
 
@@ -111,6 +139,8 @@ def main():
         logging.getLogger().setLevel(logging.DEBUG)
         # Also enable debug for specific modules
         logging.getLogger("agent_runtime.local_llm_behavior").setLevel(logging.DEBUG)
+        logging.getLogger("agent_runtime.behavior").setLevel(logging.DEBUG)
+        logging.getLogger("agent_runtime.reasoning_trace").setLevel(logging.DEBUG)
         logging.getLogger("backends.llama_cpp_backend").setLevel(logging.DEBUG)
         logging.getLogger("ipc.server").setLevel(logging.DEBUG)
 
@@ -157,6 +187,13 @@ def main():
             max_tokens=args.max_tokens,
         )
         logger.info("  LocalLLMBehavior created")
+
+        # Enable tracing if requested
+        if args.trace:
+            behavior.enable_tracing()
+            logger.info(
+                "  Reasoning trace enabled (view with: python -m tools.inspect_agent --watch)"
+            )
 
         # Create arena and register behavior
         logger.info("Creating AgentArena...")

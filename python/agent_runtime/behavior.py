@@ -11,7 +11,7 @@ BEGINNER TIER: SimpleAgentBehavior
 
 INTERMEDIATE TIER: AgentBehavior
     - User returns AgentDecision with tool, params, and reasoning
-    - User manages memory using built-in SlidingWindowMemory
+    - Built-in world_map (SpatialMemory) for tracking object positions
     - User implements lifecycle hooks (on_episode_start, on_tool_result)
     - Focus: State tracking, explicit parameters, memory patterns
 
@@ -25,11 +25,13 @@ See docs/learners/ for tutorials at each tier.
 """
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Optional
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from .memory.spatial import SpatialMemory
+    from .reasoning_trace import TraceStore
     from .schemas import AgentDecision, Observation, SimpleContext, ToolSchema
-    from .reasoning_trace import ReasoningTrace
 
 
 class AgentBehavior(ABC):
@@ -43,40 +45,202 @@ class AgentBehavior(ABC):
     This is the intermediate tier interface. For beginners, see
     SimpleAgentBehavior. For advanced LLM integration, see LLMAgentBehavior.
 
+    Built-in Features:
+        - world_map: SpatialMemory that automatically tracks all resources,
+          hazards, and entities the agent has seen. Updated each tick.
+        - Tracing support for debugging decision logic.
+
     Example:
         from agent_runtime import AgentBehavior, Observation, AgentDecision, ToolSchema
-        from agent_runtime.memory import SlidingWindowMemory
 
         class MyAgent(AgentBehavior):
-            def __init__(self):
-                self.memory = SlidingWindowMemory(capacity=50)
-
-            def on_episode_start(self):
-                self.memory.clear()
-
             def decide(self, observation: Observation, tools: list[ToolSchema]) -> AgentDecision:
-                self.memory.store(observation)
+                # world_map is automatically updated each tick
+                # Query remembered objects (even those out of sight)
+                remembered = self.world_map.query_near_position(
+                    observation.position, radius=50, object_type="resource"
+                )
 
-                # Find nearest resource
+                # Prefer visible resources, fall back to remembered ones
                 if observation.nearby_resources:
                     target = observation.nearby_resources[0]
-                    if target.distance < 2.0:
-                        return AgentDecision(
-                            tool="collect",
-                            params={"resource_id": target.name},
-                            reasoning=f"Collecting {target.name}"
-                        )
                     return AgentDecision(
                         tool="move_to",
                         params={"target_position": list(target.position)},
-                        reasoning=f"Moving to {target.name}"
+                        reasoning=f"Moving to visible {target.name}"
+                    )
+                elif remembered:
+                    target = remembered[0].obj
+                    return AgentDecision(
+                        tool="move_to",
+                        params={"target_position": list(target.position)},
+                        reasoning=f"Moving to remembered {target.name}"
                     )
 
-                return AgentDecision.idle(reasoning="No resources visible")
+                return AgentDecision.idle(reasoning="No resources known")
     """
 
-    # Reasoning trace support (issue #45)
-    _current_trace: Optional["ReasoningTrace"] = None
+    # Tracing support (set via enable_tracing())
+    _trace_store: "TraceStore | None" = None
+    _agent_id: str | None = None
+    _current_tick: int = 0
+
+    # Spatial memory for world mapping (lazy initialized)
+    _world_map: "SpatialMemory | None" = None
+
+    @property
+    def world_map(self) -> "SpatialMemory":
+        """
+        Spatial memory tracking objects the agent has seen.
+
+        The world_map is automatically updated each tick with resources,
+        hazards, and entities from the current observation. Objects persist
+        in memory even when they go out of line-of-sight.
+
+        Use this to:
+        - Find remembered resources when nothing is visible
+        - Navigate back to known locations
+        - Track which resources have been collected
+        - Build a mental map of the environment
+
+        Example:
+            # Query nearby remembered resources
+            nearby = self.world_map.query_near_position(
+                position=observation.position,
+                radius=30,
+                object_type="resource"
+            )
+
+            # Get all known hazards
+            hazards = self.world_map.get_hazards()
+
+            # Mark a resource as collected
+            self.world_map.mark_collected("Berry1")
+
+            # Get summary for LLM context
+            map_summary = self.world_map.summarize()
+        """
+        if self._world_map is None:
+            from .memory.spatial import SpatialMemory
+
+            self._world_map = SpatialMemory(enable_semantic=False)
+        return self._world_map
+
+    def _update_world_map(self, observation: "Observation") -> None:
+        """Update world map with current observation (called by framework)."""
+        self.world_map.update_from_observation(observation)
+
+    def mark_collected(self, resource_name: str) -> bool:
+        """
+        Mark a resource as collected in the world map.
+
+        Call this when your agent successfully collects a resource
+        so it won't try to navigate back to it.
+
+        Args:
+            resource_name: Name of the collected resource
+
+        Returns:
+            True if resource was found and marked, False otherwise
+
+        Example:
+            # After collecting a resource
+            if result.get("success"):
+                self.mark_collected("Berry1")
+        """
+        return self.world_map.mark_collected(resource_name)
+
+    def enable_tracing(self, traces_dir: Path | str | None = None) -> None:
+        """
+        Enable reasoning trace logging for this agent.
+
+        When enabled, you can call `log_step()` in your decide() method to
+        record each step of the decision process. Traces are stored as JSONL
+        files and can be inspected using the CLI:
+
+            python -m tools.inspect_agent --last-decision
+            python -m tools.inspect_agent --watch
+
+        Args:
+            traces_dir: Directory to store traces (default: ~/.agent_arena/traces)
+
+        Example:
+            agent = MyAgent()
+            agent.enable_tracing()
+            # Now log_step() calls will be recorded
+        """
+        import logging
+
+        from .reasoning_trace import TraceStore
+
+        if traces_dir is not None:
+            self._trace_store = TraceStore(traces_dir)
+        else:
+            self._trace_store = TraceStore.get_instance()
+
+        logging.getLogger(__name__).info(
+            f"Tracing enabled - traces will be saved to: {self._trace_store.traces_dir}"
+        )
+
+    def log_step(self, name: str, data: Any) -> None:
+        """
+        Log a reasoning step for inspection.
+
+        Call this in your decide() method to record key decision steps
+        (memory retrieval, prompt building, LLM response, parsing, etc.).
+
+        Steps are only logged if tracing is enabled via enable_tracing().
+
+        Args:
+            name: Step name (e.g., "observation", "prompt", "response", "decision")
+            data: Step data (any JSON-serializable value, or object with to_dict())
+
+        Example:
+            def decide(self, observation, tools):
+                self.log_step("observation", observation)
+
+                relevant = self.memory.query(observation, k=5)
+                self.log_step("retrieved", relevant)
+
+                prompt = self.build_prompt(observation, tools, relevant)
+                self.log_step("prompt", prompt)
+
+                response = self.complete(prompt)
+                self.log_step("response", response)
+
+                decision = self.parse_response(response, tools)
+                self.log_step("decision", decision)
+
+                return decision
+        """
+        import logging
+
+        if self._trace_store is not None:
+            logging.getLogger(__name__).debug(f"Logging trace step: {name}")
+            self._trace_store.add_step(
+                agent_id=self._agent_id or "unknown",
+                tick=self._current_tick,
+                name=name,
+                data=data,
+            )
+        else:
+            logging.getLogger(__name__).debug(f"Trace store is None, skipping step: {name}")
+
+    def _set_trace_context(self, agent_id: str, tick: int) -> None:
+        """Set the current trace context (called by framework before decide())."""
+        self._agent_id = agent_id
+        self._current_tick = tick
+
+    def _end_trace(self) -> None:
+        """End the current trace (called by framework after decide())."""
+        import logging
+
+        if self._trace_store is not None and self._agent_id is not None:
+            trace = self._trace_store.end_trace(self._agent_id)
+            if trace:
+                logging.getLogger(__name__).debug(
+                    f"Trace ended: {trace.trace_id} with {len(trace.steps)} steps"
+                )
 
     @abstractmethod
     def decide(self, observation: "Observation", tools: list["ToolSchema"]) -> "AgentDecision":
@@ -91,33 +255,6 @@ class AgentBehavior(ABC):
             AgentDecision specifying which tool to call and with what parameters
         """
         pass
-
-    def log_step(self, name: str, data: dict[str, Any], duration_ms: Optional[float] = None) -> None:
-        """
-        Log a reasoning step for debugging and analysis.
-
-        This method integrates with the TraceStore system from issue #45.
-        Call this during decide() to record intermediate reasoning steps.
-
-        Args:
-            name: Step name (e.g., "retrieved", "prompt", "response")
-            data: Arbitrary data for this step (will be JSON-serialized)
-            duration_ms: Optional duration of this step in milliseconds
-
-        Example:
-            def decide(self, observation, tools):
-                # Log memory retrieval
-                relevant = self.memory.query(observation, k=5)
-                self.log_step("retrieved", {"count": len(relevant), "items": relevant})
-
-                # Log prompt
-                prompt = self.build_prompt(observation, relevant)
-                self.log_step("prompt", {"text": prompt, "length": len(prompt)})
-
-                # ... rest of decision logic
-        """
-        if self._current_trace:
-            self._current_trace.add_step(name, data, duration_ms)
 
     def on_tool_result(self, tool: str, result: dict) -> None:
         """
@@ -136,20 +273,33 @@ class AgentBehavior(ABC):
         Called when a new episode begins.
 
         Override to reset state, clear memory, etc.
+        The world_map is automatically cleared. If tracing is enabled,
+        a new episode is started in the trace store.
+
+        If you override this method, call super().on_episode_start() to
+        ensure the world map is cleared.
         """
-        pass
+        # Clear world map for new episode
+        if self._world_map is not None:
+            self._world_map.clear()
+
+        # Start a new trace episode if tracing is enabled
+        if self._trace_store is not None and self._agent_id is not None:
+            self._trace_store.set_episode(self._agent_id)
 
     def on_episode_end(self, success: bool, metrics: dict | None = None) -> None:
         """
         Called when an episode ends.
 
         Override to perform cleanup, learning, or logging.
+        If tracing is enabled, the final trace is ended.
 
         Args:
             success: Whether the episode goal was achieved
             metrics: Optional metrics from the scenario
         """
-        pass
+        # End any pending trace
+        self._end_trace()
 
 
 class SimpleAgentBehavior(AgentBehavior):

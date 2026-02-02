@@ -61,6 +61,20 @@ def stop_movement() -> dict[str, bool]:
     return {"success": True}
 
 
+def idle() -> dict[str, Any]:
+    """
+    Wait and do nothing for this tick.
+
+    Use this when there's nothing to do or when waiting for conditions to change.
+
+    Returns:
+        Success status
+    """
+    logger.debug("Agent idling")
+
+    return {"success": True, "action": "idle"}
+
+
 def rotate_to_face(target_position: list[float]) -> dict[str, Any]:
     """
     Rotate agent to face target position.
@@ -125,6 +139,14 @@ def register_movement_tools(dispatcher: Any) -> None:
         name="stop_movement",
         function=stop_movement,
         description="Stop all movement",
+        parameters={"type": "object", "properties": {}},
+        returns={"type": "object"},
+    )
+
+    dispatcher.register_tool(
+        name="idle",
+        function=idle,
+        description="Wait and do nothing for this tick",
         parameters={"type": "object", "properties": {}},
         returns={"type": "object"},
     )

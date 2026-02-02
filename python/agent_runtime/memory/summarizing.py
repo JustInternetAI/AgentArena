@@ -245,6 +245,26 @@ class SummarizingMemory(AgentMemory):
         lines.append("".join(summary_parts))
         return " ".join(lines)
 
+    def dump(self) -> dict:
+        """
+        Dump full memory state for inspection/debugging.
+
+        Returns:
+            Dictionary containing memory state including summary and buffer
+        """
+        return {
+            "type": "SummarizingMemory",
+            "stats": {
+                "total_observations": self._total_observations,
+                "buffer_size": len(self._buffer),
+                "buffer_capacity": self.buffer_capacity,
+                "compression_trigger": self.compression_trigger,
+                "has_summary": bool(self._summary),
+            },
+            "summary": self._summary,
+            "buffer": [obs.to_dict() for obs in self._buffer],
+        }
+
     def __len__(self) -> int:
         """
         Get number of observations in memory.

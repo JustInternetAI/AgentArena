@@ -234,6 +234,23 @@ class RAGMemoryV2(AgentMemory):
         self.semantic_memory.load(filepath)
         logger.info(f"Loaded RAG memory with {len(self.semantic_memory)} observations")
 
+    def dump(self) -> dict:
+        """
+        Dump full memory state for inspection/debugging.
+
+        Returns:
+            Dictionary containing memory state (limited to recent observations
+            for practical JSON size)
+        """
+        recent = self.retrieve(limit=50)
+        return {
+            "type": "RAGMemoryV2",
+            "stats": {
+                "observation_count": len(self.semantic_memory),
+            },
+            "recent_observations": [obs.to_dict() for obs in recent],
+        }
+
     def __len__(self) -> int:
         """Return the number of stored observations."""
         return len(self.semantic_memory)

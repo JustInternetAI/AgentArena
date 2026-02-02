@@ -47,8 +47,13 @@ def main():
         logger.info("Registering SimpleForager agent...")
 
         agent_id = "foraging_agent_001"
-        arena.register(agent_id, SimpleForager(memory_capacity=10))
+        agent = SimpleForager(memory_capacity=10)
+        agent.enable_tracing()  # Enable trace logging
+        arena.register(agent_id, agent)
         logger.info(f"  ✓ Registered SimpleForager for agent_id: {agent_id}")
+        logger.info(
+            "  ✓ Reasoning trace enabled (view with: python -m tools.inspect_agent --watch)"
+        )
 
         registered = arena.get_registered_agents()
         logger.info(f"Total registered agents: {len(registered)}")

@@ -360,6 +360,22 @@ class RAGMemory(AgentMemory):
             logger.warning(f"Failed to convert memory to observation: {e}")
             return None
 
+    def dump(self) -> dict:
+        """
+        Dump full memory state for inspection/debugging.
+
+        Returns:
+            Dictionary containing memory state
+        """
+        recent = self.retrieve(limit=50)
+        return {
+            "type": "RAGMemory",
+            "stats": {
+                "observation_count": len(self.long_term_memory),
+            },
+            "recent_observations": [obs.to_dict() for obs in recent],
+        }
+
     def __len__(self) -> int:
         """Return the number of stored observations."""
         return len(self.long_term_memory)

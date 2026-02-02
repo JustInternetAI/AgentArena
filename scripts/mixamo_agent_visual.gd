@@ -328,11 +328,11 @@ func set_team_color(color: Color):
 	team_color = color
 	_update_team_color()
 
-func set_agent_name(name: String):
+func set_agent_name(new_name: String):
 	"""Set the agent's display name"""
-	agent_name = name
+	agent_name = new_name
 	if label:
-		label.text = name
+		label.text = new_name
 
 func _update_team_color():
 	"""Update visual elements with team color"""
@@ -344,7 +344,7 @@ func _update_team_color():
 		if mat is StandardMaterial3D:
 			mat.albedo_color = team_color.lightened(0.4)
 
-func set_highlight(enabled: bool):
+func set_highlight(_enabled: bool):
 	"""Highlight the agent (e.g., when selected or performing action)"""
 	# Could add emission to character material if needed
 	pass

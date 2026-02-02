@@ -89,6 +89,7 @@ PARAMS: {"resource_id": "Apple_001"}"""
 
     def on_episode_start(self) -> None:
         """Called when a new episode begins - clear memory."""
+        super().on_episode_start()  # Clears world_map
         self.memory.clear()
 
     def decide(self, observation, tools) -> AgentDecision:
@@ -123,18 +124,47 @@ PARAMS: {"resource_id": "Apple_001"}"""
 
     def _build_context(self, observation) -> str:
         """Build the context prompt from the current observation."""
-        # Format resources
+        # Format visible resources
         resources = []
         for r in sorted(observation.nearby_resources, key=lambda x: x.distance)[:5]:
             resources.append(f"- {r.name} ({r.type}): {r.distance:.1f} units away")
 
-        # Format hazards
+        # Format visible hazards
         hazards = []
         for h in sorted(observation.nearby_hazards, key=lambda x: x.distance)[:3]:
             danger = "DANGER!" if h.distance < 3 else "warning"
             hazards.append(f"- [{danger}] {h.name}: {h.distance:.1f} units, {h.damage} damage")
 
-        # Format memory
+        # Format remembered objects (out of sight but known from world_map)
+        visible_names = {r.name for r in observation.nearby_resources}
+        visible_names.update(h.name for h in observation.nearby_hazards)
+
+        remembered_resources = [
+            obj for obj in self.world_map.get_resources() if obj.name not in visible_names
+        ]
+        remembered_hazards = [
+            obj for obj in self.world_map.get_hazards() if obj.name not in visible_names
+        ]
+
+        remembered_items = []
+        if remembered_resources:
+            remembered_resources.sort(key=lambda obj: obj.distance_to(observation.position))
+            for obj in remembered_resources[:5]:
+                dist = obj.distance_to(observation.position)
+                stale = observation.tick - obj.last_seen_tick
+                remembered_items.append(
+                    f"- {obj.name} ({obj.subtype}): ~{dist:.1f} units away "
+                    f"(last seen {stale} ticks ago)"
+                )
+        if remembered_hazards:
+            remembered_hazards.sort(key=lambda obj: obj.distance_to(observation.position))
+            for obj in remembered_hazards[:3]:
+                dist = obj.distance_to(observation.position)
+                remembered_items.append(
+                    f"- [REMEMBERED HAZARD] {obj.name}: ~{dist:.1f} units, {obj.damage} damage"
+                )
+
+        # Format recent position history
         recent = self.memory.retrieve()[-3:]
         memory_summary = f"Observations in memory: {len(self.memory.retrieve())}"
         if recent:
@@ -152,6 +182,9 @@ PARAMS: {"resource_id": "Apple_001"}"""
 
 ## HAZARDS ({len(observation.nearby_hazards)} detected)
 {chr(10).join(hazards) or "None detected"}
+
+## REMEMBERED OBJECTS (out of sight)
+{chr(10).join(remembered_items) or "None remembered"}
 
 ## MEMORY
 {memory_summary}

@@ -10,19 +10,19 @@ from .behavior import AgentBehavior, LLMAgentBehavior, SimpleAgentBehavior
 from .local_llm_behavior import LocalLLMBehavior, create_local_llm_behavior
 from .memory import AgentMemory, RAGMemory, SlidingWindowMemory, SummarizingMemory
 from .reasoning_trace import (
-    TraceStore,
     ReasoningTrace,
     TraceStep,
-    TraceStepName,
-    get_global_trace_store,
-    set_global_trace_store,
+    TraceStore,
     # Backwards compatibility
-    PromptInspector,
     DecisionCapture,
     InspectorEntry,
     InspectorStage,
+    PromptInspector,
+    TraceStepName,
     get_global_inspector,
+    get_global_trace_store,
     set_global_inspector,
+    set_global_trace_store,
 )
 from .runtime import AgentRuntime
 from .schemas import (
@@ -58,14 +58,14 @@ __all__ = [
     "SlidingWindowMemory",
     "SummarizingMemory",
     "RAGMemory",
-    # Reasoning Trace (new)
-    "TraceStore",
-    "ReasoningTrace",
+    # Tracing (new API)
     "TraceStep",
+    "ReasoningTrace",
+    "TraceStore",
     "TraceStepName",
     "get_global_trace_store",
     "set_global_trace_store",
-    # Reasoning Trace (backwards compatibility)
+    # Tracing (backwards compatibility)
     "PromptInspector",
     "DecisionCapture",
     "InspectorEntry",

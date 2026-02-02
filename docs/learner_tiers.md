@@ -187,7 +187,7 @@ Move to Tier 3 when you want to:
 
 ```python
 from agent_runtime import LLMAgentBehavior, AgentDecision, Observation
-from agent_runtime.memory import EpisodicMemory
+from agent_runtime.memory import RAGMemory
 import time
 
 class ReflectiveForager(LLMAgentBehavior):
@@ -200,10 +200,10 @@ class ReflectiveForager(LLMAgentBehavior):
         super().__init__(**kwargs)
 
         # Tier 3: Explicit memory management
-        self.memory = EpisodicMemory(capacity=100)
+        self.memory = RAGMemory(capacity=100)
 
-        # Tier 3: Reasoning trace for inspection
-        self.reasoning_trace = []
+        # Tier 3: Enable reasoning trace (stores to ~/.agent_arena/traces/)
+        self.enable_tracing()
 
         # Tier 3: Store reflections
         self.reflections = []
@@ -212,6 +212,7 @@ class ReflectiveForager(LLMAgentBehavior):
         """Make a decision with full logging and memory."""
 
         # 1. Retrieve relevant past experiences
+        # log_step() is built-in - traces are stored and can be inspected via CLI
         relevant = self.memory.query(observation, k=5)
         self.log_step("retrieved", relevant)
 
@@ -262,9 +263,8 @@ What should I do?
 Episode summary:
 - Resources collected: {outcome.get('resources_collected', 0)}
 - Damage taken: {outcome.get('damage_taken', 0)}
-- Decisions made: {len(self.reasoning_trace)}
 
-Review the reasoning trace and identify:
+Review what happened and identify:
 1. What decisions worked well?
 2. What could be improved?
 3. What patterns should I remember?
@@ -278,53 +278,61 @@ Review the reasoning trace and identify:
         })
         self.log_step("reflection", insight)
 
-    def log_step(self, step_name: str, data) -> None:
-        """Add to reasoning trace for inspection."""
-        self.reasoning_trace.append({
-            "step": step_name,
-            "timestamp": time.time(),
-            "data": data
-        })
-
-    def inspect(self) -> dict:
-        """Return full state for debugging."""
-        return {
-            "memory": self.memory.dump(),
-            "reasoning_trace": self.reasoning_trace,
-            "reflections": self.reflections
-        }
-
-    def on_episode_start(self) -> None:
-        """Clear per-episode state."""
-        self.reasoning_trace = []
-
-    def on_episode_end(self, success: bool) -> None:
-        """Trigger reflection."""
-        self.reflect({"success": success})
+    def on_episode_end(self, success: bool, metrics: dict = None) -> None:
+        """Trigger reflection on episode end."""
+        super().on_episode_end(success, metrics)  # Handles trace cleanup
+        self.reflect({"success": success, **(metrics or {})})
 ```
 
 ### Key Concepts
 
-- **self.memory**: Explicit memory storage and retrieval
-- **self.reasoning_trace**: Log every step of the decision process
+- **self.memory**: Explicit memory storage and retrieval (RAGMemory, SlidingWindowMemory)
+- **enable_tracing()**: Enable trace logging (stores to `~/.agent_arena/traces/`)
+- **log_step()**: Built-in method to record each decision step for inspection
 - **self.reflections**: Store insights from past episodes
-- **log_step()**: Record each step for later inspection
 - **reflect()**: Learn from episode outcomes
-- **inspect()**: Export full state for debugging
 
 ### Inspection Tooling
 
 Tier 3 agents can be inspected using CLI tools:
 
 ```bash
-# View last decision trace
-python -m tools.inspect_agent --agent foraging_agent_001 --last-decision
+# View the last decision trace
+python -m tools.inspect_agent --last-decision
 
-# View memory contents
-python -m tools.inspect_agent --agent foraging_agent_001 --memory
+# View last decision for a specific agent
+python -m tools.inspect_agent --last-decision --agent foraging_agent_001
 
-# Watch live decisions
-python -m tools.inspect_agent --agent foraging_agent_001 --watch
+# Watch traces in real-time (live debugging)
+python -m tools.inspect_agent --watch --agent foraging_agent_001
+
+# View all traces for an episode
+python -m tools.inspect_agent --episode ep_1234567890_abc123 --agent foraging_agent_001
+
+# List all agents with traces
+python -m tools.inspect_agent --list-agents
+
+# List episodes for an agent
+python -m tools.inspect_agent --list-episodes --agent foraging_agent_001
+
+# Output as JSON instead of tree view
+python -m tools.inspect_agent --last-decision --format json
+```
+
+### Trace Output Example
+
+```
+Decision Trace - Agent: foraging_agent_001, Tick: 42
+├── observation (0.00ms)
+│   └── position: [10.5, 0, 15.2], resources: 3, hazards: 1
+├── retrieved (2.15ms)
+│   └── [5 items]
+├── prompt (3.42ms)
+│   └── [1,247 chars] "You are a foraging agent..."
+├── response (487.32ms)
+│   └── tokens: 89, text: "I should move toward..."
+└── decision (0.12ms)
+    └── tool: move_to, params: {target: [12.0, 0, 14.0]}
 ```
 
 ---
