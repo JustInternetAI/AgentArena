@@ -28,7 +28,7 @@ scripts\create_github_issues.bat
 
 This creates the initial backlog issues with proper labels.
 
-See [GitHub CLI Guide](../docs/github_cli_guide.md) for more details.
+See [GitHub Guide](../docs/github_guide.md) for more details.
 
 ---
 

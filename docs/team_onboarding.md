@@ -5,9 +5,9 @@ Welcome to Agent Arena development! This guide will help you get started working
 ## Quick Links
 
 - 📋 [IPC Protocol Documentation](ipc_protocol.md) - Communication format between Godot and Python
-- 🎯 [GitHub Issues List](github_issues.md) - Pre-written issues ready to assign
+- 🎯 [GitHub Issues List](github_guide.md) - Pre-written issues ready to assign
 - 🤝 [Contributing Guidelines](../CONTRIBUTING.md) - Development workflow and standards
-- 📊 [Project Board Setup](project_board.md) - Kanban board structure and usage
+- 📊 [Project Board Setup](github_guide.md) - Kanban board structure and usage
 
 ## Getting Started Checklist
 
@@ -16,7 +16,7 @@ Welcome to Agent Arena development! This guide will help you get started working
 - [ ] Clone the repository: `git clone https://github.com/JustInternetAI/AgentArena.git`
 - [ ] Read [architecture.md](architecture.md) to understand the system
 - [ ] Read [ipc_protocol.md](ipc_protocol.md) for the communication contract
-- [ ] Set up Python environment (see Issue #1 in [github_issues.md](github_issues.md))
+- [ ] Set up Python environment (see Issue #1 in [github_guide.md](github_guide.md))
 - [ ] Create feature branch: `git checkout -b feature/python-setup`
 - [ ] Review assigned issues on the project board
 - [ ] Join communication channels (Discord/Slack if configured)
@@ -45,7 +45,7 @@ Welcome to Agent Arena development! This guide will help you get started working
 4. Add LlamaCppBackend (Week 3)
 5. Create unit tests and documentation (Week 3-4)
 
-**Start with**: Issues #1, #2, #3 from [github_issues.md](github_issues.md)
+**Start with**: Issues #1, #2, #3 from [github_guide.md](github_guide.md)
 
 ---
 
@@ -324,9 +324,9 @@ export PYTHONPATH="${PYTHONPATH}:${PWD}"
 
 1. **Review all 4 documents**:
    - [ipc_protocol.md](ipc_protocol.md)
-   - [github_issues.md](github_issues.md)
+   - [github_guide.md](github_guide.md)
    - [CONTRIBUTING.md](../CONTRIBUTING.md)
-   - [project_board.md](project_board.md)
+   - [github_guide.md](github_guide.md)
 
 2. **Set up GitHub Project Board**:
    - Create board via web interface
@@ -334,7 +334,7 @@ export PYTHONPATH="${PYTHONPATH}:${PWD}"
    - Populate with issues
 
 3. **Create initial issues**:
-   - Copy from [github_issues.md](github_issues.md)
+   - Copy from [github_guide.md](github_guide.md)
    - Assign to appropriate person
    - Add to project board
 
