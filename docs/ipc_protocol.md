@@ -153,6 +153,68 @@ POST /tick
 | `visible_entities` | array | Entities within perception range |
 | `nearby_agents` | array | Other agents within communication range |
 | `scene_specific` | object | Benchmark-specific data |
+| `scenario_name` | string | **NEW (Issue #60):** Name of current scenario (e.g., "foraging") |
+| `objective` | object | **NEW (Issue #60):** Scenario-defined goal (see Objective System below) |
+| `current_progress` | object | **NEW (Issue #60):** Dict of metric_name: current_value |
+
+### Objective System (Issue #60 - LDX Refactor)
+
+**Status:** Schema ready in Python, pending Godot implementation (Issue #58)
+
+The objective system enables general-purpose agents by passing scenario goals through observations.
+
+#### Objective Format
+
+```json
+"objective": {
+  "description": "Collect resources while avoiding hazards and staying healthy",
+  "success_metrics": {
+    "resources_collected": {
+      "target": 10.0,
+      "weight": 1.0,
+      "lower_is_better": false,
+      "required": false
+    },
+    "health_remaining": {
+      "target": 50.0,
+      "weight": 0.5,
+      "lower_is_better": false,
+      "required": false
+    },
+    "time_taken": {
+      "target": 300.0,
+      "weight": 0.2,
+      "lower_is_better": true,
+      "required": false
+    }
+  },
+  "time_limit": 600
+}
+```
+
+#### Current Progress Format
+
+```json
+"current_progress": {
+  "resources_collected": 3.0,
+  "health_remaining": 85.0,
+  "time_elapsed": 142.0
+}
+```
+
+#### Field Descriptions
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `scenario_name` | string | Name of the scenario (e.g., "foraging", "crafting_chain") |
+| `objective.description` | string | Human-readable goal description |
+| `objective.success_metrics` | object | Dict of metric_name: MetricDefinition |
+| `objective.time_limit` | integer | Time limit in ticks (0 = unlimited) |
+| `metric.target` | float | Target value to achieve for this metric |
+| `metric.weight` | float | Importance weight (default 1.0) |
+| `metric.lower_is_better` | boolean | Whether lower values are better (e.g., time) |
+| `metric.required` | boolean | Whether this metric must be met to succeed |
+| `current_progress` | object | Current values for each metric |
 
 ---
 

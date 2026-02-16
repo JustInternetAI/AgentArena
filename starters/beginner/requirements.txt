@@ -1,0 +1,7 @@
+# Beginner Agent Requirements
+
+# Agent Arena SDK (minimal IPC layer + schemas)
+agent-arena-sdk>=0.1.0
+
+# No additional dependencies needed for beginner starter
+# Just the SDK - everything else is plain Python!

@@ -562,3 +562,51 @@ class TraceStore:
             thread.join(timeout=1.0)
 
         return stop
+
+
+# Backwards compatibility aliases for old PromptInspector API
+PromptInspector = TraceStore
+DecisionCapture = ReasoningTrace
+InspectorEntry = TraceStep
+
+
+# Step name aliases for backwards compatibility  
+class TraceStepName:
+    """Enum-like class for standard trace step names (backwards compatible)."""
+    OBSERVATION = "observation"
+    RETRIEVED = "retrieved"
+    PROMPT_BUILDING = "prompt"
+    LLM_REQUEST = "llm_request"
+    LLM_RESPONSE = "response"
+    DECISION = "decision"
+
+
+class InspectorStage:
+    """Backwards compatible alias for TraceStepName."""
+    OBSERVATION = "observation"
+    PROMPT_BUILDING = "prompt"
+    LLM_REQUEST = "llm_request"
+    LLM_RESPONSE = "response"
+    DECISION = "decision"
+
+
+def get_global_inspector() -> TraceStore:
+    """Get global trace store instance (backwards compatible API)."""
+    return TraceStore.get_instance()
+
+
+def set_global_inspector(store: TraceStore) -> None:
+    """Set global trace store instance (backwards compatible API - no-op in new design)."""
+    # In the new design, we use TraceStore.get_instance() which is already a singleton
+    pass
+
+
+def get_global_trace_store() -> TraceStore:
+    """Get global trace store instance."""
+    return TraceStore.get_instance()
+
+
+def set_global_trace_store(store: TraceStore) -> None:
+    """Set global trace store instance (no-op in new design)."""
+    # In the new design, we use TraceStore.get_instance() which is already a singleton  
+    pass

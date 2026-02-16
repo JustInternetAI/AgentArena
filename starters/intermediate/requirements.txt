@@ -1,0 +1,8 @@
+# Intermediate Agent Requirements
+
+# Agent Arena SDK (minimal IPC layer + schemas)
+agent-arena-sdk>=0.1.0
+
+# No additional dependencies!
+# Memory and planning are implemented in pure Python
+# (memory.py and planner.py are YOUR code)
