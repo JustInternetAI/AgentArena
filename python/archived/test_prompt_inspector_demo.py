@@ -13,18 +13,19 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 # Import only what we absolutely need to avoid optional dependencies
-import sys
+import sys  # noqa: E402
+
 sys.path.insert(0, str(Path(__file__).parent))
 
 # Standalone imports
-from dataclasses import dataclass, field
-from typing import Any, Optional
+from dataclasses import dataclass, field  # noqa: E402
 
 
 # Copy minimal classes to avoid importing agent_runtime.__init__
 @dataclass
 class Observation:
     """Minimal observation for demo."""
+
     agent_id: str
     tick: int
     position: tuple[float, float, float]
@@ -40,6 +41,7 @@ class Observation:
 @dataclass
 class ResourceInfo:
     """Resource information."""
+
     name: str
     type: str
     position: tuple[float, float, float]
@@ -49,6 +51,7 @@ class ResourceInfo:
 @dataclass
 class HazardInfo:
     """Hazard information."""
+
     name: str
     type: str
     position: tuple[float, float, float]
@@ -59,6 +62,7 @@ class HazardInfo:
 @dataclass
 class ToolSchema:
     """Tool schema."""
+
     name: str
     description: str
     parameters: dict
@@ -67,6 +71,7 @@ class ToolSchema:
 @dataclass
 class AgentDecision:
     """Agent decision."""
+
     tool: str
     params: dict = field(default_factory=dict)
     reasoning: str = ""
@@ -79,20 +84,22 @@ class AgentDecision:
     def from_llm_response(text: str):
         """Parse from JSON text."""
         import json
+
         try:
             data = json.loads(text)
             return AgentDecision(
                 tool=data.get("tool", "idle"),
                 params=data.get("params", {}),
-                reasoning=data.get("reasoning", "")
+                reasoning=data.get("reasoning", ""),
             )
-        except:
+        except Exception:
             raise ValueError("Invalid JSON")
 
 
 @dataclass
 class GenerationResult:
     """LLM generation result."""
+
     text: str
     tokens_used: int
     finish_reason: str
@@ -102,17 +109,20 @@ class GenerationResult:
 @dataclass
 class BackendConfig:
     """Backend config."""
+
     model_path: str
 
 
 class BaseBackend:
     """Base backend."""
+
     def __init__(self, config):
         self.config = config
 
 
 class SlidingWindowMemory:
     """Simple sliding window memory."""
+
     def __init__(self, capacity: int = 10):
         self.capacity = capacity
         self.observations = []
@@ -129,7 +139,11 @@ class SlidingWindowMemory:
 
 
 # Now import the prompt inspector
-from agent_runtime.prompt_inspector import PromptInspector, InspectorStage, get_global_inspector
+from agent_runtime.prompt_inspector import (  # noqa: E402
+    InspectorStage,
+    PromptInspector,
+    get_global_inspector,
+)
 
 
 class DemoLLMBehavior:
@@ -162,35 +176,38 @@ class DemoLLMBehavior:
 
             # Capture observation stage
             if capture:
-                capture.add_entry(InspectorStage.OBSERVATION, {
-                    "agent_id": observation.agent_id,
-                    "tick": observation.tick,
-                    "position": observation.position,
-                    "health": observation.health,
-                    "energy": observation.energy,
-                    "nearby_resources": [
-                        {
-                            "name": r.name,
-                            "type": r.type,
-                            "distance": r.distance,
-                            "position": r.position
-                        }
-                        for r in observation.nearby_resources
-                    ],
-                    "nearby_hazards": [
-                        {
-                            "name": h.name,
-                            "type": h.type,
-                            "distance": h.distance,
-                            "damage": h.damage
-                        }
-                        for h in observation.nearby_hazards
-                    ],
-                    "inventory": [
-                        {"name": item.name, "quantity": item.quantity}
-                        for item in observation.inventory
-                    ]
-                })
+                capture.add_entry(
+                    InspectorStage.OBSERVATION,
+                    {
+                        "agent_id": observation.agent_id,
+                        "tick": observation.tick,
+                        "position": observation.position,
+                        "health": observation.health,
+                        "energy": observation.energy,
+                        "nearby_resources": [
+                            {
+                                "name": r.name,
+                                "type": r.type,
+                                "distance": r.distance,
+                                "position": r.position,
+                            }
+                            for r in observation.nearby_resources
+                        ],
+                        "nearby_hazards": [
+                            {
+                                "name": h.name,
+                                "type": h.type,
+                                "distance": h.distance,
+                                "damage": h.damage,
+                            }
+                            for h in observation.nearby_hazards
+                        ],
+                        "inventory": [
+                            {"name": item.name, "quantity": item.quantity}
+                            for item in observation.inventory
+                        ],
+                    },
+                )
 
             # Build simple prompt
             prompt = self._build_prompt(observation)
@@ -198,19 +215,21 @@ class DemoLLMBehavior:
             # Capture prompt building stage
             if capture:
                 memory_items = self.memory.retrieve(limit=5)
-                capture.add_entry(InspectorStage.PROMPT_BUILDING, {
-                    "system_prompt": self.system_prompt,
-                    "memory_context": {
-                        "count": len(memory_items),
-                        "items": [
-                            {"tick": obs.tick, "position": obs.position}
-                            for obs in memory_items
-                        ]
+                capture.add_entry(
+                    InspectorStage.PROMPT_BUILDING,
+                    {
+                        "system_prompt": self.system_prompt,
+                        "memory_context": {
+                            "count": len(memory_items),
+                            "items": [
+                                {"tick": obs.tick, "position": obs.position} for obs in memory_items
+                            ],
+                        },
+                        "final_prompt": prompt,
+                        "prompt_length": len(prompt),
+                        "estimated_tokens": len(prompt) // 4,
                     },
-                    "final_prompt": prompt,
-                    "prompt_length": len(prompt),
-                    "estimated_tokens": len(prompt) // 4
-                })
+                )
 
             # Convert tools to dict format
             tool_dicts = [
@@ -224,29 +243,38 @@ class DemoLLMBehavior:
 
             # Capture LLM request stage
             if capture:
-                capture.add_entry(InspectorStage.LLM_REQUEST, {
-                    "model": getattr(self.backend, 'model_name', 'unknown'),
-                    "prompt": prompt,
-                    "tools": tool_dicts,
-                    "temperature": self.temperature,
-                    "max_tokens": self.max_tokens
-                })
+                capture.add_entry(
+                    InspectorStage.LLM_REQUEST,
+                    {
+                        "model": getattr(self.backend, "model_name", "unknown"),
+                        "prompt": prompt,
+                        "tools": tool_dicts,
+                        "temperature": self.temperature,
+                        "max_tokens": self.max_tokens,
+                    },
+                )
 
             # Generate response
             import time
+
             start_time = time.time()
-            result = self.backend.generate_with_tools(prompt=prompt, tools=tool_dicts, temperature=self.temperature)
+            result = self.backend.generate_with_tools(
+                prompt=prompt, tools=tool_dicts, temperature=self.temperature
+            )
             elapsed_ms = (time.time() - start_time) * 1000
 
             # Capture LLM response stage
             if capture:
-                capture.add_entry(InspectorStage.LLM_RESPONSE, {
-                    "raw_text": result.text,
-                    "tokens_used": result.tokens_used,
-                    "finish_reason": result.finish_reason,
-                    "metadata": result.metadata,
-                    "latency_ms": elapsed_ms
-                })
+                capture.add_entry(
+                    InspectorStage.LLM_RESPONSE,
+                    {
+                        "raw_text": result.text,
+                        "tokens_used": result.tokens_used,
+                        "finish_reason": result.finish_reason,
+                        "metadata": result.metadata,
+                        "latency_ms": elapsed_ms,
+                    },
+                )
 
             # Parse decision
             if "tool_call" in result.metadata:
@@ -264,24 +292,25 @@ class DemoLLMBehavior:
 
             # Capture final decision stage
             if capture:
-                capture.add_entry(InspectorStage.DECISION, {
-                    "tool": decision.tool,
-                    "params": decision.params,
-                    "reasoning": decision.reasoning,
-                    "total_latency_ms": elapsed_ms
-                })
+                capture.add_entry(
+                    InspectorStage.DECISION,
+                    {
+                        "tool": decision.tool,
+                        "params": decision.params,
+                        "reasoning": decision.reasoning,
+                        "total_latency_ms": elapsed_ms,
+                    },
+                )
 
             self.inspector.finish_capture(observation.agent_id, observation.tick)
             return decision
 
         except Exception as e:
             if capture:
-                capture.add_entry(InspectorStage.DECISION, {
-                    "tool": "idle",
-                    "params": {},
-                    "reasoning": f"Error: {e}",
-                    "error": str(e)
-                })
+                capture.add_entry(
+                    InspectorStage.DECISION,
+                    {"tool": "idle", "params": {}, "reasoning": f"Error: {e}", "error": str(e)},
+                )
                 self.inspector.finish_capture(observation.agent_id, observation.tick)
             return AgentDecision.idle(reasoning=f"Error: {e}")
 
@@ -297,14 +326,18 @@ class DemoLLMBehavior:
         if observation.nearby_resources:
             sections.append("\n## Nearby Resources")
             for r in observation.nearby_resources[:5]:
-                sections.append(f"- {r.name} ({r.type}) at distance {r.distance:.1f}, position {r.position}")
+                sections.append(
+                    f"- {r.name} ({r.type}) at distance {r.distance:.1f}, position {r.position}"
+                )
         else:
             sections.append("\n## Nearby Resources\nNone visible")
 
         if observation.nearby_hazards:
             sections.append("\n## Nearby Hazards")
             for h in observation.nearby_hazards[:5]:
-                sections.append(f"- {h.name} ({h.type}) at distance {h.distance:.1f}, damage: {h.damage}, position {h.position}")
+                sections.append(
+                    f"- {h.name} ({h.type}) at distance {h.distance:.1f}, damage: {h.damage}, position {h.position}"
+                )
         else:
             sections.append("\n## Nearby Hazards\nNone visible")
 
@@ -391,7 +424,9 @@ class DemoBackend(BaseBackend):
         pass
 
 
-def create_observation(agent_id: str, tick: int, has_resources=False, has_hazards=False) -> Observation:
+def create_observation(
+    agent_id: str, tick: int, has_resources=False, has_hazards=False
+) -> Observation:
     """Create a sample observation for testing."""
     resources = []
     hazards = []
@@ -505,7 +540,7 @@ def main():
         log_dir=log_dir,
     )
 
-    print(f"[OK] Inspector configured")
+    print("[OK] Inspector configured")
     print(f"  - Enabled: {inspector.enabled}")
     print(f"  - Max entries: {inspector.max_entries}")
     print(f"  - Logging to: {log_dir}")
@@ -520,7 +555,7 @@ def main():
         inspector=inspector,
     )
 
-    print(f"\n[OK] Created DemoLLMBehavior with DemoBackend")
+    print("\n[OK] Created DemoLLMBehavior with DemoBackend")
 
     # Create sample tools
     tools = create_sample_tools()

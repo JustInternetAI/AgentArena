@@ -10,15 +10,15 @@ have been moved to starter templates. Use agent-arena-sdk for new projects.
 from .agent import Agent
 from .arena import AgentArena
 from .reasoning_trace import (
-    ReasoningTrace,
-    TraceStep,
-    TraceStore,
     # Backwards compatibility
     DecisionCapture,
     InspectorEntry,
     InspectorStage,
     PromptInspector,
+    ReasoningTrace,
+    TraceStep,
     TraceStepName,
+    TraceStore,
     get_global_inspector,
     get_global_trace_store,
     set_global_inspector,

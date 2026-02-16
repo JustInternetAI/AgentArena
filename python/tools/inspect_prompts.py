@@ -12,7 +12,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 try:
     import requests
@@ -28,7 +28,7 @@ def format_stage_header(stage: str) -> str:
         "prompt_building": "🔨 PROMPT BUILDING",
         "llm_request": "📤 LLM REQUEST",
         "llm_response": "📥 LLM RESPONSE",
-        "decision": "✅ DECISION"
+        "decision": "✅ DECISION",
     }
     name = stage_names.get(stage, stage.upper())
     return f"\n{'=' * 80}\n{name}\n{'=' * 80}"
@@ -43,19 +43,19 @@ def format_observation(data: dict[str, Any]) -> str:
     lines.append(f"Health: {data.get('health')}")
     lines.append(f"Energy: {data.get('energy')}")
 
-    resources = data.get('nearby_resources', [])
+    resources = data.get("nearby_resources", [])
     if resources:
         lines.append(f"\nNearby Resources ({len(resources)}):")
         for r in resources[:5]:  # Limit to first 5
             lines.append(f"  - {r['name']} ({r['type']}) at distance {r['distance']:.1f}")
 
-    hazards = data.get('nearby_hazards', [])
+    hazards = data.get("nearby_hazards", [])
     if hazards:
         lines.append(f"\nNearby Hazards ({len(hazards)}):")
         for h in hazards[:5]:  # Limit to first 5
             lines.append(f"  - {h['name']} ({h['type']}) at distance {h['distance']:.1f}")
 
-    inventory = data.get('inventory', [])
+    inventory = data.get("inventory", [])
     if inventory:
         lines.append(f"\nInventory ({len(inventory)} items):")
         for item in inventory:
@@ -69,16 +69,18 @@ def format_prompt_building(data: dict[str, Any]) -> str:
     lines = []
     lines.append(f"System Prompt: {data.get('system_prompt', '')[:100]}...")
 
-    memory = data.get('memory_context', {})
+    memory = data.get("memory_context", {})
     lines.append(f"\nMemory Context: {memory.get('count', 0)} observations")
-    if memory.get('items'):
-        for item in memory['items'][:3]:
+    if memory.get("items"):
+        for item in memory["items"][:3]:
             lines.append(f"  - Tick {item['tick']}: {item['position']}")
 
-    lines.append(f"\nPrompt Length: {data.get('prompt_length')} chars (~{data.get('estimated_tokens')} tokens)")
+    lines.append(
+        f"\nPrompt Length: {data.get('prompt_length')} chars (~{data.get('estimated_tokens')} tokens)"
+    )
     lines.append("\nFull Prompt:")
     lines.append("-" * 80)
-    lines.append(data.get('final_prompt', ''))
+    lines.append(data.get("final_prompt", ""))
     lines.append("-" * 80)
 
     return "\n".join(lines)
@@ -91,7 +93,7 @@ def format_llm_request(data: dict[str, Any]) -> str:
     lines.append(f"Temperature: {data.get('temperature')}")
     lines.append(f"Max Tokens: {data.get('max_tokens')}")
 
-    tools = data.get('tools', [])
+    tools = data.get("tools", [])
     lines.append(f"\nAvailable Tools ({len(tools)}):")
     for tool in tools:
         lines.append(f"  - {tool['name']}: {tool['description']}")
@@ -106,17 +108,19 @@ def format_llm_response(data: dict[str, Any]) -> str:
     lines.append(f"Tokens Used: {data.get('tokens_used')}")
     lines.append(f"Finish Reason: {data.get('finish_reason')}")
 
-    metadata = data.get('metadata', {})
+    metadata = data.get("metadata", {})
     if metadata:
         lines.append("\nMetadata:")
-        if 'parsed_tool_call' in metadata:
-            lines.append(f"  Parsed Tool Call: {json.dumps(metadata['parsed_tool_call'], indent=2)}")
-        elif 'tool_call' in metadata:
+        if "parsed_tool_call" in metadata:
+            lines.append(
+                f"  Parsed Tool Call: {json.dumps(metadata['parsed_tool_call'], indent=2)}"
+            )
+        elif "tool_call" in metadata:
             lines.append(f"  Tool Call: {json.dumps(metadata['tool_call'], indent=2)}")
 
     lines.append("\nRaw LLM Response:")
     lines.append("-" * 80)
-    lines.append(data.get('raw_text', ''))
+    lines.append(data.get("raw_text", ""))
     lines.append("-" * 80)
 
     return "\n".join(lines)
@@ -130,7 +134,7 @@ def format_decision(data: dict[str, Any]) -> str:
     lines.append(f"Reasoning: {data.get('reasoning')}")
     lines.append(f"Total Latency: {data.get('total_latency_ms', 0):.0f}ms")
 
-    if 'error' in data:
+    if "error" in data:
         lines.append(f"\n⚠️  Error: {data['error']}")
 
     return "\n".join(lines)
@@ -145,25 +149,25 @@ def format_capture(capture: dict[str, Any], verbose: bool = False) -> str:
     lines.append("=" * 80)
 
     # Format each stage
-    for entry in capture.get('entries', []):
-        stage = entry['stage']
-        data = entry['data']
+    for entry in capture.get("entries", []):
+        stage = entry["stage"]
+        data = entry["data"]
 
         lines.append(format_stage_header(stage))
         lines.append(f"Timestamp: {entry['timestamp']}\n")
 
-        if stage == 'observation':
+        if stage == "observation":
             lines.append(format_observation(data))
-        elif stage == 'prompt_building':
+        elif stage == "prompt_building":
             lines.append(format_prompt_building(data))
-        elif stage == 'llm_request':
+        elif stage == "llm_request":
             if verbose:
                 lines.append(format_llm_request(data))
             else:
                 lines.append(f"Model: {data.get('model')}, Tools: {len(data.get('tools', []))}")
-        elif stage == 'llm_response':
+        elif stage == "llm_response":
             lines.append(format_llm_response(data))
-        elif stage == 'decision':
+        elif stage == "decision":
             lines.append(format_decision(data))
 
     return "\n".join(lines)
@@ -174,26 +178,37 @@ def fetch_captures(
     agent_id: str | None = None,
     tick: int | None = None,
     tick_start: int | None = None,
-    tick_end: int | None = None
+    tick_end: int | None = None,
 ) -> list[dict[str, Any]]:
     """Fetch captures from the IPC server."""
-    url = f"{base_url}/inspector/requests"
-    params = {}
+    url = f"{base_url}/debug/prompts"
+    params: dict[str, str | int] = {}
 
     if agent_id:
-        params['agent_id'] = agent_id
+        params["agent_id"] = agent_id
     if tick is not None:
-        params['tick'] = tick
+        params["tick"] = tick
     if tick_start is not None:
-        params['tick_start'] = tick_start
+        params["tick_start"] = tick_start
     if tick_end is not None:
-        params['tick_end'] = tick_end
+        params["tick_end"] = tick_end
 
     try:
         response = requests.get(url, params=params)
         response.raise_for_status()
         data = response.json()
-        return data.get('captures', [])
+        if not isinstance(data, dict):
+            return []
+
+        captures_any = data.get("captures", [])
+        if not isinstance(captures_any, list):
+            return []
+
+        captures: list[dict[str, Any]] = [
+            cast(dict[str, Any], c) for c in captures_any if isinstance(c, dict)
+        ]
+        return captures
+
     except requests.exceptions.RequestException as e:
         print(f"Error fetching captures: {e}", file=sys.stderr)
         sys.exit(1)
@@ -219,18 +234,22 @@ Examples:
 
   # Export to JSON file
   python -m tools.inspect_prompts --agent agent_001 --output decisions.json
-        """
+        """,
     )
 
-    parser.add_argument('--agent', type=str, help='Agent ID to filter by')
-    parser.add_argument('--tick', type=int, help='Specific tick number')
-    parser.add_argument('--tick-range', type=str, help='Tick range (e.g., 40-50)')
-    parser.add_argument('--latest', type=int, help='Show latest N captures')
-    parser.add_argument('--all', action='store_true', help='Show all captures')
-    parser.add_argument('--verbose', '-v', action='store_true', help='Show detailed output')
-    parser.add_argument('--output', '-o', type=str, help='Output to JSON file instead of stdout')
-    parser.add_argument('--url', type=str, default='http://127.0.0.1:5000',
-                        help='IPC server URL (default: http://127.0.0.1:5000)')
+    parser.add_argument("--agent", type=str, help="Agent ID to filter by")
+    parser.add_argument("--tick", type=int, help="Specific tick number")
+    parser.add_argument("--tick-range", type=str, help="Tick range (e.g., 40-50)")
+    parser.add_argument("--latest", type=int, help="Show latest N captures")
+    parser.add_argument("--all", action="store_true", help="Show all captures")
+    parser.add_argument("--verbose", "-v", action="store_true", help="Show detailed output")
+    parser.add_argument("--output", "-o", type=str, help="Output to JSON file instead of stdout")
+    parser.add_argument(
+        "--url",
+        type=str,
+        default="http://127.0.0.1:5000",
+        help="IPC server URL (default: http://127.0.0.1:5000)",
+    )
 
     args = parser.parse_args()
 
@@ -239,7 +258,7 @@ Examples:
     tick_end = None
     if args.tick_range:
         try:
-            parts = args.tick_range.split('-')
+            parts = args.tick_range.split("-")
             tick_start = int(parts[0])
             tick_end = int(parts[1])
         except (ValueError, IndexError):
@@ -252,7 +271,7 @@ Examples:
         agent_id=args.agent,
         tick=args.tick,
         tick_start=tick_start,
-        tick_end=tick_end
+        tick_end=tick_end,
     )
 
     if not captures:
@@ -261,12 +280,12 @@ Examples:
 
     # Apply latest filter if requested
     if args.latest:
-        captures = captures[-args.latest:]
+        captures = captures[-args.latest :]
 
     # Output to JSON file if requested
     if args.output:
         output_path = Path(args.output)
-        with open(output_path, 'w') as f:
+        with open(output_path, "w") as f:
             json.dump(captures, f, indent=2)
         print(f"Exported {len(captures)} captures to {output_path}")
         sys.exit(0)
@@ -278,5 +297,5 @@ Examples:
         print("\n")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

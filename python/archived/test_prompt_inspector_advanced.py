@@ -15,8 +15,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from dataclasses import dataclass, field
-from agent_runtime.prompt_inspector import PromptInspector, InspectorStage, get_global_inspector
+from dataclasses import dataclass, field  # noqa: E402
+
+from agent_runtime.prompt_inspector import InspectorStage, PromptInspector  # noqa: E402
 
 
 # Minimal standalone classes
@@ -49,16 +50,18 @@ def test_basic_functionality():
 
     # Create a simple capture
     capture = inspector.start_capture("agent_001", 1)
-    capture.add_entry(InspectorStage.OBSERVATION, {
-        "agent_id": "agent_001",
-        "tick": 1,
-        "position": [0.0, 0.0, 0.0]
-    })
-    capture.add_entry(InspectorStage.DECISION, {
-        "tool": "move_to",
-        "params": {"target_position": [5.0, 0.0, 0.0]},
-        "reasoning": "Moving towards target"
-    })
+    capture.add_entry(
+        InspectorStage.OBSERVATION,
+        {"agent_id": "agent_001", "tick": 1, "position": [0.0, 0.0, 0.0]},
+    )
+    capture.add_entry(
+        InspectorStage.DECISION,
+        {
+            "tool": "move_to",
+            "params": {"target_position": [5.0, 0.0, 0.0]},
+            "reasoning": "Moving towards target",
+        },
+    )
     inspector.finish_capture("agent_001", 1)
 
     # Retrieve and verify
@@ -81,23 +84,21 @@ def test_multiple_agents():
     for agent_id in agents:
         for tick in range(1, 6):  # 5 ticks per agent
             capture = inspector.start_capture(agent_id, tick)
-            capture.add_entry(InspectorStage.OBSERVATION, {
-                "agent_id": agent_id,
-                "tick": tick
-            })
-            capture.add_entry(InspectorStage.DECISION, {
-                "tool": "idle",
-                "params": {}
-            })
+            capture.add_entry(InspectorStage.OBSERVATION, {"agent_id": agent_id, "tick": tick})
+            capture.add_entry(InspectorStage.DECISION, {"tool": "idle", "params": {}})
             inspector.finish_capture(agent_id, tick)
 
     # Test filtering by agent
     agent_001_captures = inspector.get_captures_for_agent("agent_001")
-    assert len(agent_001_captures) == 5, f"Should have 5 captures for agent_001, got {len(agent_001_captures)}"
+    assert (
+        len(agent_001_captures) == 5
+    ), f"Should have 5 captures for agent_001, got {len(agent_001_captures)}"
 
     # Test filtering by tick range
     tick_filtered = inspector.get_captures_for_agent("agent_002", tick_start=2, tick_end=4)
-    assert len(tick_filtered) == 3, f"Should have 3 captures in range [2,4], got {len(tick_filtered)}"
+    assert (
+        len(tick_filtered) == 3
+    ), f"Should have 3 captures in range [2,4], got {len(tick_filtered)}"
 
     # Test getting all captures
     all_captures = inspector.get_all_captures()
@@ -129,7 +130,7 @@ def test_max_entries_limit():
     assert captures[0].tick == 6, f"First capture should be tick 6, got {captures[0].tick}"
     assert captures[-1].tick == 10, f"Last capture should be tick 10, got {captures[-1].tick}"
 
-    print(f"[PASS] FIFO limit working correctly")
+    print("[PASS] FIFO limit working correctly")
     print(f"[PASS] Kept ticks: {[c.tick for c in captures]}")
 
     return inspector
@@ -149,7 +150,7 @@ def test_disabled_inspector():
     captures = inspector.get_all_captures()
     assert len(captures) == 0, "Should have 0 captures when disabled"
 
-    print(f"[PASS] Inspector correctly disabled")
+    print("[PASS] Inspector correctly disabled")
     print(f"[PASS] No captures stored: {len(captures)} captures")
 
     return inspector
@@ -178,12 +179,12 @@ def test_json_export():
     assert len(data) == 1, "Should have 1 capture"
     assert len(data[0]["entries"]) == 5, "Should have 5 entries"
 
-    print(f"[PASS] JSON export successful")
+    print("[PASS] JSON export successful")
     print(f"[PASS] Exported {len(data)} capture(s)")
     print(f"[PASS] JSON structure valid with {len(data[0]['entries'])} stages")
 
     # Pretty print first entry
-    print(f"\nFirst entry (observation):")
+    print("\nFirst entry (observation):")
     print(json.dumps(data[0]["entries"][0], indent=2)[:200] + "...")
 
     return inspector
@@ -194,13 +195,10 @@ def test_file_logging():
     print_header("TEST 6: File Logging")
 
     import tempfile
+
     log_dir = Path(tempfile.mkdtemp())
 
-    inspector = PromptInspector(
-        enabled=True,
-        log_to_file=True,
-        log_dir=log_dir
-    )
+    inspector = PromptInspector(enabled=True, log_to_file=True, log_dir=log_dir)
 
     # Create a few captures
     for tick in range(1, 4):
@@ -223,7 +221,7 @@ def test_file_logging():
 
     print(f"[PASS] Created {len(log_files)} log files")
     print(f"[PASS] Files located at: {log_dir}")
-    print(f"[PASS] File contents validated")
+    print("[PASS] File contents validated")
 
     # Cleanup
     for f in log_files:
@@ -246,13 +244,13 @@ def test_clear_functionality():
         inspector.finish_capture("agent_clear", tick)
 
     before_count = len(inspector.get_all_captures())
-    assert before_count == 5, f"Should have 5 captures before clear"
+    assert before_count == 5, "Should have 5 captures before clear"
 
     # Clear all
     inspector.clear()
 
     after_count = len(inspector.get_all_captures())
-    assert after_count == 0, f"Should have 0 captures after clear"
+    assert after_count == 0, "Should have 0 captures after clear"
 
     print(f"[PASS] Before clear: {before_count} captures")
     print(f"[PASS] After clear: {after_count} captures")
@@ -268,32 +266,31 @@ def test_complex_filtering():
 
     # Create captures for multiple agents across different tick ranges
     agents_ticks = {
-        "agent_A": range(1, 11),   # ticks 1-10
-        "agent_B": range(5, 16),   # ticks 5-15
+        "agent_A": range(1, 11),  # ticks 1-10
+        "agent_B": range(5, 16),  # ticks 5-15
         "agent_C": range(10, 21),  # ticks 10-20
     }
 
     for agent_id, ticks in agents_ticks.items():
         for tick in ticks:
             capture = inspector.start_capture(agent_id, tick)
-            capture.add_entry(InspectorStage.OBSERVATION, {
-                "agent_id": agent_id,
-                "tick": tick
-            })
+            capture.add_entry(InspectorStage.OBSERVATION, {"agent_id": agent_id, "tick": tick})
             inspector.finish_capture(agent_id, tick)
 
     # Test 1: Specific agent, no tick filter
     agent_a_all = inspector.get_captures_for_agent("agent_A")
-    assert len(agent_a_all) == 10, f"agent_A should have 10 captures"
+    assert len(agent_a_all) == 10, "agent_A should have 10 captures"
 
     # Test 2: Specific agent with tick range
     agent_b_filtered = inspector.get_captures_for_agent("agent_B", tick_start=10, tick_end=12)
-    assert len(agent_b_filtered) == 3, f"agent_B ticks 10-12 should have 3 captures"
+    assert len(agent_b_filtered) == 3, "agent_B ticks 10-12 should have 3 captures"
 
     # Test 3: All agents in specific tick range
     all_in_range = inspector.get_all_captures(tick_start=8, tick_end=12)
     expected = 3 + 5 + 3  # agent_A: 8-10 (3), agent_B: 8-12 (5), agent_C: 10-12 (3)
-    assert len(all_in_range) == expected, f"Ticks 8-12 should have {expected} captures, got {len(all_in_range)}"
+    assert (
+        len(all_in_range) == expected
+    ), f"Ticks 8-12 should have {expected} captures, got {len(all_in_range)}"
 
     print(f"[PASS] agent_A all ticks: {len(agent_a_all)} captures")
     print(f"[PASS] agent_B ticks [10-12]: {len(agent_b_filtered)} captures")
@@ -315,14 +312,10 @@ def test_performance_metrics():
     for i, (latency, tokens) in enumerate(zip(latencies, token_counts), 1):
         capture = inspector.start_capture("agent_perf", i)
         capture.add_entry(InspectorStage.OBSERVATION, {"tick": i})
-        capture.add_entry(InspectorStage.LLM_RESPONSE, {
-            "latency_ms": latency,
-            "tokens_used": tokens
-        })
-        capture.add_entry(InspectorStage.DECISION, {
-            "tool": "move_to",
-            "total_latency_ms": latency
-        })
+        capture.add_entry(
+            InspectorStage.LLM_RESPONSE, {"latency_ms": latency, "tokens_used": tokens}
+        )
+        capture.add_entry(InspectorStage.DECISION, {"tool": "move_to", "total_latency_ms": latency})
         inspector.finish_capture("agent_perf", i)
 
     # Extract performance metrics
@@ -357,32 +350,35 @@ def test_error_scenarios():
     # Test 1: Get non-existent capture
     result = inspector.get_capture("nonexistent", 999)
     assert result is None, "Should return None for non-existent capture"
-    print(f"[PASS] Non-existent capture returns None")
+    print("[PASS] Non-existent capture returns None")
 
     # Test 2: Finish capture that was never started
     inspector.finish_capture("ghost_agent", 1)  # Should not crash
-    print(f"[PASS] Finishing non-existent capture doesn't crash")
+    print("[PASS] Finishing non-existent capture doesn't crash")
 
     # Test 3: Capture with error stage
     capture = inspector.start_capture("agent_error", 1)
     capture.add_entry(InspectorStage.OBSERVATION, {"tick": 1})
-    capture.add_entry(InspectorStage.DECISION, {
-        "tool": "idle",
-        "params": {},
-        "reasoning": "Error occurred",
-        "error": "Backend connection failed"
-    })
+    capture.add_entry(
+        InspectorStage.DECISION,
+        {
+            "tool": "idle",
+            "params": {},
+            "reasoning": "Error occurred",
+            "error": "Backend connection failed",
+        },
+    )
     inspector.finish_capture("agent_error", 1)
 
     retrieved = inspector.get_capture("agent_error", 1)
     has_error = any("error" in entry.data for entry in retrieved.entries)
     assert has_error, "Should contain error information"
-    print(f"[PASS] Error information captured correctly")
+    print("[PASS] Error information captured correctly")
 
     # Test 4: Empty tick range
     empty_results = inspector.get_all_captures(tick_start=1000, tick_end=2000)
     assert len(empty_results) == 0, "Should return empty list for out-of-range query"
-    print(f"[PASS] Empty tick range returns empty list")
+    print("[PASS] Empty tick range returns empty list")
 
     return inspector
 

@@ -20,8 +20,8 @@ from pathlib import Path
 # Add starters to path so we can import from them
 sys.path.insert(0, str(Path(__file__).parent.parent / "starters" / "beginner"))
 
-from agent_arena_sdk import AgentArena
-from agent import Agent
+from agent import Agent  # noqa: E402
+from agent_arena_sdk import AgentArena  # noqa: E402
 
 # Configure logging
 logging.basicConfig(

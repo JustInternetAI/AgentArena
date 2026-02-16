@@ -1,5 +1,10 @@
 # Testing the Prompt Inspector with Godot Foraging Scene
 
+> **Note (Issue #62):** The inspection endpoints have been consolidated into
+> unified `/debug/*` endpoints on the SDK server. Enable with
+> `AgentArena(enable_debug=True)`. A web-based trace viewer is also available
+> at `GET /debug`. The old `/inspector/*` endpoints no longer exist.
+
 This guide walks you through testing the Prompt Inspector with a real Godot foraging simulation to capture and review LLM decision-making data.
 
 ## Quick Start (3 Commands)
@@ -16,14 +21,14 @@ venv/Scripts/python run_local_llm_forager.py --model ../models/tinyllama-1.1b-ch
 
 **3. View captured data (choose one):**
 ```bash
-# Interactive menu (recommended)
-venv/Scripts/python test_inspector_with_godot.py
+# Web trace viewer (recommended) — open in browser
+# http://127.0.0.1:5000/debug
 
 # Command-line tool
 venv/Scripts/python -m tools.inspect_prompts --agent foraging_agent_001 --latest 5
 
 # HTTP API
-curl "http://127.0.0.1:5000/inspector/requests?agent_id=foraging_agent_001"
+curl "http://127.0.0.1:5000/debug/prompts?agent_id=foraging_agent_001"
 ```
 
 ---
@@ -120,39 +125,54 @@ Export to JSON for analysis:
 venv/Scripts/python -m tools.inspect_prompts --agent foraging_agent_001 --output foraging_decisions.json
 ```
 
-### Option B: Using the HTTP API
+### Option B: Using the Web Trace Viewer
 
-Get all captures for the agent:
+Open `http://127.0.0.1:5000/debug` in your browser. The viewer provides:
+- Live-updating trace list (polls every 2s)
+- Agent filter sidebar
+- Collapsible trace tree with color-coded steps
+- Click any step to see full JSON data in the detail panel
+- Tick range scrubber
+
+### Option C: Using the HTTP API
+
+Get all prompt/response captures for the agent:
 
 ```bash
-curl "http://127.0.0.1:5000/inspector/requests?agent_id=foraging_agent_001"
+curl "http://127.0.0.1:5000/debug/prompts?agent_id=foraging_agent_001"
 ```
 
 Get a specific tick:
 
 ```bash
-curl "http://127.0.0.1:5000/inspector/requests?agent_id=foraging_agent_001&tick=5"
+curl "http://127.0.0.1:5000/debug/prompts?agent_id=foraging_agent_001&tick=5"
 ```
 
 Get tick range:
 
 ```bash
-curl "http://127.0.0.1:5000/inspector/requests?tick_start=1&tick_end=10"
+curl "http://127.0.0.1:5000/debug/prompts?tick_start=1&tick_end=10"
 ```
 
-Check inspector configuration:
+Get reasoning traces:
 
 ```bash
-curl "http://127.0.0.1:5000/inspector/config"
+curl "http://127.0.0.1:5000/debug/traces?agent_id=foraging_agent_001&limit=20"
 ```
 
-### Option C: Programmatic Access
+Get observation data with visibility changes:
+
+```bash
+curl "http://127.0.0.1:5000/debug/changes?agent_id=foraging_agent_001"
+```
+
+### Option D: Programmatic Access
 
 ```python
 import requests
 
 # Get all captures
-response = requests.get("http://127.0.0.1:5000/inspector/requests", params={
+response = requests.get("http://127.0.0.1:5000/debug/prompts", params={
     "agent_id": "foraging_agent_001"
 })
 captures = response.json()
@@ -296,21 +316,20 @@ for capture in captures:
 
 ### Issue 1: No Captures Appearing
 
-**Check if inspector is enabled:**
+**Check if debug mode is enabled:**
+```python
+# Ensure you're using:
+arena = AgentArena(enable_debug=True)
+```
+
+**Verify debug endpoints are active:**
 ```bash
-curl "http://127.0.0.1:5000/inspector/config"
+curl "http://127.0.0.1:5000/debug/agents"
 ```
 
-Should return:
-```json
-{
-  "enabled": true,
-  "max_entries": 1000,
-  "log_to_file": false
-}
-```
+Should return a JSON list of agent IDs. If you get a 404, debug mode is not enabled.
 
-**Solution**: Inspector is enabled by default. If disabled, restart the server.
+**Solution**: Pass `enable_debug=True` when creating `AgentArena`. The PromptInspector is also enabled by default in `LocalLLMBehavior`.
 
 ### Issue 2: Agent Not Making Decisions
 
@@ -361,7 +380,7 @@ Extract performance metrics:
 import requests
 import statistics
 
-response = requests.get("http://127.0.0.1:5000/inspector/requests", params={
+response = requests.get("http://127.0.0.1:5000/debug/prompts", params={
     "agent_id": "foraging_agent_001"
 })
 captures = response.json()
@@ -387,7 +406,7 @@ print(f"Average tokens: {statistics.mean(token_counts):.1f}")
 1. Run simulation with Model A, save data:
    ```bash
    venv/Scripts/python -m tools.inspect_prompts --agent foraging_agent_001 --output model_a.json
-   curl -X DELETE "http://127.0.0.1:5000/inspector/requests"  # Clear
+   curl -X POST "http://127.0.0.1:5000/debug/reset"  # Clear observation history
    ```
 
 2. Restart with Model B, run simulation:

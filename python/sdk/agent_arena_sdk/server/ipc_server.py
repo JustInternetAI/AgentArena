@@ -10,7 +10,8 @@ import logging
 from typing import Any, Callable
 
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import HTMLResponse
 
 from ..schemas import Decision, Observation
 
@@ -26,6 +27,10 @@ class MinimalIPCServer:
 
     No behavior management, no tool execution, no runtime complexity.
     Just: observation in → callback → decision out.
+
+    When ``enable_debug`` is True, additional ``/debug/*`` endpoints are
+    registered for observation tracking, trace inspection, and a web-based
+    trace viewer UI.
     """
 
     def __init__(
@@ -33,6 +38,7 @@ class MinimalIPCServer:
         decide_callback: Callable[[Observation], Decision],
         host: str = "127.0.0.1",
         port: int = 5000,
+        enable_debug: bool = False,
     ):
         """
         Initialize the minimal IPC server.
@@ -41,15 +47,36 @@ class MinimalIPCServer:
             decide_callback: Function that takes Observation and returns Decision
             host: Host address to bind to
             port: Port to listen on
+            enable_debug: Enable /debug/* endpoints for observation tracking,
+                trace inspection, and web-based trace viewer
         """
         self.decide_callback = decide_callback
         self.host = host
         self.port = port
+        self.enable_debug = enable_debug
         self.app: FastAPI | None = None
         self.metrics = {
             "total_ticks": 0,
             "total_observations": 0,
         }
+
+        # Debug subsystems (created lazily in create_app when enabled)
+        self.observation_tracker: Any = None
+        self.debug_store: Any = None
+
+    def _init_debug(self) -> None:
+        """Initialize debug subsystems."""
+        from .debug_middleware import ObservationTracker
+        from .debug_store import DebugStore
+
+        self.observation_tracker = ObservationTracker()
+        self.debug_store = DebugStore()
+        logger.info("Debug mode enabled — /debug/* endpoints available")
+
+    def _track_observation(self, observation: dict[str, Any]) -> None:
+        """Track an observation if debug mode is enabled (no-op otherwise)."""
+        if self.observation_tracker is not None:
+            self.observation_tracker.track_observation(observation)
 
     def create_app(self) -> FastAPI:
         """Create and configure the FastAPI application."""
@@ -59,18 +86,82 @@ class MinimalIPCServer:
             version="0.1.0",
         )
 
+        if self.enable_debug:
+            self._init_debug()
+
         @app.get("/")
-        async def root():
+        async def root() -> dict[str, Any]:
             """Root endpoint."""
             return {
                 "status": "running",
+                "debug": self.enable_debug,
                 "metrics": self.metrics,
             }
 
         @app.get("/health")
-        async def health():
+        async def health() -> dict[str, str]:
             """Health check endpoint."""
             return {"status": "ok"}
+
+        @app.post("/observe")
+        async def process_observation(observation: dict[str, Any]) -> dict[str, Any]:
+            """
+            Process a single observation from Godot and return a decision.
+
+            This is the endpoint Godot calls each tick for each agent.
+            """
+            try:
+                agent_id = observation.get("agent_id", "unknown")
+
+                logger.debug(f"[/observe] Processing observation for agent '{agent_id}'")
+
+                # Track observation for debug (no-op when disabled)
+                self._track_observation(observation)
+
+                # Parse observation
+                obs = Observation.from_dict(observation)
+
+                # Call user's decide callback
+                decision = self.decide_callback(obs)
+
+                # Update metrics
+                self.metrics["total_ticks"] += 1
+                self.metrics["total_observations"] += 1
+
+                result = {
+                    "agent_id": agent_id,
+                    "tool": decision.tool,
+                    "params": decision.params,
+                    "reasoning": decision.reasoning or "Agent decision",
+                }
+
+                logger.debug(f"Agent {agent_id} decided: {decision.tool}")
+
+                return result
+
+            except Exception as e:
+                logger.error(f"Error processing observation: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @app.post("/tools/execute")
+        async def execute_tool(request_data: dict[str, Any]) -> dict[str, Any]:
+            """
+            Acknowledge a tool execution request from Godot.
+
+            In the new SDK architecture, Godot executes tools directly.
+            This endpoint exists for backward compatibility so Godot doesn't
+            get 404 errors while it still calls this endpoint.
+            """
+            tool_name = request_data.get("tool_name", "unknown")
+            agent_id = request_data.get("agent_id", "unknown")
+            logger.debug(
+                f"[/tools/execute] Acknowledging tool '{tool_name}' " f"for agent '{agent_id}'"
+            )
+            return {
+                "success": True,
+                "result": None,
+                "error": "",
+            }
 
         @app.post("/tick")
         async def process_tick(request_data: dict[str, Any]) -> dict[str, Any]:
@@ -78,30 +169,6 @@ class MinimalIPCServer:
             Process a simulation tick.
 
             Receives observation(s), calls decide callback, returns action(s).
-
-            Args:
-                request_data: Tick request with format:
-                    {
-                        "tick": int,
-                        "agents": [
-                            {
-                                "agent_id": str,
-                                "observations": {...observation data...}
-                            }
-                        ]
-                    }
-
-            Returns:
-                Tick response with format:
-                    {
-                        "tick": int,
-                        "actions": [
-                            {
-                                "agent_id": str,
-                                "action": {...decision data...}
-                            }
-                        ]
-                    }
             """
             try:
                 tick = request_data.get("tick", 0)
@@ -119,6 +186,9 @@ class MinimalIPCServer:
                         obs_data["agent_id"] = agent_id
                     if "tick" not in obs_data:
                         obs_data["tick"] = tick
+
+                    # Track observation for debug (no-op when disabled)
+                    self._track_observation(obs_data)
 
                     try:
                         # Parse observation
@@ -163,8 +233,100 @@ class MinimalIPCServer:
                 logger.error(f"Error processing tick: {e}", exc_info=True)
                 raise HTTPException(status_code=500, detail=str(e))
 
+        # ---------------------------------------------------------------
+        # Debug endpoints (only registered when enable_debug=True)
+        # ---------------------------------------------------------------
+        if self.enable_debug:
+            self._register_debug_endpoints(app)
+
         self.app = app
         return app
+
+    def _register_debug_endpoints(self, app: FastAPI) -> None:
+        """Register all /debug/* endpoints on the FastAPI app."""
+
+        # -- Web UI --
+
+        @app.get("/debug", response_class=HTMLResponse)
+        async def debug_viewer() -> str:
+            """Serve the web-based trace viewer UI."""
+            from .web_ui import get_debug_viewer_html
+
+            return get_debug_viewer_html()
+
+        # -- Observations --
+
+        @app.get("/debug/observations")
+        async def get_observations(
+            limit: int = Query(50, ge=1, le=1000),
+            agent_id: str | None = Query(None),
+        ) -> dict[str, Any]:
+            """Get recent observations with visibility tracking."""
+            observations = self.observation_tracker.get_recent(limit, agent_id)
+            return {"observations": observations, "count": len(observations)}
+
+        @app.get("/debug/changes")
+        async def get_changes(
+            limit: int = Query(50, ge=1, le=1000),
+            agent_id: str | None = Query(None),
+        ) -> dict[str, Any]:
+            """Get observations where visibility changed."""
+            changes = self.observation_tracker.get_changes(limit, agent_id)
+            return {"changes": changes, "count": len(changes)}
+
+        @app.post("/debug/reset")
+        async def reset_observations() -> dict[str, str]:
+            """Clear observation tracking history."""
+            self.observation_tracker.clear()
+            return {"status": "reset"}
+
+        # -- Traces --
+
+        @app.get("/debug/traces")
+        async def get_traces(
+            limit: int = Query(50, ge=1, le=1000),
+            agent_id: str | None = Query(None),
+            tick_start: int | None = Query(None),
+            tick_end: int | None = Query(None),
+        ) -> dict[str, Any]:
+            """Get recent reasoning traces from hybrid storage."""
+            traces = self.debug_store.get_recent_traces(
+                limit=limit,
+                agent_id=agent_id,
+                tick_start=tick_start,
+                tick_end=tick_end,
+            )
+            return {"traces": traces, "count": len(traces)}
+
+        @app.get("/debug/prompts")
+        async def get_prompts(
+            agent_id: str | None = Query(None),
+            tick: int | None = Query(None),
+            tick_start: int | None = Query(None),
+            tick_end: int | None = Query(None),
+        ) -> dict[str, Any]:
+            """Get LLM prompt/response captures."""
+            captures = self.debug_store.get_captures(
+                agent_id=agent_id,
+                tick=tick,
+                tick_start=tick_start,
+                tick_end=tick_end,
+            )
+            return {"captures": captures, "count": len(captures)}
+
+        @app.get("/debug/agents")
+        async def list_agents() -> dict[str, Any]:
+            """List all agents with traces."""
+            agents = self.debug_store.list_agents()
+            return {"agents": agents}
+
+        @app.get("/debug/episodes")
+        async def list_episodes(
+            agent_id: str = Query(..., description="Agent ID"),
+        ) -> dict[str, Any]:
+            """List episodes for an agent."""
+            episodes = self.debug_store.list_episodes(agent_id)
+            return {"agent_id": agent_id, "episodes": episodes}
 
     def run(self) -> None:
         """

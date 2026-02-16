@@ -38,19 +38,30 @@ class AgentArena:
         arena.run(my_decide)  # Blocks until stopped
     """
 
-    def __init__(self, host: str = "127.0.0.1", port: int = 5000):
+    def __init__(
+        self,
+        host: str = "127.0.0.1",
+        port: int = 5000,
+        enable_debug: bool = False,
+    ):
         """
         Initialize AgentArena connection.
 
         Args:
             host: IPC server host address (default: localhost)
             port: IPC server port (default: 5000)
+            enable_debug: Enable /debug/* endpoints for observation tracking,
+                trace inspection, and web-based trace viewer at /debug
         """
         self.host = host
         self.port = port
+        self.enable_debug = enable_debug
         self.server: MinimalIPCServer | None = None
 
-        logger.info(f"Initialized AgentArena for {host}:{port}")
+        logger.info(
+            f"Initialized AgentArena for {host}:{port}"
+            f"{' (debug enabled)' if enable_debug else ''}"
+        )
 
     def run(self, decide_callback: Callable[[Observation], Decision]) -> None:
         """
@@ -76,6 +87,7 @@ class AgentArena:
             decide_callback=decide_callback,
             host=self.host,
             port=self.port,
+            enable_debug=self.enable_debug,
         )
 
         try:
@@ -111,6 +123,7 @@ class AgentArena:
             decide_callback=decide_callback,
             host=self.host,
             port=self.port,
+            enable_debug=self.enable_debug,
         )
 
         await self.server.run_async()

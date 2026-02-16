@@ -1,4 +1,19 @@
-"""Observation Inspector - Debug tool to inspect observations sent to agents.
+"""Observation Inspector - DEPRECATED.
+
+This standalone tool has been replaced by the unified debug system in Issue #62.
+Use the SDK server's debug mode instead:
+
+    from agent_arena_sdk import AgentArena
+    arena = AgentArena(enable_debug=True)
+    arena.run(my_decide_function)
+
+Then access observations at:
+    GET http://127.0.0.1:5000/debug/observations
+    GET http://127.0.0.1:5000/debug/changes
+    GET http://127.0.0.1:5000/debug  (web UI)
+
+--- Original docstring ---
+Debug tool to inspect observations sent to agents.
 
 This tool creates a simple server that logs every observation received,
 showing exactly what the agent "sees" at each tick.

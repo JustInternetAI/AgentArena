@@ -1,8 +1,9 @@
 # Prompt Inspector Implementation Summary
 
 **Issue**: #31 - Prompt Inspector - View LLM Input/Output in Real-Time
-**Status**: ✅ Complete
+**Status**: ✅ Complete (consolidated in Issue #62)
 **Implementation Date**: January 2026
+**Consolidated**: February 2026 (Issue #62 — unified debug system)
 
 ## Overview
 
@@ -36,9 +37,9 @@ The Prompt Inspector is a comprehensive debugging tool that captures and display
 
 ✅ **Multiple Access Methods**
 - CLI tool: `python -m tools.inspect_prompts`
-- HTTP API: GET/DELETE endpoints at `/inspector/*`
+- HTTP API: Unified `/debug/*` endpoints (consolidated in Issue #62)
+- Web UI: Trace viewer at `GET /debug` (added in Issue #62)
 - Python library: Direct access via `PromptInspector` class
-- Interactive script: `test_inspector_with_godot.py`
 
 ✅ **Filtering and Querying**
 - Filter by agent ID
@@ -76,11 +77,28 @@ The Prompt Inspector is a comprehensive debugging tool that captures and display
   - Integrated capture at all 5 stages in `decide()` method
   - Error handling with capture
 
-#### IPC Endpoints
-- **`python/ipc/server.py`** (modified)
-  - `GET /inspector/requests` - Retrieve captures
-  - `DELETE /inspector/requests` - Clear captures
-  - `GET /inspector/config` - Get configuration
+#### Unified Debug Endpoints (Issue #62)
+- **`python/sdk/agent_arena_sdk/server/ipc_server.py`** (modified)
+  - `GET /debug` - Web-based trace viewer UI
+  - `GET /debug/prompts` - Retrieve LLM prompt/response captures
+  - `GET /debug/traces` - Reasoning traces (hybrid in-memory + persistent)
+  - `GET /debug/observations` - Observation tracking with visibility changes
+  - `GET /debug/changes` - Observations with visibility changes only
+  - `GET /debug/agents` - List agents with traces
+  - `GET /debug/episodes` - List episodes for an agent
+  - `POST /debug/reset` - Clear observation history
+  - Enabled via `AgentArena(enable_debug=True)`
+
+#### Debug System (Issue #62)
+- **`python/sdk/agent_arena_sdk/server/debug_middleware.py`**
+  - `ObservationTracker` — ring buffer with per-agent visibility change detection
+- **`python/sdk/agent_arena_sdk/server/debug_store.py`**
+  - `DebugStore` — hybrid storage (in-memory deque + optional TraceStore persistence)
+  - Bridges to `PromptInspector` for prompt/response captures
+- **`python/sdk/agent_arena_sdk/server/web_ui.py`**
+  - Loads the static HTML trace viewer
+- **`python/sdk/agent_arena_sdk/server/static/debug_viewer.html`**
+  - Self-contained web trace viewer (dark theme, 3-panel layout, live polling)
 
 #### CLI Tool
 - **`python/tools/inspect_prompts.py`** (169 lines)
@@ -88,14 +106,13 @@ The Prompt Inspector is a comprehensive debugging tool that captures and display
   - Multiple viewing modes (latest, specific tick, range)
   - JSON export
   - Color-coded output
+  - Uses `/debug/prompts` endpoint (updated in Issue #62)
 
-#### Interactive Testing Tool
-- **`python/test_inspector_with_godot.py`** (348 lines)
-  - Interactive menu system
-  - Real-time monitoring mode
-  - Performance analysis
-  - Export functionality
-  - Agent ID switching
+#### Archived Files (Issue #62)
+- **`python/archived/test_inspector_with_godot.py`** — archived (used non-existent endpoint)
+- **`python/archived/test_prompt_inspector_advanced.py`** — archived (stale test script)
+- **`python/archived/test_prompt_inspector_demo.py`** — archived (stale demo script)
+- **`python/archived/observe_inspector.py`** — archived (replaced by `enable_debug=True`)
 
 #### Test Suites
 - **`tests/test_prompt_inspector.py`** (237 lines, 14 tests)
@@ -104,28 +121,18 @@ The Prompt Inspector is a comprehensive debugging tool that captures and display
   - File logging tests
   - Filtering tests
 
-- **`python/test_prompt_inspector_advanced.py`** (439 lines, 10 tests)
-  - Advanced test scenarios
-  - Multiple agents
-  - FIFO limit testing
-  - Complex filtering
-  - Performance metrics extraction
-  - Error handling
-
-- **`python/test_prompt_inspector_demo.py`** (351 lines)
-  - Standalone demo script
-  - No external dependencies (avoids faiss)
-  - 4 simulated decision cycles
-  - File logging demonstration
+- **`python/tests/test_debug_system.py`** (20 tests, added in Issue #62)
+  - ObservationTracker tests (11 tests)
+  - DebugStore tests (9 tests)
 
 #### Documentation
-- **`docs/prompt_inspector.md`** (466 lines)
+- **`docs/prompt_inspector.md`**
   - Complete API reference
   - Usage examples
   - Use cases and troubleshooting
   - Performance impact analysis
 
-- **`docs/testing_prompt_inspector.md`** (385 lines)
+- **`docs/testing_prompt_inspector.md`**
   - Step-by-step testing guide
   - Godot integration instructions
   - Analysis techniques
@@ -136,11 +143,7 @@ The Prompt Inspector is a comprehensive debugging tool that captures and display
   - Architecture overview
   - Test results
 
-- **`python/README_INSPECTOR_TESTING.md`** (28 lines)
-  - Quick reference for testing scripts
-  - Links to full documentation
-
-### Architecture
+### Architecture (Updated for Issue #62)
 
 ```
 ┌──────────────────────────────────────────────────────────┐
@@ -150,8 +153,21 @@ The Prompt Inspector is a comprehensive debugging tool that captures and display
                      │ Observation
                      ↓
 ┌──────────────────────────────────────────────────────────┐
-│                  IPC Server (FastAPI)                    │
-│              /decide, /inspector/*                       │
+│          SDK IPC Server (FastAPI)                        │
+│    AgentArena(enable_debug=True)                        │
+│                                                          │
+│  ┌─────────────────────────────────────────────────┐    │
+│  │  Debug Middleware (when enabled)                 │    │
+│  │  ┌─────────────────┐  ┌──────────────────────┐  │    │
+│  │  │ObservationTracker│  │    DebugStore        │  │    │
+│  │  │ (ring buffer)   │  │ (hybrid: deque +     │  │    │
+│  │  │ visibility Δ    │  │  TraceStore + PI)    │  │    │
+│  │  └─────────────────┘  └──────────────────────┘  │    │
+│  └─────────────────────────────────────────────────┘    │
+│                                                          │
+│  Endpoints: /debug, /debug/traces, /debug/prompts,      │
+│  /debug/observations, /debug/changes, /debug/agents,    │
+│  /debug/episodes, /debug/reset                          │
 └────────────────────┬─────────────────────────────────────┘
                      │ AgentBehavior.decide()
                      ↓
@@ -177,10 +193,10 @@ The Prompt Inspector is a comprehensive debugging tool that captures and display
 └──────────────────────────────────────────────────────────┘
 
 Access Methods:
-┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
-│  CLI Tool       │  │   HTTP API      │  │  Python API     │
-│  inspect_prompts│  │  GET /inspector │  │  get_capture()  │
-└─────────────────┘  └─────────────────┘  └─────────────────┘
+┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+│  CLI Tool       │  │   HTTP API      │  │  Python API     │  │  Web UI         │
+│  inspect_prompts│  │  GET /debug/*   │  │  get_capture()  │  │  GET /debug     │
+└─────────────────┘  └─────────────────┘  └─────────────────┘  └─────────────────┘
 ```
 
 ## Test Results
@@ -291,23 +307,29 @@ captures = inspector.get_all_captures(tick_start=40, tick_end=50)
 json_str = inspector.to_json(agent_id="agent_001", tick=42)
 ```
 
-### HTTP API
+### HTTP API (Unified Debug Endpoints)
 
 ```bash
-# Get all captures
-curl "http://127.0.0.1:5000/inspector/requests?agent_id=agent_001"
+# Get all prompt/response captures
+curl "http://127.0.0.1:5000/debug/prompts?agent_id=agent_001"
 
 # Get specific tick
-curl "http://127.0.0.1:5000/inspector/requests?agent_id=agent_001&tick=42"
+curl "http://127.0.0.1:5000/debug/prompts?agent_id=agent_001&tick=42"
 
 # Get tick range
-curl "http://127.0.0.1:5000/inspector/requests?tick_start=40&tick_end=50"
+curl "http://127.0.0.1:5000/debug/prompts?tick_start=40&tick_end=50"
 
-# Get configuration
-curl "http://127.0.0.1:5000/inspector/config"
+# Get reasoning traces
+curl "http://127.0.0.1:5000/debug/traces?agent_id=agent_001&limit=50"
 
-# Clear all captures
-curl -X DELETE "http://127.0.0.1:5000/inspector/requests"
+# Get observations with visibility changes
+curl "http://127.0.0.1:5000/debug/changes?agent_id=agent_001"
+
+# List agents
+curl "http://127.0.0.1:5000/debug/agents"
+
+# Open web trace viewer in browser
+# http://127.0.0.1:5000/debug
 ```
 
 ## Performance Impact
@@ -339,9 +361,10 @@ Based on testing with tinyllama-1.1b-chat model:
 
 Potential improvements not currently implemented:
 
-- [ ] Web UI dashboard for visualizing captures
+- [x] Web UI dashboard for visualizing captures (Issue #62)
+- [x] Unified debug API consolidating all inspection tools (Issue #62)
 - [ ] Database backend for long-term storage
-- [ ] Streaming API for real-time updates
+- [ ] Streaming API for real-time updates (web UI uses 2s polling)
 - [ ] Comparison tools for A/B testing models
 - [ ] Automatic prompt optimization suggestions
 - [ ] Integration with other behavior types

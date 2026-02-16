@@ -398,7 +398,9 @@ class Objective:
         """
         return {
             "description": self.description,
-            "success_metrics": {name: metric.to_dict() for name, metric in self.success_metrics.items()},
+            "success_metrics": {
+                name: metric.to_dict() for name, metric in self.success_metrics.items()
+            },
             "time_limit": self.time_limit,
         }
 

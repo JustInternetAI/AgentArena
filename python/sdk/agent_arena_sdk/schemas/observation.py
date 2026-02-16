@@ -175,17 +175,23 @@ class Observation:
         from .objective import Objective
 
         # Parse position (required)
-        position = tuple(data["position"]) if isinstance(data["position"], list) else data["position"]
+        position = (
+            tuple(data["position"]) if isinstance(data["position"], list) else data["position"]
+        )
 
         # Parse optional rotation
         rotation = None
         if "rotation" in data and data["rotation"] is not None:
-            rotation = tuple(data["rotation"]) if isinstance(data["rotation"], list) else data["rotation"]
+            rotation = (
+                tuple(data["rotation"]) if isinstance(data["rotation"], list) else data["rotation"]
+            )
 
         # Parse optional velocity
         velocity = None
         if "velocity" in data and data["velocity"] is not None:
-            velocity = tuple(data["velocity"]) if isinstance(data["velocity"], list) else data["velocity"]
+            velocity = (
+                tuple(data["velocity"]) if isinstance(data["velocity"], list) else data["velocity"]
+            )
 
         # Parse visible entities
         visible_entities = []

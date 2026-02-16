@@ -9,8 +9,7 @@ These tests verify the core SDK functionality:
 """
 
 import pytest
-
-from agent_arena_sdk import Decision, MetricDefinition, Observation, Objective
+from agent_arena_sdk import Decision, MetricDefinition, Objective, Observation
 
 
 class TestDecision:
@@ -49,9 +48,7 @@ class TestObjective:
 
     def test_create_metric_definition(self):
         """Test creating a metric definition."""
-        metric = MetricDefinition(
-            target=100.0, weight=1.5, lower_is_better=False, required=True
-        )
+        metric = MetricDefinition(target=100.0, weight=1.5, lower_is_better=False, required=True)
 
         assert metric.target == 100.0
         assert metric.weight == 1.5
@@ -157,9 +154,7 @@ class TestObservation:
 
     def test_observation_defaults(self):
         """Test observation default values."""
-        obs = Observation(
-            agent_id="agent_001", tick=0, position=(0.0, 0.0, 0.0)
-        )
+        obs = Observation(agent_id="agent_001", tick=0, position=(0.0, 0.0, 0.0))
 
         assert obs.rotation is None
         assert obs.velocity is None

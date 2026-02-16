@@ -1,5 +1,11 @@
 # Prompt Inspector - Debugging Tool for LLM Agent Decisions
 
+> **Note (Issue #62):** The inspection system has been consolidated into a unified
+> debug system on the SDK server. Enable it with `AgentArena(enable_debug=True)`.
+> The old `/inspector/*` endpoints have been replaced by `/debug/*` endpoints,
+> and a web-based trace viewer is available at `GET /debug`.
+> See the architecture diagram in [prompt_inspector_implementation.md](prompt_inspector_implementation.md).
+
 The Prompt Inspector is a powerful debugging tool that captures and displays exactly what prompts are sent to LLMs and what responses are received. This enables developers to understand and debug agent decision-making in real-time.
 
 ## Overview
@@ -50,23 +56,30 @@ python -m tools.inspect_prompts --agent agent_001 --output decisions.json
 
 ### Retrieve via API
 
-You can also retrieve captures via the IPC server HTTP endpoints:
+You can also retrieve captures via the SDK server's unified debug endpoints
+(requires `AgentArena(enable_debug=True)`):
 
 ```bash
 # Get a specific capture
-curl "http://127.0.0.1:5000/inspector/requests?agent_id=agent_001&tick=42"
+curl "http://127.0.0.1:5000/debug/prompts?agent_id=agent_001&tick=42"
 
 # Get all captures for an agent
-curl "http://127.0.0.1:5000/inspector/requests?agent_id=agent_001"
+curl "http://127.0.0.1:5000/debug/prompts?agent_id=agent_001"
 
 # Get captures in a tick range
-curl "http://127.0.0.1:5000/inspector/requests?tick_start=40&tick_end=50"
+curl "http://127.0.0.1:5000/debug/prompts?tick_start=40&tick_end=50"
 
-# Get inspector configuration
-curl "http://127.0.0.1:5000/inspector/config"
+# Get reasoning traces
+curl "http://127.0.0.1:5000/debug/traces?agent_id=agent_001&limit=50"
 
-# Clear all captures
-curl -X DELETE "http://127.0.0.1:5000/inspector/requests"
+# Get observation tracking data
+curl "http://127.0.0.1:5000/debug/observations?agent_id=agent_001"
+
+# List agents with traces
+curl "http://127.0.0.1:5000/debug/agents"
+
+# Open the web-based trace viewer
+# Navigate to http://127.0.0.1:5000/debug in your browser
 ```
 
 ## Configuration
@@ -424,14 +437,19 @@ set_global_inspector(inspector)
 
 ### No captures appearing
 
-1. Check if inspector is enabled:
-   ```bash
-   curl "http://127.0.0.1:5000/inspector/config"
+1. Ensure debug mode is enabled:
+   ```python
+   arena = AgentArena(enable_debug=True)
    ```
 
-2. Verify the agent is using `LocalLLMBehavior` (inspector only works with LocalLLMBehavior)
+2. Check that the server is running and debug endpoints are active:
+   ```bash
+   curl "http://127.0.0.1:5000/debug/agents"
+   ```
 
-3. Check if max_entries limit is too low and old captures are being evicted
+3. Verify the agent is using `LocalLLMBehavior` (inspector only works with LocalLLMBehavior)
+
+4. Check if max_entries limit is too low and old captures are being evicted
 
 ### CLI tool not working
 
@@ -459,6 +477,7 @@ set_global_inspector(inspector)
 - [IPC Protocol](ipc_protocol.md) - HTTP endpoints for retrieving inspector data
 - [Memory Systems](memory_system.md) - How memory context is included in prompts
 - [Prompt Engineering](learners/advanced/02_prompt_engineering.md) - Best practices for crafting effective prompts
+- [Implementation Summary](prompt_inspector_implementation.md) - Architecture and consolidated debug system details
 
 ## Contributing
 

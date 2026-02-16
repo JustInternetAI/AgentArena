@@ -6,17 +6,18 @@ responses are received, enabling developers to debug agent decision-making.
 
 import json
 import logging
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from datetime import datetime
-from pathlib import Path
-from typing import Any, Optional
 from enum import Enum
+from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
 class InspectorStage(str, Enum):
     """Stages in the LLM decision pipeline."""
+
     OBSERVATION = "observation"
     PROMPT_BUILDING = "prompt_building"
     LLM_REQUEST = "llm_request"
@@ -27,6 +28,7 @@ class InspectorStage(str, Enum):
 @dataclass
 class InspectorEntry:
     """A single captured entry in the decision pipeline."""
+
     timestamp: str
     agent_id: str
     tick: int
@@ -40,13 +42,14 @@ class InspectorEntry:
             "agent_id": self.agent_id,
             "tick": self.tick,
             "stage": self.stage,
-            "data": self.data
+            "data": self.data,
         }
 
 
 @dataclass
 class DecisionCapture:
     """Complete capture of a single agent decision cycle."""
+
     agent_id: str
     tick: int
     start_time: str
@@ -59,7 +62,7 @@ class DecisionCapture:
             agent_id=self.agent_id,
             tick=self.tick,
             stage=stage,
-            data=data
+            data=data,
         )
         self.entries.append(entry)
 
@@ -69,7 +72,7 @@ class DecisionCapture:
             "agent_id": self.agent_id,
             "tick": self.tick,
             "start_time": self.start_time,
-            "entries": [entry.to_dict() for entry in self.entries]
+            "entries": [entry.to_dict() for entry in self.entries],
         }
 
 
@@ -81,7 +84,7 @@ class PromptInspector:
         enabled: bool = True,
         max_entries: int = 1000,
         log_to_file: bool = False,
-        log_dir: Optional[Path] = None
+        log_dir: Path | None = None,
     ):
         """Initialize the Prompt Inspector.
 
@@ -103,7 +106,7 @@ class PromptInspector:
             self.log_dir.mkdir(parents=True, exist_ok=True)
             logger.info(f"Prompt Inspector logging to {self.log_dir}")
 
-    def start_capture(self, agent_id: str, tick: int) -> Optional[DecisionCapture]:
+    def start_capture(self, agent_id: str, tick: int) -> DecisionCapture | None:
         """Start capturing a new decision cycle.
 
         Args:
@@ -117,9 +120,7 @@ class PromptInspector:
             return None
 
         capture = DecisionCapture(
-            agent_id=agent_id,
-            tick=tick,
-            start_time=datetime.utcnow().isoformat() + "Z"
+            agent_id=agent_id, tick=tick, start_time=datetime.utcnow().isoformat() + "Z"
         )
 
         key = (agent_id, tick)
@@ -163,14 +164,14 @@ class PromptInspector:
             filename = f"{capture.agent_id}_tick_{capture.tick:06d}.json"
             filepath = self.log_dir / filename
 
-            with open(filepath, 'w') as f:
+            with open(filepath, "w") as f:
                 json.dump(capture.to_dict(), f, indent=2)
 
             logger.debug(f"Wrote capture to {filepath}")
         except Exception as e:
             logger.error(f"Failed to write capture to file: {e}")
 
-    def get_capture(self, agent_id: str, tick: int) -> Optional[DecisionCapture]:
+    def get_capture(self, agent_id: str, tick: int) -> DecisionCapture | None:
         """Retrieve a specific decision capture.
 
         Args:
@@ -183,10 +184,7 @@ class PromptInspector:
         return self.captures.get((agent_id, tick))
 
     def get_captures_for_agent(
-        self,
-        agent_id: str,
-        tick_start: Optional[int] = None,
-        tick_end: Optional[int] = None
+        self, agent_id: str, tick_start: int | None = None, tick_end: int | None = None
     ) -> list[DecisionCapture]:
         """Get all captures for a specific agent, optionally filtered by tick range.
 
@@ -199,7 +197,8 @@ class PromptInspector:
             List of DecisionCapture objects, sorted by tick
         """
         captures = [
-            capture for (aid, tick), capture in self.captures.items()
+            capture
+            for (aid, tick), capture in self.captures.items()
             if aid == agent_id
             and (tick_start is None or tick >= tick_start)
             and (tick_end is None or tick <= tick_end)
@@ -207,9 +206,7 @@ class PromptInspector:
         return sorted(captures, key=lambda c: c.tick)
 
     def get_all_captures(
-        self,
-        tick_start: Optional[int] = None,
-        tick_end: Optional[int] = None
+        self, tick_start: int | None = None, tick_end: int | None = None
     ) -> list[DecisionCapture]:
         """Get all captures, optionally filtered by tick range.
 
@@ -221,9 +218,9 @@ class PromptInspector:
             List of DecisionCapture objects, sorted by (tick, agent_id)
         """
         captures = [
-            capture for (aid, tick), capture in self.captures.items()
-            if (tick_start is None or tick >= tick_start)
-            and (tick_end is None or tick <= tick_end)
+            capture
+            for (aid, tick), capture in self.captures.items()
+            if (tick_start is None or tick >= tick_start) and (tick_end is None or tick <= tick_end)
         ]
         return sorted(captures, key=lambda c: (c.tick, c.agent_id))
 
@@ -232,7 +229,7 @@ class PromptInspector:
         self.captures.clear()
         logger.info("Cleared all prompt inspector captures")
 
-    def to_json(self, agent_id: Optional[str] = None, tick: Optional[int] = None) -> str:
+    def to_json(self, agent_id: str | None = None, tick: int | None = None) -> str:
         """Export captures as JSON string.
 
         Args:
@@ -256,7 +253,7 @@ class PromptInspector:
 
 
 # Global singleton instance
-_global_inspector: Optional[PromptInspector] = None
+_global_inspector: PromptInspector | None = None
 
 
 def get_global_inspector() -> PromptInspector:

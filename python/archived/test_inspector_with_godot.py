@@ -77,26 +77,26 @@ def display_capture_summary(capture: dict):
         data = entry["data"]
 
         if stage == "observation":
-            print(f"  📍 Observation:")
+            print("  📍 Observation:")
             print(f"     Position: {data.get('position', 'N/A')}")
             print(f"     Health: {data.get('health', 'N/A')}")
             print(f"     Nearby resources: {len(data.get('nearby_resources', []))}")
             print(f"     Nearby hazards: {len(data.get('nearby_hazards', []))}")
 
         elif stage == "prompt_building":
-            print(f"  📝 Prompt Building:")
+            print("  📝 Prompt Building:")
             print(f"     Prompt length: {data.get('prompt_length', 'N/A')} chars")
             print(f"     Estimated tokens: {data.get('estimated_tokens', 'N/A')}")
             print(f"     Memory items: {data.get('memory_context', {}).get('count', 0)}")
 
         elif stage == "llm_request":
-            print(f"  🔄 LLM Request:")
+            print("  🔄 LLM Request:")
             print(f"     Model: {data.get('model', 'N/A')}")
             print(f"     Tools available: {len(data.get('tools', []))}")
             print(f"     Temperature: {data.get('temperature', 'N/A')}")
 
         elif stage == "llm_response":
-            print(f"  💬 LLM Response:")
+            print("  💬 LLM Response:")
             print(f"     Tokens used: {data.get('tokens_used', 'N/A')}")
             print(f"     Latency: {data.get('latency_ms', 0):.0f}ms")
             print(f"     Finish reason: {data.get('finish_reason', 'N/A')}")
@@ -105,7 +105,7 @@ def display_capture_summary(capture: dict):
             print(f"     Response: {preview}")
 
         elif stage == "decision":
-            print(f"  ✅ Decision:")
+            print("  ✅ Decision:")
             print(f"     Tool: {data.get('tool', 'N/A')}")
             print(f"     Params: {data.get('params', {})}")
             reasoning = data.get("reasoning", "")
@@ -144,17 +144,17 @@ def analyze_performance(captures: list):
 
     if latencies:
         print(f"Total decisions: {len(latencies)}")
-        print(f"\nLatency (ms):")
+        print("\nLatency (ms):")
         print(f"  Average: {sum(latencies) / len(latencies):.1f}")
         print(f"  Min: {min(latencies):.1f}")
         print(f"  Max: {max(latencies):.1f}")
 
-        print(f"\nToken usage:")
+        print("\nToken usage:")
         print(f"  Average: {sum(token_counts) / len(token_counts):.1f}")
         print(f"  Min: {min(token_counts)}")
         print(f"  Max: {max(token_counts)}")
 
-        print(f"\nDecisions by tool:")
+        print("\nDecisions by tool:")
         for tool, count in sorted(decisions_by_tool.items(), key=lambda x: x[1], reverse=True):
             print(f"  {tool}: {count}")
 
@@ -297,18 +297,14 @@ def main():
     parser.add_argument(
         "--host", type=str, default="127.0.0.1", help="IPC server host (default: 127.0.0.1)"
     )
-    parser.add_argument(
-        "--port", type=int, default=5000, help="IPC server port (default: 5000)"
-    )
+    parser.add_argument("--port", type=int, default=5000, help="IPC server port (default: 5000)")
     parser.add_argument(
         "--agent-id",
         type=str,
         default="foraging_agent_001",
         help="Agent ID to monitor (default: foraging_agent_001)",
     )
-    parser.add_argument(
-        "--monitor", action="store_true", help="Start in monitor mode (real-time)"
-    )
+    parser.add_argument("--monitor", action="store_true", help="Start in monitor mode (real-time)")
     parser.add_argument(
         "--interval",
         type=int,
