@@ -2,13 +2,13 @@
 Agent Arena - Agent Runtime Module
 
 This module provides the core agent runtime infrastructure for LLM-driven agents.
+
+NOTE: After LDX refactor (Issue #60), behavior base classes and memory systems
+have been moved to starter templates. Use agent-arena-sdk for new projects.
 """
 
 from .agent import Agent
 from .arena import AgentArena
-from .behavior import AgentBehavior, LLMAgentBehavior, SimpleAgentBehavior
-from .local_llm_behavior import LocalLLMBehavior, create_local_llm_behavior
-from .memory import AgentMemory, RAGMemory, SlidingWindowMemory, SummarizingMemory
 from .reasoning_trace import (
     ReasoningTrace,
     TraceStep,
@@ -33,6 +33,8 @@ from .schemas import (
     HazardInfo,
     ItemInfo,
     Metric,
+    MetricDefinition,
+    Objective,
     Observation,
     ResourceInfo,
     ScenarioDefinition,
@@ -47,17 +49,6 @@ __all__ = [
     "AgentArena",
     "AgentRuntime",
     "ToolDispatcher",
-    # Behaviors
-    "AgentBehavior",
-    "SimpleAgentBehavior",
-    "LLMAgentBehavior",
-    "LocalLLMBehavior",
-    "create_local_llm_behavior",
-    # Memory
-    "AgentMemory",
-    "SlidingWindowMemory",
-    "SummarizingMemory",
-    "RAGMemory",
     # Tracing (new API)
     "TraceStep",
     "ReasoningTrace",
@@ -86,5 +77,8 @@ __all__ = [
     "Goal",
     "Constraint",
     "Metric",
+    # Objective system (Issue #60)
+    "Objective",
+    "MetricDefinition",
 ]
 __version__ = "0.1.0"

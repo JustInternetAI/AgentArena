@@ -301,6 +301,109 @@ class ToolSchema:
 
 
 @dataclass
+class MetricDefinition:
+    """
+    Definition of a success metric for an objective.
+
+    Part of the objective system (Issue #60 LDX refactor).
+
+    Attributes:
+        target: The target value to achieve
+        weight: How important this metric is (default 1.0)
+        lower_is_better: Whether lower values are better (e.g., time_taken)
+        required: Whether this metric must be met to succeed
+    """
+
+    target: float
+    weight: float = 1.0
+    lower_is_better: bool = False
+    required: bool = False
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "MetricDefinition":
+        """Create MetricDefinition from dictionary."""
+        return cls(
+            target=data["target"],
+            weight=data.get("weight", 1.0),
+            lower_is_better=data.get("lower_is_better", False),
+            required=data.get("required", False),
+        )
+
+    def to_dict(self) -> dict:
+        """Convert to dictionary for serialization."""
+        return {
+            "target": self.target,
+            "weight": self.weight,
+            "lower_is_better": self.lower_is_better,
+            "required": self.required,
+        }
+
+
+@dataclass
+class Objective:
+    """
+    Scenario-defined goals for the agent.
+
+    Part of the objective system (Issue #60 LDX refactor).
+    Objectives are passed from the game scenario to the agent via observations.
+    This enables general-purpose agents that adapt to different goals.
+
+    Attributes:
+        description: Human-readable description of the objective
+        success_metrics: Dictionary of metric names to their definitions
+        time_limit: Time limit in ticks (0 = unlimited)
+
+    Example:
+        objective = Objective(
+            description="Collect resources while avoiding hazards",
+            success_metrics={
+                "resources_collected": MetricDefinition(target=10, weight=1.0),
+                "health_remaining": MetricDefinition(target=50, weight=0.5)
+            },
+            time_limit=600
+        )
+    """
+
+    description: str
+    success_metrics: dict[str, MetricDefinition] = field(default_factory=dict)
+    time_limit: int = 0  # 0 = unlimited
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Objective":
+        """
+        Create Objective from dictionary.
+
+        Args:
+            data: Dictionary from IPC message
+
+        Returns:
+            Objective instance
+        """
+        success_metrics = {}
+        for name, metric_data in data.get("success_metrics", {}).items():
+            success_metrics[name] = MetricDefinition.from_dict(metric_data)
+
+        return cls(
+            description=data["description"],
+            success_metrics=success_metrics,
+            time_limit=data.get("time_limit", 0),
+        )
+
+    def to_dict(self) -> dict:
+        """
+        Convert to dictionary for serialization.
+
+        Returns:
+            Dictionary representation
+        """
+        return {
+            "description": self.description,
+            "success_metrics": {name: metric.to_dict() for name, metric in self.success_metrics.items()},
+            "time_limit": self.time_limit,
+        }
+
+
+@dataclass
 class Observation:
     """What the agent receives from Godot each tick."""
 
@@ -316,6 +419,10 @@ class Observation:
     health: float = 100.0
     energy: float = 100.0
     exploration: ExplorationInfo | None = None  # World exploration status
+    # Objective system fields (NEW - Issue #60 LDX refactor)
+    scenario_name: str = ""
+    objective: Objective | None = None
+    current_progress: dict[str, float] = field(default_factory=dict)
     custom: dict = field(default_factory=dict)
 
     @classmethod
@@ -417,6 +524,11 @@ class Observation:
         if "exploration" in data and data["exploration"]:
             exploration = ExplorationInfo.from_dict(data["exploration"])
 
+        # Parse objective (NEW - Issue #60)
+        objective = None
+        if "objective" in data and data["objective"]:
+            objective = Objective.from_dict(data["objective"])
+
         return cls(
             agent_id=data["agent_id"],
             tick=data["tick"],
@@ -430,6 +542,9 @@ class Observation:
             health=data.get("health", 100.0),
             energy=data.get("energy", 100.0),
             exploration=exploration,
+            scenario_name=data.get("scenario_name", ""),
+            objective=objective,
+            current_progress=data.get("current_progress", {}),
             custom=data.get("custom", {}),
         )
 
@@ -486,6 +601,9 @@ class Observation:
             "health": self.health,
             "energy": self.energy,
             "exploration": self.exploration.to_dict() if self.exploration else None,
+            "scenario_name": self.scenario_name,
+            "objective": self.objective.to_dict() if self.objective else None,
+            "current_progress": self.current_progress,
             "custom": self.custom,
         }
 

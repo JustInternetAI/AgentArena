@@ -1,0 +1,21 @@
+# LLM Agent Requirements
+
+# Agent Arena SDK (minimal IPC layer + schemas)
+agent-arena-sdk>=0.1.0
+
+# LLM Backend (for local inference)
+# Note: These are already in the main project requirements
+# Listed here for reference if copying to external project
+
+# llama-cpp-python (for GGUF models)
+# Install with CUDA support:
+#   CMAKE_ARGS="-DLLAMA_CUBLAS=on" pip install llama-cpp-python
+# Or CPU only:
+#   pip install llama-cpp-python
+
+# For model management
+pyyaml>=6.0
+huggingface-hub>=0.16.0
+
+# Optional: vLLM for high-performance inference
+# vllm>=0.2.0  # Requires CUDA
