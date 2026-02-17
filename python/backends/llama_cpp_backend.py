@@ -66,8 +66,16 @@ class LlamaCppBackend(BaseBackend):
         prompt: str,
         temperature: float | None = None,
         max_tokens: int | None = None,
+        system_prompt: str | None = None,
     ) -> GenerationResult:
-        """Generate text from prompt."""
+        """Generate text from prompt using chat completion API.
+
+        Args:
+            prompt: The user message / prompt text
+            temperature: Sampling temperature override
+            max_tokens: Max tokens override
+            system_prompt: Optional system message (prepended to chat)
+        """
         if not self.llm:
             raise RuntimeError("Model not loaded")
 
@@ -75,18 +83,23 @@ class LlamaCppBackend(BaseBackend):
         max_tok = max_tokens if max_tokens is not None else self.config.max_tokens
 
         try:
-            response = self.llm(
-                prompt,
+            # Build chat messages so llama.cpp applies the correct chat template
+            messages: list[dict[str, str]] = []
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+            messages.append({"role": "user", "content": prompt})
+
+            response = self.llm.create_chat_completion(
+                messages=messages,
                 temperature=temp,
                 max_tokens=max_tok,
                 top_p=self.config.top_p,
                 top_k=self.config.top_k,
-                echo=False,
             )
 
             # Cast response to dict since we're not streaming
             resp = cast(dict[str, Any], response)
-            text = resp["choices"][0]["text"]
+            text = resp["choices"][0]["message"]["content"] or ""
             tokens_used = resp["usage"]["total_tokens"]
             finish_reason = str(resp["choices"][0].get("finish_reason", "stop"))
 
@@ -116,31 +129,13 @@ class LlamaCppBackend(BaseBackend):
         if not self.llm:
             raise RuntimeError("Model not loaded")
 
-        # Build a prompt that includes tool schemas
-        tool_descriptions = []
-        for tool in tools:
-            tool_desc = f"- {tool['name']}: {tool['description']}"
-            tool_descriptions.append(tool_desc)
-
-        tools_text = "\n".join(tool_descriptions)
-
-        enhanced_prompt = f"""{prompt}
-
-Available tools:
-{tools_text}
-
-Respond with a JSON object in the format:
-{{"tool": "tool_name", "params": {{}}, "reasoning": "why this tool"}}
-
-Or if no tool is needed:
-{{"tool": "none", "reasoning": "explanation"}}
-"""
-
-        result = self.generate(enhanced_prompt, temperature)
+        # The prompt already contains the system instructions and user data.
+        # Just pass it through to generate() — the caller (agent.py) builds
+        # the full prompt with system + decision template.
+        result = self.generate(prompt, temperature)
 
         # Try to parse JSON from result
         try:
-            # Extract JSON from the response
             text = result.text.strip()
             if text.startswith("```json"):
                 text = text[7:]
@@ -151,8 +146,6 @@ Or if no tool is needed:
             result.metadata["parsed_tool_call"] = parsed
 
         except json.JSONDecodeError:
-            # This is expected for Chain-of-Thought format (THINKING: ... ACTION: ...)
-            # The downstream AgentDecision.from_llm_response() handles CoT parsing
             logger.debug("Backend JSON parse failed (expected for CoT format)")
             result.metadata["parse_error"] = True
 

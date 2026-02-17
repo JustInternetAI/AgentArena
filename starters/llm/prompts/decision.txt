@@ -1,49 +1,7 @@
-## Current Observation
+Tick: {tick} | Position: {position} | Health: {health} | Energy: {energy}
 
-**Tick:** {tick}
-**Position:** {position}
-**Health:** {health} | **Energy:** {energy}
+Resources: {resources_summary}
+Hazards: {hazards_summary}
+Inventory: {inventory_summary}
 
-**Scenario:** {scenario_name}
-
-### Objective
-{objective_description}
-
-**Progress:**
-{progress_summary}
-
-### Nearby Resources
-{resources_summary}
-
-### Nearby Hazards
-{hazards_summary}
-
-### Inventory
-{inventory_summary}
-
-### Memory Summary
-{memory_summary}
-
----
-
-## Your Task
-
-Based on the above information, decide what to do this tick.
-
-Think through:
-1. Are you in immediate danger?
-2. What does the objective require?
-3. What resources or opportunities are nearby?
-4. What have you learned from memory?
-
-Then output your decision as JSON:
-
-```json
-{
-    "tool": "tool_name",
-    "params": {...},
-    "reasoning": "why you chose this action"
-}
-```
-
-Available tools: move_to, collect, idle
+Respond with ONLY a JSON object:

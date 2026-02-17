@@ -572,7 +572,7 @@ func _setup_backend_communication():
 	"""Initialize HTTP request node for backend communication"""
 	http_request = HTTPRequest.new()
 	http_request.name = "HTTPRequest"
-	http_request.timeout = 10.0
+	http_request.timeout = 30.0
 	add_child(http_request)
 
 func _request_backend_decision():

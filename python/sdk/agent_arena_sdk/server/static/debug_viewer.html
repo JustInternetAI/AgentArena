@@ -206,14 +206,18 @@
     .step[data-stage="retrieved"]    { border-left-color: var(--stage-retrieved); }
     .step[data-stage="prompt"]       { border-left-color: var(--stage-prompt); }
     .step[data-stage="llm_request"]  { border-left-color: var(--stage-llm_request); }
+    .step[data-stage="llm_response"] { border-left-color: var(--stage-response); }
     .step[data-stage="response"]     { border-left-color: var(--stage-response); }
+    .step[data-stage="parse"]        { border-left-color: #f39c12; }
     .step[data-stage="decision"]     { border-left-color: var(--stage-decision); }
 
     .step-name[data-stage="observation"]  { color: var(--stage-observation); }
     .step-name[data-stage="retrieved"]    { color: var(--stage-retrieved); }
     .step-name[data-stage="prompt"]       { color: var(--stage-prompt); }
     .step-name[data-stage="llm_request"]  { color: var(--stage-llm_request); }
+    .step-name[data-stage="llm_response"] { color: var(--stage-response); }
     .step-name[data-stage="response"]     { color: var(--stage-response); }
+    .step-name[data-stage="parse"]        { color: #f39c12; }
     .step-name[data-stage="decision"]     { color: var(--stage-decision); }
 
     /* ── Detail panel (right) ──────────────────────────────────── */
@@ -337,6 +341,10 @@
   let tickMax = 0;
   let tickFilter = null; // null = show all
 
+  // Track expanded/selected state so live refresh preserves it
+  let expandedTraceIds = new Set();
+  let selectedStepKey = null; // "traceId:stepIdx"
+
   // ── DOM refs ───────────────────────────────────────────────
   const $agentList = document.getElementById('agentList');
   const $agentSearch = document.getElementById('agentSearch');
@@ -423,32 +431,36 @@
     const sorted = [...items].reverse();
     $traceContainer.innerHTML = sorted.map((trace, i) => {
       const idx = items.length - 1 - i;
+      const tid = trace.trace_id;
+      const isExpanded = expandedTraceIds.has(tid);
       const time = new Date(trace.start_time * 1000).toLocaleTimeString();
       return `
         <div class="trace-item">
-          <div class="trace-header" onclick="window._toggleTrace(${idx})">
+          <div class="trace-header" onclick="window._toggleTrace('${tid}', ${idx})">
             <div>
               <span class="trace-title">Tick ${trace.tick}</span>
-              <span class="trace-meta">&nbsp;- ${trace.agent_id} &middot; ${trace.steps.length} steps &middot; ${trace.trace_id}</span>
+              <span class="trace-meta">&nbsp;- ${trace.agent_id} &middot; ${trace.steps.length} steps &middot; ${tid}</span>
             </div>
             <div>
               <span class="trace-meta">${time}</span>
-              <span class="trace-expand" id="arrow-${idx}">&#9654;</span>
+              <span class="trace-expand ${isExpanded ? 'open' : ''}" id="arrow-${idx}">&#9654;</span>
             </div>
           </div>
-          <div class="trace-body" id="tbody-${idx}">
-            ${renderSteps(trace.steps, idx)}
+          <div class="trace-body ${isExpanded ? 'expanded' : ''}" id="tbody-${idx}">
+            ${renderSteps(trace.steps, idx, tid)}
           </div>
         </div>`;
     }).join('');
   }
 
-  function renderSteps(steps, traceIdx) {
+  function renderSteps(steps, traceIdx, traceId) {
     return steps.map((step, si) => {
       const preview = previewData(step.data);
+      const stepKey = `${traceId}:${si}`;
+      const isSelected = selectedStepKey === stepKey;
       return `
-        <div class="step" data-stage="${step.name}"
-             onclick="event.stopPropagation(); window._selectStep(${traceIdx}, ${si})">
+        <div class="step ${isSelected ? 'selected' : ''}" data-stage="${step.name}"
+             onclick="event.stopPropagation(); window._selectStep(${traceIdx}, ${si}, '${traceId}')">
           <div class="step-header">
             <span class="step-name" data-stage="${step.name}">${step.name}</span>
             <span class="step-timing">${step.elapsed_ms.toFixed(1)}ms</span>
@@ -498,11 +510,53 @@
     if (data === null || data === undefined) return '(none)';
     if (typeof data === 'string') return data.length > 120 ? data.slice(0, 120) + '...' : data;
     if (typeof data === 'object') {
-      // Highlight interesting keys
       const parts = [];
-      if (data.tool) parts.push(`tool: ${data.tool}`);
-      if (data.position) parts.push(`pos: [${data.position}]`);
-      if (data.reasoning) parts.push(`reasoning: "${String(data.reasoning).slice(0, 60)}"`);
+
+      // Decision step: tool + params
+      if (data.tool) {
+        let toolStr = `tool: ${data.tool}`;
+        if (data.params) {
+          const p = data.params;
+          if (p.target_position) {
+            const pos = p.target_position.map(v => typeof v === 'number' ? v.toFixed(1) : v);
+            toolStr += ` → [${pos.join(', ')}]`;
+          } else if (p.target_name) {
+            toolStr += ` → "${p.target_name}"`;
+          }
+        }
+        parts.push(toolStr);
+      }
+
+      // Observation step
+      if (data.position) parts.push(`pos: [${data.position.map(v => typeof v === 'number' ? v.toFixed(1) : v).join(', ')}]`);
+      if (data.health !== undefined) parts.push(`hp: ${data.health}`);
+      if (data.energy !== undefined) parts.push(`energy: ${data.energy}`);
+      if (data.nearby_resources !== undefined) parts.push(`resources: ${data.nearby_resources}`);
+      if (data.nearby_hazards !== undefined) parts.push(`hazards: ${data.nearby_hazards}`);
+
+      // LLM response step
+      if (data.raw_output !== undefined) {
+        const output = String(data.raw_output).trim();
+        const preview = output.length > 80 ? output.slice(0, 80) + '...' : output;
+        parts.push(preview);
+        if (data.tokens_used) parts.push(`${data.tokens_used} tokens`);
+      }
+
+      // Parse step
+      if (data.method !== undefined) {
+        parts.push(`method: ${data.method}`);
+        if (data.parsed_json) parts.push(`tool: ${data.parsed_json.tool || '?'}`);
+      }
+
+      // Prompt step
+      if (data.user_prompt !== undefined) {
+        const prompt = String(data.user_prompt).trim();
+        parts.push(prompt.length > 80 ? prompt.slice(0, 80) + '...' : prompt);
+      }
+
+      // Reasoning
+      if (data.reasoning && !data.tool) parts.push(`"${String(data.reasoning).slice(0, 50)}"`);
+
       if (parts.length) return parts.join(', ');
       const json = JSON.stringify(data);
       return json.length > 120 ? json.slice(0, 120) + '...' : json;
@@ -523,7 +577,12 @@
     fetchObservations();
   };
 
-  window._toggleTrace = function(idx) {
+  window._toggleTrace = function(traceId, idx) {
+    if (expandedTraceIds.has(traceId)) {
+      expandedTraceIds.delete(traceId);
+    } else {
+      expandedTraceIds.add(traceId);
+    }
     const body = document.getElementById(`tbody-${idx}`);
     const arrow = document.getElementById(`arrow-${idx}`);
     if (body) {
@@ -532,9 +591,13 @@
     }
   };
 
-  window._selectStep = function(traceIdx, stepIdx) {
+  window._selectStep = function(traceIdx, stepIdx, traceId) {
     // Clear previous selection
     document.querySelectorAll('.step.selected').forEach(el => el.classList.remove('selected'));
+
+    // Track selection state
+    const stepKey = `${traceId}:${stepIdx}`;
+    selectedStepKey = stepKey;
 
     // Find the visible trace items (rendered in reverse order)
     const items = tickFilter !== null ? traces.filter(t => t.tick <= tickFilter) : traces;
@@ -545,7 +608,6 @@
 
     // Highlight selected step
     const traceItems = document.querySelectorAll('.trace-item');
-    // traceIdx in render is reversed: visibleIdx = items.length - 1 - traceIdx
     const visibleIdx = items.length - 1 - traceIdx;
     const traceEl = traceItems[visibleIdx];
     if (traceEl) {

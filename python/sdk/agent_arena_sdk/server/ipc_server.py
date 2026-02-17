@@ -78,6 +78,69 @@ class MinimalIPCServer:
         if self.observation_tracker is not None:
             self.observation_tracker.track_observation(observation)
 
+    def _record_decision_trace(
+        self, agent_id: str, obs: "Observation", decision: "Decision"
+    ) -> None:
+        """Record a reasoning trace for a decision (no-op when debug disabled).
+
+        If the decide callback's agent exposes a ``last_trace`` dict (set by
+        the LLM starter agent), the full chain-of-thought is recorded:
+        system prompt → user prompt → raw LLM output → parsed JSON → decision.
+        """
+        if self.debug_store is None:
+            return
+        try:
+            from .debug_store import DebugTrace
+
+            trace = DebugTrace(agent_id=agent_id, tick=obs.tick)
+
+            # Step 1: Observation summary
+            trace.add_step("observation", {
+                "position": list(obs.position) if obs.position else [],
+                "health": obs.health,
+                "energy": obs.energy,
+                "nearby_resources": len(obs.nearby_resources) if obs.nearby_resources else 0,
+                "nearby_hazards": len(obs.nearby_hazards) if obs.nearby_hazards else 0,
+            })
+
+            # Check if the agent exposed a chain-of-thought trace
+            agent_trace = None
+            cb = self.decide_callback
+            agent_obj = getattr(cb, "__self__", None)
+            if agent_obj is not None:
+                agent_trace = getattr(agent_obj, "last_trace", None)
+
+            if agent_trace:
+                # Step 2: Prompt sent to LLM
+                trace.add_step("prompt", {
+                    "system_prompt": agent_trace.get("system_prompt", ""),
+                    "user_prompt": agent_trace.get("user_prompt", ""),
+                })
+
+                # Step 3: Raw LLM response
+                trace.add_step("llm_response", {
+                    "raw_output": agent_trace.get("llm_raw_output", ""),
+                    "tokens_used": agent_trace.get("tokens_used", 0),
+                    "finish_reason": agent_trace.get("finish_reason"),
+                })
+
+                # Step 4: Parse result
+                trace.add_step("parse", {
+                    "method": agent_trace.get("parse_method", "unknown"),
+                    "parsed_json": agent_trace.get("parsed_json"),
+                })
+
+            # Step 5: Final decision
+            trace.add_step("decision", {
+                "tool": decision.tool,
+                "params": decision.params,
+                "reasoning": decision.reasoning,
+            })
+
+            self.debug_store.record_trace(trace)
+        except Exception as exc:
+            logger.debug("Failed to record trace: %s", exc)
+
     def create_app(self) -> FastAPI:
         """Create and configure the FastAPI application."""
         app = FastAPI(
@@ -123,6 +186,9 @@ class MinimalIPCServer:
 
                 # Call user's decide callback
                 decision = self.decide_callback(obs)
+
+                # Record trace for debug (no-op when disabled)
+                self._record_decision_trace(agent_id, obs, decision)
 
                 # Update metrics
                 self.metrics["total_ticks"] += 1
@@ -316,9 +382,13 @@ class MinimalIPCServer:
 
         @app.get("/debug/agents")
         async def list_agents() -> dict[str, Any]:
-            """List all agents with traces."""
-            agents = self.debug_store.list_agents()
-            return {"agents": agents}
+            """List all agents seen in traces or observations."""
+            agents_set = set(self.debug_store.list_agents())
+            # Also include agents seen by the observation tracker
+            if self.observation_tracker is not None:
+                with self.observation_tracker._lock:
+                    agents_set.update(self.observation_tracker._last_visible.keys())
+            return {"agents": sorted(agents_set)}
 
         @app.get("/debug/episodes")
         async def list_episodes(

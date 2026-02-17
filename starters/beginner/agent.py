@@ -39,11 +39,10 @@ class Agent:
         if danger_decision:
             return danger_decision
 
-        # Priority 2: Pursue objectives
-        if obs.objective:
-            objective_decision = self.pursue_objective(obs)
-            if objective_decision:
-                return objective_decision
+        # Priority 2: Collect nearby resources
+        collect_decision = self.collect_resources(obs)
+        if collect_decision:
+            return collect_decision
 
         # Priority 3: Explore
         return self.explore(obs)
@@ -115,15 +114,7 @@ class Agent:
         # Find closest resource
         closest = min(obs.nearby_resources, key=lambda r: r.distance)
 
-        # If close enough, collect it
-        if closest.distance < 2.0:
-            return Decision(
-                tool="collect",
-                params={"target_name": closest.name},
-                reasoning=f"Collecting {closest.type} at distance {closest.distance:.1f}",
-            )
-
-        # Otherwise, move toward it
+        # Always move toward the resource — Godot auto-collects when close enough
         return Decision(
             tool="move_to",
             params={"target_position": list(closest.position)},

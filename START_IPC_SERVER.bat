@@ -1,9 +1,10 @@
 @echo off
-REM Agent Arena - IPC Server Startup Script
-REM This script starts the Python IPC server for Godot-Python communication
+REM Agent Arena - Foraging Demo Startup Script
+REM Starts the Python IPC server with the beginner agent (new SDK pattern)
+REM Then open Godot, load scenes/foraging.tscn, press F5, then SPACE
 
 echo ========================================
-echo Agent Arena - Starting IPC Server
+echo Agent Arena - Foraging Demo (New SDK)
 echo ========================================
 echo.
 
@@ -38,14 +39,19 @@ if errorlevel 1 (
 )
 
 echo.
-echo Starting IPC Server...
+echo Starting Foraging Demo (IPC Server + Beginner Agent)...
 echo Server will be available at: http://127.0.0.1:5000
+echo.
+echo Next steps:
+echo   1. Open Godot and load scenes/foraging.tscn
+echo   2. Press F5 to run the scene
+echo   3. Press SPACE to start the simulation
 echo.
 echo Press Ctrl+C to stop the server
 echo ========================================
 echo.
 
-python run_ipc_server.py
+python run_foraging_demo.py
 
 REM If server exits, pause so user can see error
 if errorlevel 1 (

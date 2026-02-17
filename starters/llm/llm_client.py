@@ -87,14 +87,16 @@ class LLMClient:
         prompt: str,
         tools: list[ToolSchema] | None = None,
         temperature: float | None = None,
+        system_prompt: str | None = None,
     ) -> dict:
         """
         Generate a response from the LLM.
 
         Args:
-            prompt: The prompt to send to the LLM
+            prompt: The user prompt to send to the LLM
             tools: Optional list of tools the LLM can call
             temperature: Optional temperature override
+            system_prompt: Optional system prompt (sent as system message in chat)
 
         Returns:
             Dictionary with:
@@ -104,16 +106,11 @@ class LLMClient:
                 - finish_reason: Why generation stopped
         """
         try:
-            if tools:
-                # Convert tools to backend format
-                tool_schemas = [t.to_anthropic_format() for t in tools]
-                result = self.backend.generate_with_tools(
-                    prompt=prompt, tools=tool_schemas, temperature=temperature or self.temperature
-                )
-            else:
-                result = self.backend.generate(
-                    prompt=prompt, temperature=temperature or self.temperature
-                )
+            result = self.backend.generate(
+                prompt=prompt,
+                temperature=temperature or self.temperature,
+                system_prompt=system_prompt,
+            )
 
             # Parse tool calls if present
             tool_call = None
