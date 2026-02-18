@@ -1,11 +1,12 @@
 """
-CLI tool for inspecting agent reasoning traces captured by the TraceStore.
+CLI tool for inspecting agent reasoning traces from the SDK debug API.
 
 Usage:
     python -m tools.inspect_agent --agent agent_001 --tick 42
     python -m tools.inspect_agent --agent agent_001 --tick-range 40-50
     python -m tools.inspect_agent --all --tick-range 0-100
     python -m tools.inspect_agent --agent agent_001 --latest 5
+    python -m tools.inspect_agent --tool move_to
 """
 
 import argparse
@@ -21,262 +22,245 @@ except ImportError:
     sys.exit(1)
 
 
-def format_stage_header(stage: str) -> str:
-    """Format a stage header with visual separation."""
-    stage_names = {
-        "observation": "📋 OBSERVATION",
-        "prompt_building": "🔨 PROMPT BUILDING",
-        "llm_request": "📤 LLM REQUEST",
-        "llm_response": "📥 LLM RESPONSE",
-        "decision": "✅ DECISION"
-    }
-    name = stage_names.get(stage, stage.upper())
-    return f"\n{'=' * 80}\n{name}\n{'=' * 80}"
+# ── Formatters ───────────────────────────────────────────────────
+
+STAGE_LABELS = {
+    "observation": "OBSERVATION",
+    "prompt": "PROMPT",
+    "llm_response": "LLM RESPONSE",
+    "parse": "PARSE",
+    "decision": "DECISION",
+}
 
 
-def format_observation(data: dict[str, Any]) -> str:
-    """Format observation data for display."""
+def format_step_header(name: str) -> str:
+    label = STAGE_LABELS.get(name, name.upper())
+    return f"\n{'=' * 72}\n  {label}\n{'=' * 72}"
+
+
+def format_observation_step(data: dict[str, Any]) -> str:
     lines = []
-    lines.append(f"Agent: {data.get('agent_id')}")
-    lines.append(f"Tick: {data.get('tick')}")
-    lines.append(f"Position: {data.get('position')}")
-    lines.append(f"Health: {data.get('health')}")
-    lines.append(f"Energy: {data.get('energy')}")
-
-    resources = data.get('nearby_resources', [])
-    if resources:
-        lines.append(f"\nNearby Resources ({len(resources)}):")
-        for r in resources[:5]:  # Limit to first 5
-            lines.append(f"  - {r['name']} ({r['type']}) at distance {r['distance']:.1f}")
-
-    hazards = data.get('nearby_hazards', [])
-    if hazards:
-        lines.append(f"\nNearby Hazards ({len(hazards)}):")
-        for h in hazards[:5]:  # Limit to first 5
-            lines.append(f"  - {h['name']} ({h['type']}) at distance {h['distance']:.1f}")
-
-    inventory = data.get('inventory', [])
-    if inventory:
-        lines.append(f"\nInventory ({len(inventory)} items):")
-        for item in inventory:
-            lines.append(f"  - {item['name']} x{item['quantity']}")
-
+    if data.get("position"):
+        pos = data["position"]
+        lines.append(f"Position: [{', '.join(f'{v:.1f}' if isinstance(v, float) else str(v) for v in pos)}]")
+    if data.get("health") is not None:
+        lines.append(f"Health: {data['health']}")
+    if data.get("energy") is not None:
+        lines.append(f"Energy: {data['energy']}")
+    if data.get("nearby_resources") is not None:
+        lines.append(f"Nearby Resources: {data['nearby_resources']}")
+    if data.get("nearby_hazards") is not None:
+        lines.append(f"Nearby Hazards: {data['nearby_hazards']}")
     return "\n".join(lines)
 
 
-def format_prompt_building(data: dict[str, Any]) -> str:
-    """Format prompt building data for display."""
+def format_prompt_step(data: dict[str, Any]) -> str:
     lines = []
-    lines.append(f"System Prompt: {data.get('system_prompt', '')[:100]}...")
-
-    memory = data.get('memory_context', {})
-    lines.append(f"\nMemory Context: {memory.get('count', 0)} observations")
-    if memory.get('items'):
-        for item in memory['items'][:3]:
-            lines.append(f"  - Tick {item['tick']}: {item['position']}")
-
-    lines.append(f"\nPrompt Length: {data.get('prompt_length')} chars (~{data.get('estimated_tokens')} tokens)")
-    lines.append("\nFull Prompt:")
-    lines.append("-" * 80)
-    lines.append(data.get('final_prompt', ''))
-    lines.append("-" * 80)
-
+    sys_prompt = data.get("system_prompt", "")
+    if sys_prompt:
+        lines.append(f"System Prompt: {sys_prompt[:100]}{'...' if len(sys_prompt) > 100 else ''}")
+    user_prompt = data.get("user_prompt", "")
+    if user_prompt:
+        lines.append(f"\nUser Prompt:\n{'-' * 72}")
+        lines.append(user_prompt)
+        lines.append("-" * 72)
     return "\n".join(lines)
 
 
-def format_llm_request(data: dict[str, Any]) -> str:
-    """Format LLM request data for display."""
+def format_llm_response_step(data: dict[str, Any]) -> str:
     lines = []
-    lines.append(f"Model: {data.get('model', 'unknown')}")
-    lines.append(f"Temperature: {data.get('temperature')}")
-    lines.append(f"Max Tokens: {data.get('max_tokens')}")
-
-    tools = data.get('tools', [])
-    lines.append(f"\nAvailable Tools ({len(tools)}):")
-    for tool in tools:
-        lines.append(f"  - {tool['name']}: {tool['description']}")
-
+    if data.get("tokens_used"):
+        lines.append(f"Tokens Used: {data['tokens_used']}")
+    if data.get("finish_reason"):
+        lines.append(f"Finish Reason: {data['finish_reason']}")
+    raw = data.get("raw_output", "")
+    if raw:
+        lines.append(f"\nRaw Output:\n{'-' * 72}")
+        lines.append(raw)
+        lines.append("-" * 72)
     return "\n".join(lines)
 
 
-def format_llm_response(data: dict[str, Any]) -> str:
-    """Format LLM response data for display."""
+def format_parse_step(data: dict[str, Any]) -> str:
     lines = []
-    lines.append(f"Latency: {data.get('latency_ms', 0):.0f}ms")
-    lines.append(f"Tokens Used: {data.get('tokens_used')}")
-    lines.append(f"Finish Reason: {data.get('finish_reason')}")
-
-    metadata = data.get('metadata', {})
-    if metadata:
-        lines.append("\nMetadata:")
-        if 'parsed_tool_call' in metadata:
-            lines.append(f"  Parsed Tool Call: {json.dumps(metadata['parsed_tool_call'], indent=2)}")
-        elif 'tool_call' in metadata:
-            lines.append(f"  Tool Call: {json.dumps(metadata['tool_call'], indent=2)}")
-
-    lines.append("\nRaw LLM Response:")
-    lines.append("-" * 80)
-    lines.append(data.get('raw_text', ''))
-    lines.append("-" * 80)
-
+    lines.append(f"Parse Method: {data.get('method', 'unknown')}")
+    parsed = data.get("parsed_json")
+    if parsed:
+        lines.append(f"Parsed JSON: {json.dumps(parsed, indent=2)}")
     return "\n".join(lines)
 
 
-def format_decision(data: dict[str, Any]) -> str:
-    """Format decision data for display."""
+def format_decision_step(data: dict[str, Any]) -> str:
     lines = []
     lines.append(f"Tool: {data.get('tool')}")
     lines.append(f"Parameters: {json.dumps(data.get('params', {}), indent=2)}")
-    lines.append(f"Reasoning: {data.get('reasoning')}")
-    lines.append(f"Total Latency: {data.get('total_latency_ms', 0):.0f}ms")
-
-    if 'error' in data:
-        lines.append(f"\n⚠️  Error: {data['error']}")
-
+    if data.get("reasoning"):
+        lines.append(f"Reasoning: {data['reasoning']}")
     return "\n".join(lines)
 
 
-def format_capture(capture: dict[str, Any], verbose: bool = False) -> str:
-    """Format a complete decision capture for display."""
+STEP_FORMATTERS = {
+    "observation": format_observation_step,
+    "prompt": format_prompt_step,
+    "llm_response": format_llm_response_step,
+    "parse": format_parse_step,
+    "decision": format_decision_step,
+}
+
+
+def format_trace(trace: dict[str, Any], verbose: bool = False) -> str:
     lines = []
-    lines.append("\n" + "=" * 80)
-    lines.append(f"DECISION CAPTURE: Agent {capture['agent_id']} - Tick {capture['tick']}")
-    lines.append(f"Start Time: {capture['start_time']}")
-    lines.append("=" * 80)
+    lines.append(f"\n{'#' * 72}")
+    lines.append(f"  TRACE: Agent {trace['agent_id']} - Tick {trace['tick']}  (id: {trace.get('trace_id', '?')})")
+    lines.append(f"{'#' * 72}")
 
-    # Format each stage
-    for entry in capture.get('entries', []):
-        stage = entry['stage']
-        data = entry['data']
+    for step in trace.get("steps", []):
+        name = step.get("name", "unknown")
+        data = step.get("data", {})
+        elapsed = step.get("elapsed_ms", 0)
 
-        lines.append(format_stage_header(stage))
-        lines.append(f"Timestamp: {entry['timestamp']}\n")
+        lines.append(format_step_header(name))
+        lines.append(f"  +{elapsed:.1f}ms\n")
 
-        if stage == 'observation':
-            lines.append(format_observation(data))
-        elif stage == 'prompt_building':
-            lines.append(format_prompt_building(data))
-        elif stage == 'llm_request':
-            if verbose:
-                lines.append(format_llm_request(data))
-            else:
-                lines.append(f"Model: {data.get('model')}, Tools: {len(data.get('tools', []))}")
-        elif stage == 'llm_response':
-            lines.append(format_llm_response(data))
-        elif stage == 'decision':
-            lines.append(format_decision(data))
+        formatter = STEP_FORMATTERS.get(name)
+        if formatter:
+            lines.append(formatter(data))
+        elif verbose:
+            lines.append(json.dumps(data, indent=2))
+        else:
+            summary = json.dumps(data)
+            lines.append(summary[:200] + ("..." if len(summary) > 200 else ""))
 
     return "\n".join(lines)
 
 
-def fetch_captures(
+# ── API ──────────────────────────────────────────────────────────
+
+def fetch_traces(
     base_url: str,
     agent_id: str | None = None,
-    tick: int | None = None,
     tick_start: int | None = None,
-    tick_end: int | None = None
+    tick_end: int | None = None,
+    limit: int = 200,
 ) -> list[dict[str, Any]]:
-    """Fetch captures from the IPC server."""
-    url = f"{base_url}/inspector/requests"
-    params = {}
+    """Fetch reasoning traces from the SDK debug API."""
+    url = f"{base_url}/debug/traces"
+    params: dict[str, str | int] = {"limit": limit}
 
     if agent_id:
-        params['agent_id'] = agent_id
-    if tick is not None:
-        params['tick'] = tick
+        params["agent_id"] = agent_id
     if tick_start is not None:
-        params['tick_start'] = tick_start
+        params["tick_start"] = tick_start
     if tick_end is not None:
-        params['tick_end'] = tick_end
+        params["tick_end"] = tick_end
 
     try:
         response = requests.get(url, params=params)
         response.raise_for_status()
         data = response.json()
-        return data.get('captures', [])
+        return data.get("traces", [])
     except requests.exceptions.RequestException as e:
-        print(f"Error fetching captures: {e}", file=sys.stderr)
+        print(f"Error fetching traces: {e}", file=sys.stderr)
         sys.exit(1)
 
 
+# ── Main ─────────────────────────────────────────────────────────
+
 def main():
     parser = argparse.ArgumentParser(
-        description="Inspect agent reasoning traces captured by the TraceStore",
+        description="Inspect agent reasoning traces from the SDK debug API",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # View a specific agent decision at tick 42
+  # View a specific agent's traces at tick 42
   python -m tools.inspect_agent --agent agent_001 --tick 42
 
-  # View all decisions for an agent in a tick range
+  # View all traces in a tick range
   python -m tools.inspect_agent --agent agent_001 --tick-range 40-50
 
-  # View the latest 5 decisions for an agent
+  # View the latest 5 traces
   python -m tools.inspect_agent --agent agent_001 --latest 5
 
-  # View all captures in verbose mode
-  python -m tools.inspect_agent --all --verbose
+  # Filter by tool used
+  python -m tools.inspect_agent --tool move_to
 
   # Export to JSON file
-  python -m tools.inspect_agent --agent agent_001 --output decisions.json
-        """
+  python -m tools.inspect_agent --agent agent_001 --output traces.json
+        """,
     )
 
-    parser.add_argument('--agent', type=str, help='Agent ID to filter by')
-    parser.add_argument('--tick', type=int, help='Specific tick number')
-    parser.add_argument('--tick-range', type=str, help='Tick range (e.g., 40-50)')
-    parser.add_argument('--latest', type=int, help='Show latest N captures')
-    parser.add_argument('--all', action='store_true', help='Show all captures')
-    parser.add_argument('--verbose', '-v', action='store_true', help='Show detailed output')
-    parser.add_argument('--output', '-o', type=str, help='Output to JSON file instead of stdout')
-    parser.add_argument('--url', type=str, default='http://127.0.0.1:5000',
-                        help='IPC server URL (default: http://127.0.0.1:5000)')
+    parser.add_argument("--agent", type=str, help="Agent ID to filter by")
+    parser.add_argument("--tick", type=int, help="Specific tick number")
+    parser.add_argument("--tick-range", type=str, help="Tick range (e.g., 40-50)")
+    parser.add_argument("--tool", type=str, help="Filter by tool name (e.g., move_to, collect, idle)")
+    parser.add_argument("--latest", type=int, help="Show latest N traces")
+    parser.add_argument("--all", action="store_true", help="Show all traces")
+    parser.add_argument("--verbose", "-v", action="store_true", help="Show detailed output")
+    parser.add_argument("--output", "-o", type=str, help="Output to JSON file instead of stdout")
+    parser.add_argument(
+        "--url",
+        type=str,
+        default="http://127.0.0.1:5000",
+        help="IPC server URL (default: http://127.0.0.1:5000)",
+    )
 
     args = parser.parse_args()
 
-    # Parse tick range if provided
+    # Parse tick range
     tick_start = None
     tick_end = None
-    if args.tick_range:
+    if args.tick:
+        tick_start = args.tick
+        tick_end = args.tick
+    elif args.tick_range:
         try:
-            parts = args.tick_range.split('-')
+            parts = args.tick_range.split("-")
             tick_start = int(parts[0])
             tick_end = int(parts[1])
         except (ValueError, IndexError):
             print("Error: Invalid tick range format. Use: 40-50", file=sys.stderr)
             sys.exit(1)
 
-    # Fetch captures
-    captures = fetch_captures(
+    # Fetch traces
+    traces = fetch_traces(
         base_url=args.url,
         agent_id=args.agent,
-        tick=args.tick,
         tick_start=tick_start,
-        tick_end=tick_end
+        tick_end=tick_end,
     )
 
-    if not captures:
-        print("No captures found matching the criteria.", file=sys.stderr)
+    # Filter by tool if requested
+    if args.tool:
+        filtered = []
+        for t in traces:
+            for step in t.get("steps", []):
+                if step.get("name") == "decision" and step.get("data", {}).get("tool") == args.tool:
+                    filtered.append(t)
+                    break
+        traces = filtered
+
+    if not traces:
+        print("No traces found matching the criteria.", file=sys.stderr)
         sys.exit(0)
 
-    # Apply latest filter if requested
+    # Apply latest filter
     if args.latest:
-        captures = captures[-args.latest:]
+        traces = traces[-args.latest:]
 
-    # Output to JSON file if requested
+    # Output to JSON file
     if args.output:
         output_path = Path(args.output)
-        with open(output_path, 'w') as f:
-            json.dump(captures, f, indent=2)
-        print(f"Exported {len(captures)} captures to {output_path}")
+        with open(output_path, "w") as f:
+            json.dump(traces, f, indent=2)
+        print(f"Exported {len(traces)} traces to {output_path}")
         sys.exit(0)
 
-    # Display captures
-    print(f"\nFound {len(captures)} capture(s)\n")
-    for capture in captures:
-        print(format_capture(capture, verbose=args.verbose))
-        print("\n")
+    # Display traces
+    print(f"\nFound {len(traces)} trace(s)\n")
+    for trace in traces:
+        print(format_trace(trace, verbose=args.verbose))
+        print()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

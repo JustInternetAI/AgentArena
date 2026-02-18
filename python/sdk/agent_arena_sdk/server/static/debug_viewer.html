@@ -308,6 +308,14 @@
       <button class="tab-btn active" data-view="traces" id="tabTraces">Traces</button>
       <button class="tab-btn" data-view="observations" id="tabObservations">Obs</button>
     </div>
+
+    <h2 style="margin-top:1rem;">Tool Filter</h2>
+    <select class="search-box" id="toolFilter" style="cursor:pointer;">
+      <option value="">All tools</option>
+      <option value="move_to">move_to</option>
+      <option value="collect">collect</option>
+      <option value="idle">idle</option>
+    </select>
   </aside>
 
   <!-- Center: trace / observation list -->
@@ -340,6 +348,7 @@
   let agents = [];
   let tickMax = 0;
   let tickFilter = null; // null = show all
+  let toolFilter = '';   // '' = show all
 
   // Track expanded/selected state so live refresh preserves it
   let expandedTraceIds = new Set();
@@ -359,6 +368,7 @@
   const $tickDisplay = document.getElementById('tickDisplay');
   const $tabTraces = document.getElementById('tabTraces');
   const $tabObservations = document.getElementById('tabObservations');
+  const $toolFilter = document.getElementById('toolFilter');
 
   // ── API helpers ────────────────────────────────────────────
   async function api(path) {
@@ -378,6 +388,7 @@
   async function fetchTraces() {
     let url = '/debug/traces?limit=200';
     if (currentAgent) url += `&agent_id=${encodeURIComponent(currentAgent)}`;
+    if (toolFilter) url += `&tool=${encodeURIComponent(toolFilter)}`;
     const data = await api(url);
     traces = data?.traces ?? [];
     if (traces.length > 0) {
@@ -653,6 +664,11 @@
       $tickDisplay.textContent = `0 - ${val}`;
     }
     if (currentView === 'traces') renderTraces();
+  });
+
+  $toolFilter.addEventListener('change', () => {
+    toolFilter = $toolFilter.value;
+    fetchTraces();
   });
 
   $tabTraces.addEventListener('click', () => {
