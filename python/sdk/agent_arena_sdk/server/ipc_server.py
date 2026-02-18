@@ -354,6 +354,7 @@ class MinimalIPCServer:
             agent_id: str | None = Query(None),
             tick_start: int | None = Query(None),
             tick_end: int | None = Query(None),
+            tool: str | None = Query(None, description="Filter by decision tool name"),
         ) -> dict[str, Any]:
             """Get recent reasoning traces from hybrid storage."""
             traces = self.debug_store.get_recent_traces(
@@ -362,6 +363,14 @@ class MinimalIPCServer:
                 tick_start=tick_start,
                 tick_end=tick_end,
             )
+            if tool:
+                traces = [
+                    t for t in traces
+                    if any(
+                        s.get("name") == "decision" and s.get("data", {}).get("tool") == tool
+                        for s in t.get("steps", [])
+                    )
+                ]
             return {"traces": traces, "count": len(traces)}
 
         @app.get("/debug/prompts")
