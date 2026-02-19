@@ -116,6 +116,7 @@ class VLLMBackend(BaseBackend):
         prompt: str,
         temperature: float | None = None,
         max_tokens: int | None = None,
+        system_prompt: str | None = None,
     ) -> GenerationResult:
         """
         Generate text from prompt using vLLM.
@@ -124,6 +125,7 @@ class VLLMBackend(BaseBackend):
             prompt: Input prompt
             temperature: Override temperature (optional)
             max_tokens: Override max tokens (optional)
+            system_prompt: Optional system message (not used for completion API)
 
         Returns:
             GenerationResult with generated text and metadata

@@ -85,6 +85,15 @@ class AgentBehavior(ABC):
     _agent_id: str | None = None
     _current_trace: Optional["ReasoningTrace"] = None
 
+    @property
+    def world_map(self) -> "SpatialMemory":
+        """Public accessor for spatial memory. Lazily creates if needed."""
+        if self._world_map is None:
+            from .memory.spatial import SpatialMemory
+
+            self._world_map = SpatialMemory()
+        return self._world_map
+
     def _set_trace_context(self, agent_id: str, tick: int) -> None:
         """Set trace context before decide(). Called by the IPC server."""
         self._agent_id = agent_id

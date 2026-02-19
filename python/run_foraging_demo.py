@@ -51,7 +51,14 @@ def main():
     try:
         # Create LLM agent
         logger.info("Creating LLM agent...")
-        model_path = str(Path(__file__).parent.parent / "models" / "qwen2.5-14b-instruct" / "gguf" / "q4_k_m" / "Qwen2.5-14B-Instruct-Q4_K_M.gguf")
+        model_path = str(
+            Path(__file__).parent.parent
+            / "models"
+            / "qwen2.5-14b-instruct"
+            / "gguf"
+            / "q4_k_m"
+            / "Qwen2.5-14B-Instruct-Q4_K_M.gguf"
+        )
         agent = Agent(model_path=model_path)
         logger.info("  ✓ LLM Agent created")
 

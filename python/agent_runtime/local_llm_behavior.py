@@ -10,15 +10,18 @@ uses in-process GPU-accelerated inference via BaseBackend implementations.
 """
 
 import logging
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from .behavior import AgentBehavior
 from .memory import SlidingWindowMemory
-from .schemas import AgentDecision, Observation, ToolSchema
-from .reasoning_trace import TraceStore, TraceStepName, get_global_trace_store
 
 # Backwards compatibility
-from .reasoning_trace import PromptInspector, InspectorStage, get_global_inspector
+from .reasoning_trace import (
+    PromptInspector,
+    TraceStepName,
+    get_global_inspector,
+)
+from .schemas import AgentDecision, Observation, ToolSchema
 
 if TYPE_CHECKING:
     from backends.base import BaseBackend
@@ -62,7 +65,7 @@ class LocalLLMBehavior(AgentBehavior):
         memory_capacity: int = 10,
         temperature: float = 0.7,
         max_tokens: int = 256,
-        inspector: Optional[PromptInspector] = None,
+        inspector: PromptInspector | None = None,
     ):
         """
         Initialize the local LLM behavior.
@@ -121,59 +124,64 @@ class LocalLLMBehavior(AgentBehavior):
 
             # Capture observation stage
             if capture:
-                capture.add_step(TraceStepName.OBSERVATION, {
-                    "agent_id": observation.agent_id,
-                    "tick": observation.tick,
-                    "position": observation.position,
-                    "health": observation.health,
-                    "energy": observation.energy,
-                    "nearby_resources": [
-                        {
-                            "name": r.name,
-                            "type": r.type,
-                            "distance": r.distance,
-                            "position": r.position
-                        }
-                        for r in observation.nearby_resources
-                    ],
-                    "nearby_hazards": [
-                        {
-                            "name": h.name,
-                            "type": h.type,
-                            "distance": h.distance,
-                            "damage": h.damage
-                        }
-                        for h in observation.nearby_hazards
-                    ],
-                    "inventory": [
-                        {"name": item.name, "quantity": item.quantity}
-                        for item in observation.inventory
-                    ]
-                })
+                capture.add_step(
+                    TraceStepName.OBSERVATION,
+                    {
+                        "agent_id": observation.agent_id,
+                        "tick": observation.tick,
+                        "position": observation.position,
+                        "health": observation.health,
+                        "energy": observation.energy,
+                        "nearby_resources": [
+                            {
+                                "name": r.name,
+                                "type": r.type,
+                                "distance": r.distance,
+                                "position": r.position,
+                            }
+                            for r in observation.nearby_resources
+                        ],
+                        "nearby_hazards": [
+                            {
+                                "name": h.name,
+                                "type": h.type,
+                                "distance": h.distance,
+                                "damage": h.damage,
+                            }
+                            for h in observation.nearby_hazards
+                        ],
+                        "inventory": [
+                            {"name": item.name, "quantity": item.quantity}
+                            for item in observation.inventory
+                        ],
+                    },
+                )
 
             # Build prompt from system prompt, memory, and observation
             prompt = self._build_prompt(observation, tools)
             logger.debug(f"Prompt length: {len(prompt)} chars (~{len(prompt) // 4} tokens)")
 
             # Log prompt (if tracing enabled)
-            self.log_step("prompt", prompt)
+            self.log_step("prompt", {"text": prompt})
 
             # Capture prompt building stage
             if capture:
                 memory_items = self.memory.retrieve(limit=5)
-                capture.add_step(TraceStepName.PROMPT_BUILDING, {
-                    "system_prompt": self.system_prompt,
-                    "memory_context": {
-                        "count": len(memory_items),
-                        "items": [
-                            {"tick": obs.tick, "position": obs.position}
-                            for obs in memory_items
-                        ]
+                capture.add_step(
+                    TraceStepName.PROMPT_BUILDING,
+                    {
+                        "system_prompt": self.system_prompt,
+                        "memory_context": {
+                            "count": len(memory_items),
+                            "items": [
+                                {"tick": obs.tick, "position": obs.position} for obs in memory_items
+                            ],
+                        },
+                        "final_prompt": prompt,
+                        "prompt_length": len(prompt),
+                        "estimated_tokens": len(prompt) // 4,
                     },
-                    "final_prompt": prompt,
-                    "prompt_length": len(prompt),
-                    "estimated_tokens": len(prompt) // 4
-                })
+                )
 
             # Convert tools to dict format for backend
             tool_dicts = [
@@ -187,13 +195,16 @@ class LocalLLMBehavior(AgentBehavior):
 
             # Capture LLM request stage
             if capture:
-                capture.add_step(TraceStepName.LLM_REQUEST, {
-                    "model": getattr(self.backend, 'model_name', 'unknown'),
-                    "prompt": prompt,
-                    "tools": tool_dicts,
-                    "temperature": self.temperature,
-                    "max_tokens": self.max_tokens
-                })
+                capture.add_step(
+                    TraceStepName.LLM_REQUEST,
+                    {
+                        "model": getattr(self.backend, "model_name", "unknown"),
+                        "prompt": prompt,
+                        "tools": tool_dicts,
+                        "temperature": self.temperature,
+                        "max_tokens": self.max_tokens,
+                    },
+                )
 
             # Generate response using backend
             import time
@@ -207,13 +218,16 @@ class LocalLLMBehavior(AgentBehavior):
 
             # Capture LLM response stage
             if capture:
-                capture.add_step(TraceStepName.LLM_RESPONSE, {
-                    "raw_text": result.text,
-                    "tokens_used": result.tokens_used,
-                    "finish_reason": result.finish_reason,
-                    "metadata": result.metadata,
-                    "latency_ms": elapsed_ms
-                })
+                capture.add_step(
+                    TraceStepName.LLM_RESPONSE,
+                    {
+                        "raw_text": result.text,
+                        "tokens_used": result.tokens_used,
+                        "finish_reason": result.finish_reason,
+                        "metadata": result.metadata,
+                        "latency_ms": elapsed_ms,
+                    },
+                )
 
             # Check for generation errors
             if result.finish_reason == "error":
@@ -223,13 +237,16 @@ class LocalLLMBehavior(AgentBehavior):
 
                 # Capture error decision
                 if capture:
-                    capture.add_step(TraceStepName.DECISION, {
-                        "tool": decision.tool,
-                        "params": decision.params,
-                        "reasoning": decision.reasoning,
-                        "total_latency_ms": elapsed_ms,
-                        "error": error_msg
-                    })
+                    capture.add_step(
+                        TraceStepName.DECISION,
+                        {
+                            "tool": decision.tool,
+                            "params": decision.params,
+                            "reasoning": decision.reasoning,
+                            "total_latency_ms": elapsed_ms,
+                            "error": error_msg,
+                        },
+                    )
 
                 self.inspector.finish_capture(observation.agent_id, observation.tick)
                 self._current_trace = None  # Clear for next decision
@@ -277,12 +294,15 @@ class LocalLLMBehavior(AgentBehavior):
 
             # Capture final decision stage
             if capture:
-                capture.add_step(TraceStepName.DECISION, {
-                    "tool": decision.tool,
-                    "params": decision.params,
-                    "reasoning": decision.reasoning,
-                    "total_latency_ms": elapsed_ms
-                })
+                capture.add_step(
+                    TraceStepName.DECISION,
+                    {
+                        "tool": decision.tool,
+                        "params": decision.params,
+                        "reasoning": decision.reasoning,
+                        "total_latency_ms": elapsed_ms,
+                    },
+                )
 
             logger.info(
                 f"Agent {observation.agent_id} decided: {decision.tool} - {decision.reasoning} "
@@ -300,12 +320,10 @@ class LocalLLMBehavior(AgentBehavior):
 
             # Capture error in inspector
             if capture:
-                capture.add_step(TraceStepName.DECISION, {
-                    "tool": "idle",
-                    "params": {},
-                    "reasoning": f"Error: {e}",
-                    "error": str(e)
-                })
+                capture.add_step(
+                    TraceStepName.DECISION,
+                    {"tool": "idle", "params": {}, "reasoning": f"Error: {e}", "error": str(e)},
+                )
                 self.inspector.finish_capture(observation.agent_id, observation.tick)
                 self._current_trace = None  # Clear for next decision
 

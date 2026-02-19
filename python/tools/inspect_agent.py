@@ -42,7 +42,9 @@ def format_observation_step(data: dict[str, Any]) -> str:
     lines = []
     if data.get("position"):
         pos = data["position"]
-        lines.append(f"Position: [{', '.join(f'{v:.1f}' if isinstance(v, float) else str(v) for v in pos)}]")
+        lines.append(
+            f"Position: [{', '.join(f'{v:.1f}' if isinstance(v, float) else str(v) for v in pos)}]"
+        )
     if data.get("health") is not None:
         lines.append(f"Health: {data['health']}")
     if data.get("energy") is not None:
@@ -111,7 +113,9 @@ STEP_FORMATTERS = {
 def format_trace(trace: dict[str, Any], verbose: bool = False) -> str:
     lines = []
     lines.append(f"\n{'#' * 72}")
-    lines.append(f"  TRACE: Agent {trace['agent_id']} - Tick {trace['tick']}  (id: {trace.get('trace_id', '?')})")
+    lines.append(
+        f"  TRACE: Agent {trace['agent_id']} - Tick {trace['tick']}  (id: {trace.get('trace_id', '?')})"
+    )
     lines.append(f"{'#' * 72}")
 
     for step in trace.get("steps", []):
@@ -136,6 +140,7 @@ def format_trace(trace: dict[str, Any], verbose: bool = False) -> str:
 
 # ── API ──────────────────────────────────────────────────────────
 
+
 def fetch_traces(
     base_url: str,
     agent_id: str | None = None,
@@ -158,13 +163,14 @@ def fetch_traces(
         response = requests.get(url, params=params)
         response.raise_for_status()
         data = response.json()
-        return data.get("traces", [])
+        return list(data.get("traces", []))
     except requests.exceptions.RequestException as e:
         print(f"Error fetching traces: {e}", file=sys.stderr)
         sys.exit(1)
 
 
 # ── Main ─────────────────────────────────────────────────────────
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -192,7 +198,9 @@ Examples:
     parser.add_argument("--agent", type=str, help="Agent ID to filter by")
     parser.add_argument("--tick", type=int, help="Specific tick number")
     parser.add_argument("--tick-range", type=str, help="Tick range (e.g., 40-50)")
-    parser.add_argument("--tool", type=str, help="Filter by tool name (e.g., move_to, collect, idle)")
+    parser.add_argument(
+        "--tool", type=str, help="Filter by tool name (e.g., move_to, collect, idle)"
+    )
     parser.add_argument("--latest", type=int, help="Show latest N traces")
     parser.add_argument("--all", action="store_true", help="Show all traces")
     parser.add_argument("--verbose", "-v", action="store_true", help="Show detailed output")
@@ -245,7 +253,7 @@ Examples:
 
     # Apply latest filter
     if args.latest:
-        traces = traces[-args.latest:]
+        traces = traces[-args.latest :]
 
     # Output to JSON file
     if args.output:
