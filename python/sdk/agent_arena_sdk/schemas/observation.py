@@ -154,6 +154,7 @@ class Observation:
     inventory: list[ItemInfo] = field(default_factory=list)
     health: float = 100.0
     energy: float = 100.0
+    perception_radius: float = 50.0  # Max perception distance (default for backward compat)
     exploration: ExplorationInfo | None = None
     # Objective system fields (NEW for LDX refactor)
     scenario_name: str = ""
@@ -279,6 +280,7 @@ class Observation:
             inventory=inventory,
             health=data.get("health", 100.0),
             energy=data.get("energy", 100.0),
+            perception_radius=data.get("perception_radius", 50.0),
             exploration=exploration,
             scenario_name=data.get("scenario_name", ""),
             objective=objective,
@@ -338,6 +340,7 @@ class Observation:
             ],
             "health": self.health,
             "energy": self.energy,
+            "perception_radius": self.perception_radius,
             "exploration": self.exploration.to_dict() if self.exploration else None,
             "scenario_name": self.scenario_name,
             "objective": self.objective.to_dict() if self.objective else None,

@@ -29,9 +29,8 @@ from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
     from .memory.spatial import SpatialMemory
-    from .reasoning_trace import TraceStore
+    from .reasoning_trace import ReasoningTrace, TraceStore
     from .schemas import AgentDecision, Observation, SimpleContext, ToolSchema
-    from .reasoning_trace import ReasoningTrace
 
 
 class AgentBehavior(ABC):
@@ -80,8 +79,28 @@ class AgentBehavior(ABC):
                 return AgentDecision.idle(reasoning="No resources known")
     """
 
-    # Reasoning trace support (issue #45)
+    # Framework-managed attributes (set by IPC server before decide())
+    _world_map: Optional["SpatialMemory"] = None
+    _trace_store: Optional["TraceStore"] = None
+    _agent_id: str | None = None
     _current_trace: Optional["ReasoningTrace"] = None
+
+    def _set_trace_context(self, agent_id: str, tick: int) -> None:
+        """Set trace context before decide(). Called by the IPC server."""
+        self._agent_id = agent_id
+        if self._trace_store is not None:
+            self._current_trace = self._trace_store.start_capture(agent_id, tick)
+
+    def _update_world_map(self, observation: "Observation") -> None:
+        """Update spatial memory with current observation. Called by the IPC server."""
+        if self._world_map is not None:
+            self._world_map.update_from_observation(observation)
+
+    def _end_trace(self) -> None:
+        """End and persist the current trace. Called by the IPC server."""
+        if self._current_trace is not None and self._trace_store is not None:
+            self._trace_store.finish_capture(self._current_trace.agent_id, self._current_trace.tick)
+        self._current_trace = None
 
     @abstractmethod
     def decide(self, observation: "Observation", tools: list["ToolSchema"]) -> "AgentDecision":
@@ -97,7 +116,7 @@ class AgentBehavior(ABC):
         """
         pass
 
-    def log_step(self, name: str, data: dict[str, Any], duration_ms: Optional[float] = None) -> None:
+    def log_step(self, name: str, data: dict[str, Any], duration_ms: float | None = None) -> None:
         """
         Log a reasoning step for debugging and analysis.
 
@@ -153,7 +172,7 @@ class AgentBehavior(ABC):
 
         # Start a new trace episode if tracing is enabled
         if self._trace_store is not None and self._agent_id is not None:
-            self._trace_store.set_episode(self._agent_id)
+            self._trace_store.start_episode(self._agent_id)
 
     def on_episode_end(self, success: bool, metrics: dict | None = None) -> None:
         """

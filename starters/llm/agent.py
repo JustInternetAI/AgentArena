@@ -146,15 +146,44 @@ class Agent:
         else:
             inventory_summary = "Empty"
 
+        # Format exploration data with concrete positions
+        exploration_pct = 0.0
+        explore_targets_summary = "None"
+        if obs.exploration:
+            exploration_pct = obs.exploration.exploration_percentage
+            if obs.exploration.explore_targets:
+                target_lines = [
+                    f"{t.direction} pos={list(t.position)} ({t.distance:.1f}u away)"
+                    for t in obs.exploration.explore_targets[:4]
+                ]
+                explore_targets_summary = "; ".join(target_lines)
+
+        # Hint when nothing is visible — point to a concrete position
+        exploration_hint = ""
+        if not obs.nearby_resources:
+            if obs.exploration and obs.exploration.explore_targets:
+                best = obs.exploration.explore_targets[0]
+                pos = list(best.position)
+                exploration_hint = (
+                    f"No resources visible! move_to an exploration target to find them. "
+                    f"Nearest: {pos}"
+                )
+            else:
+                exploration_hint = "No resources visible! move_to an unexplored area to find them."
+
         # Fill template
         prompt = self.decision_template.format(
             tick=obs.tick,
             position=obs.position,
             health=obs.health,
             energy=obs.energy,
+            perception_radius=getattr(obs, "perception_radius", 10.0),
             resources_summary=resources_summary,
             hazards_summary=hazards_summary,
             inventory_summary=inventory_summary,
+            exploration_percentage=f"{exploration_pct:.1f}",
+            explore_targets=explore_targets_summary,
+            exploration_hint=exploration_hint,
         )
 
         return prompt
@@ -352,5 +381,19 @@ class Agent:
                 reasoning=f"Moving toward {closest.name} at dist {closest.distance:.1f}",
             )
 
-        # Priority 3: Idle
-        return Decision.idle("No resources or hazards nearby")
+        # Priority 3: Move toward nearest exploration target
+        if obs.exploration and obs.exploration.explore_targets:
+            best = obs.exploration.explore_targets[0]
+            return Decision(
+                tool="move_to",
+                params={"target_position": list(best.position)},
+                reasoning=f"No resources visible, exploring {best.direction}",
+            )
+
+        # Priority 4: Move to a default position when no exploration data
+        px, py, pz = obs.position
+        return Decision(
+            tool="move_to",
+            params={"target_position": [px + 10.0, py, pz]},
+            reasoning="No resources or exploration data, moving to explore",
+        )

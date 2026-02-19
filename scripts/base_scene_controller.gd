@@ -28,7 +28,7 @@ class_name SceneController
 var agents: Array[Dictionary] = []  # Array of {agent: Node, id: String, team: String, position: Vector3}
 
 # Perception configuration (override in subclasses)
-var perception_radius: float = 50.0  # Max distance agent can perceive objects
+@export var perception_radius: float = 10.0  ## Max distance agent can perceive objects
 var line_of_sight_enabled: bool = true  # Set to false to disable LOS checks (x-ray vision)
 var los_collision_mask: int = 2  # Collision layer for obstacles that block vision
 
@@ -41,7 +41,7 @@ var world_bounds_max: Vector2 = Vector2(25, 25)
 # Debug: Observation logging (press F9 to toggle, F10 for verbose mode, F11 for exploration overlay)
 var debug_observations: bool = false  # Enable to log observations each tick
 var debug_observations_verbose: bool = false  # Show full observation details
-var debug_exploration_overlay: bool = false  # Show exploration grid overlay
+var debug_exploration_overlay: bool = true  # Show exploration grid overlay (F11 to toggle)
 var _last_observation_cache: Dictionary = {}  # For change detection
 
 # Metrics
@@ -458,6 +458,10 @@ func _setup_visibility_tracker():
 	visibility_tracker.set_world_bounds(world_bounds_min, world_bounds_max)
 	visibility_tracker.set_los_collision_mask(los_collision_mask)
 
+	# Enable overlay if default is on
+	if debug_exploration_overlay:
+		visibility_tracker.set_debug_visualization(true)
+
 	print("✓ VisibilityTracker initialized (bounds: %s to %s)" % [world_bounds_min, world_bounds_max])
 
 func _update_exploration(agent_data: Dictionary):
@@ -636,6 +640,7 @@ func _convert_observation_to_backend_format(agent_data: Dictionary, observation:
 		"position": [observation.position.x, observation.position.y, observation.position.z] if observation.has("position") and observation.position is Vector3 else observation.get("position", [0, 0, 0]),
 		"health": observation.get("health", 100.0),
 		"max_health": observation.get("max_health", 100.0),
+		"perception_radius": perception_radius,
 		"nearby_resources": [],
 		"nearby_hazards": []
 	}

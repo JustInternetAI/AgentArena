@@ -119,6 +119,15 @@ func call_tool(tool_name: String, parameters: Dictionary = {}) -> Dictionary:
 			var direction = parameters.get("direction", "north")
 			var explore_result = scene_controller.query_explore_direction(global_position, direction)
 			print("[SimpleAgent] explore_direction result: ", explore_result)
+			# Actually move toward the exploration target
+			if explore_result.get("success", false) and explore_result.has("target_position"):
+				var target = explore_result.target_position
+				if target is Vector3:
+					_target_position = target
+				elif target is Array and target.size() >= 3:
+					_target_position = Vector3(target[0], target[1], target[2])
+				_is_moving = true
+				print("[SimpleAgent] ✓ Exploring %s, moving to: %s" % [direction, _target_position])
 			return explore_result
 		return {"success": false, "error": "No scene controller"}
 

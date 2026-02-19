@@ -95,13 +95,16 @@ class MinimalIPCServer:
             trace = DebugTrace(agent_id=agent_id, tick=obs.tick)
 
             # Step 1: Observation summary
-            trace.add_step("observation", {
-                "position": list(obs.position) if obs.position else [],
-                "health": obs.health,
-                "energy": obs.energy,
-                "nearby_resources": len(obs.nearby_resources) if obs.nearby_resources else 0,
-                "nearby_hazards": len(obs.nearby_hazards) if obs.nearby_hazards else 0,
-            })
+            trace.add_step(
+                "observation",
+                {
+                    "position": list(obs.position) if obs.position else [],
+                    "health": obs.health,
+                    "energy": obs.energy,
+                    "nearby_resources": len(obs.nearby_resources) if obs.nearby_resources else 0,
+                    "nearby_hazards": len(obs.nearby_hazards) if obs.nearby_hazards else 0,
+                },
+            )
 
             # Check if the agent exposed a chain-of-thought trace
             agent_trace = None
@@ -112,30 +115,42 @@ class MinimalIPCServer:
 
             if agent_trace:
                 # Step 2: Prompt sent to LLM
-                trace.add_step("prompt", {
-                    "system_prompt": agent_trace.get("system_prompt", ""),
-                    "user_prompt": agent_trace.get("user_prompt", ""),
-                })
+                trace.add_step(
+                    "prompt",
+                    {
+                        "system_prompt": agent_trace.get("system_prompt", ""),
+                        "user_prompt": agent_trace.get("user_prompt", ""),
+                    },
+                )
 
                 # Step 3: Raw LLM response
-                trace.add_step("llm_response", {
-                    "raw_output": agent_trace.get("llm_raw_output", ""),
-                    "tokens_used": agent_trace.get("tokens_used", 0),
-                    "finish_reason": agent_trace.get("finish_reason"),
-                })
+                trace.add_step(
+                    "llm_response",
+                    {
+                        "raw_output": agent_trace.get("llm_raw_output", ""),
+                        "tokens_used": agent_trace.get("tokens_used", 0),
+                        "finish_reason": agent_trace.get("finish_reason"),
+                    },
+                )
 
                 # Step 4: Parse result
-                trace.add_step("parse", {
-                    "method": agent_trace.get("parse_method", "unknown"),
-                    "parsed_json": agent_trace.get("parsed_json"),
-                })
+                trace.add_step(
+                    "parse",
+                    {
+                        "method": agent_trace.get("parse_method", "unknown"),
+                        "parsed_json": agent_trace.get("parsed_json"),
+                    },
+                )
 
             # Step 5: Final decision
-            trace.add_step("decision", {
-                "tool": decision.tool,
-                "params": decision.params,
-                "reasoning": decision.reasoning,
-            })
+            trace.add_step(
+                "decision",
+                {
+                    "tool": decision.tool,
+                    "params": decision.params,
+                    "reasoning": decision.reasoning,
+                },
+            )
 
             self.debug_store.record_trace(trace)
         except Exception as exc:
@@ -228,6 +243,20 @@ class MinimalIPCServer:
                 "result": None,
                 "error": "",
             }
+
+        @app.post("/experience")
+        async def receive_experience(request_data: dict[str, Any]) -> dict[str, Any]:
+            """
+            Receive experience events from Godot (collisions, damage, etc.).
+
+            These events are logged for debugging and can be used by
+            memory systems for learning from past experiences.
+            """
+            agent_id = request_data.get("agent_id", "unknown")
+            event_type = request_data.get("event_type", "unknown")
+            description = request_data.get("description", "")
+            logger.info(f"[/experience] Agent '{agent_id}' event: " f"{event_type} - {description}")
+            return {"success": True}
 
         @app.post("/tick")
         async def process_tick(request_data: dict[str, Any]) -> dict[str, Any]:
@@ -365,7 +394,8 @@ class MinimalIPCServer:
             )
             if tool:
                 traces = [
-                    t for t in traces
+                    t
+                    for t in traces
                     if any(
                         s.get("name") == "decision" and s.get("data", {}).get("tool") == tool
                         for s in t.get("steps", [])
