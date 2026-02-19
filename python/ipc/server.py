@@ -339,7 +339,7 @@ class IPCServer:
                     f"{len(action_messages)} actions generated"
                 )
 
-                return response.to_dict()
+                return dict(response.to_dict())
 
             except Exception as e:
                 logger.error(f"Error processing tick: {e}", exc_info=True)
@@ -410,11 +410,11 @@ class IPCServer:
                     f"Tool '{tool_request.tool_name}' executed: success={response.success}"
                 )
 
-                return response.to_dict()
+                return dict(response.to_dict())
 
             except Exception as e:
                 logger.error(f"Error executing tool: {e}", exc_info=True)
-                return ToolExecutionResponse(success=False, error=str(e)).to_dict()
+                return dict(ToolExecutionResponse(success=False, error=str(e)).to_dict())
 
         @app.get("/tools/list")
         async def list_tools() -> dict[str, Any]:
@@ -441,7 +441,7 @@ class IPCServer:
             agent_id: str | None = None,
             tick: int | None = None,
             tick_start: int | None = None,
-            tick_end: int | None = None
+            tick_end: int | None = None,
         ):
             """
             Get captured reasoning traces from the TraceStore.
@@ -463,7 +463,9 @@ class IPCServer:
             if agent_id and tick is not None:
                 capture = inspector.get_capture(agent_id, tick)
                 if not capture:
-                    raise HTTPException(status_code=404, detail=f"No capture found for agent {agent_id} tick {tick}")
+                    raise HTTPException(
+                        status_code=404, detail=f"No capture found for agent {agent_id} tick {tick}"
+                    )
                 return {"captures": [capture.to_dict()], "count": 1}
 
             # Agent-specific query
@@ -496,7 +498,7 @@ class IPCServer:
                 "log_to_file": inspector.log_to_file,
                 "log_dir": str(inspector.log_dir),
                 "current_captures": len(inspector.traces),
-                "episode_id": inspector.episode_id
+                "episode_id": inspector.episode_id,
             }
 
         @app.get("/traces/episode/{episode_id}")
@@ -518,12 +520,14 @@ class IPCServer:
             traces = trace_store.get_episode_traces(episode_id)
 
             if not traces:
-                raise HTTPException(status_code=404, detail=f"No traces found for episode {episode_id}")
+                raise HTTPException(
+                    status_code=404, detail=f"No traces found for episode {episode_id}"
+                )
 
             return {
                 "episode_id": episode_id,
                 "traces": [t.to_dict() for t in traces],
-                "count": len(traces)
+                "count": len(traces),
             }
 
         @app.post("/traces/episode/start")
@@ -537,8 +541,9 @@ class IPCServer:
             Returns:
                 The episode ID that was started
             """
-            from agent_runtime.reasoning_trace import get_global_trace_store
             import datetime
+
+            from agent_runtime.reasoning_trace import get_global_trace_store
 
             trace_store = get_global_trace_store()
 
@@ -548,10 +553,7 @@ class IPCServer:
 
             trace_store.start_episode(episode_id)
 
-            return {
-                "episode_id": episode_id,
-                "message": f"Started episode {episode_id}"
-            }
+            return {"episode_id": episode_id, "message": f"Started episode {episode_id}"}
 
         @app.post("/traces/episode/end")
         async def end_episode():
@@ -567,10 +569,7 @@ class IPCServer:
             episode_id = trace_store.episode_id
             trace_store.end_episode()
 
-            return {
-                "episode_id": episode_id,
-                "message": f"Ended episode {episode_id}"
-            }
+            return {"episode_id": episode_id, "message": f"Ended episode {episode_id}"}
 
         @app.post("/observe")
         async def process_observation(observation: dict[str, Any]) -> dict[str, Any]:

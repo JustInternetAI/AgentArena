@@ -8,17 +8,20 @@ Aligned with issue #45 (Tier 3 Reasoning Trace System) and supports #31 (Prompt 
 
 import json
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
-from pathlib import Path
-from typing import Any, Optional, Callable
 from enum import Enum
+from io import TextIOWrapper
+from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
 class TraceStepName(str, Enum):
     """Standard step names in the decision pipeline."""
+
     OBSERVATION = "observation"
     RETRIEVED = "retrieved"  # Memory retrieval (if using RAG/long-term memory)
     PROMPT_BUILDING = "prompt"
@@ -30,12 +33,13 @@ class TraceStepName(str, Enum):
 @dataclass
 class TraceStep:
     """A single step in the reasoning trace."""
+
     timestamp: str
     agent_id: str
     tick: int
     name: str  # TraceStepName or custom string
     data: dict[str, Any]
-    duration_ms: Optional[float] = None  # Optional: duration of this step
+    duration_ms: float | None = None  # Optional: duration of this step
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -44,7 +48,7 @@ class TraceStep:
             "agent_id": self.agent_id,
             "tick": self.tick,
             "name": self.name,
-            "data": self.data
+            "data": self.data,
         }
         if self.duration_ms is not None:
             result["duration_ms"] = self.duration_ms
@@ -57,13 +61,14 @@ class ReasoningTrace:
 
     Replaces the previous DecisionCapture class.
     """
+
     agent_id: str
     tick: int
     episode_id: str  # NEW: Track which episode this trace belongs to
     start_time: str
     steps: list[TraceStep] = field(default_factory=list)
 
-    def add_step(self, name: str, data: dict[str, Any], duration_ms: Optional[float] = None) -> None:
+    def add_step(self, name: str, data: dict[str, Any], duration_ms: float | None = None) -> None:
         """Add a step to this reasoning trace.
 
         Args:
@@ -77,7 +82,7 @@ class ReasoningTrace:
             tick=self.tick,
             name=name,
             data=data,
-            duration_ms=duration_ms
+            duration_ms=duration_ms,
         )
         self.steps.append(step)
 
@@ -88,7 +93,7 @@ class ReasoningTrace:
             "tick": self.tick,
             "episode_id": self.episode_id,
             "start_time": self.start_time,
-            "steps": [step.to_dict() for step in self.steps]
+            "steps": [step.to_dict() for step in self.steps],
         }
 
     def to_jsonl(self) -> str:
@@ -108,8 +113,8 @@ class TraceStore:
         enabled: bool = True,
         max_entries: int = 1000,
         log_to_file: bool = False,
-        log_dir: Optional[Path] = None,
-        episode_id: Optional[str] = None
+        log_dir: Path | None = None,
+        episode_id: str | None = None,
     ):
         """Initialize the Trace Store.
 
@@ -130,8 +135,8 @@ class TraceStore:
 
         # Episode management
         self.episode_id = episode_id or self._generate_episode_id()
-        self.episode_file: Optional[Path] = None
-        self.episode_file_handle = None
+        self.episode_file: Path | None = None
+        self.episode_file_handle: TextIOWrapper | None = None
 
         # Watch callbacks for real-time streaming
         self._watchers: dict[str, list[Callable[[ReasoningTrace], None]]] = {}
@@ -154,7 +159,7 @@ class TraceStore:
         self.episode_file = self.log_dir / f"{self.episode_id}.jsonl"
         try:
             # Open in append mode for incremental writes
-            self.episode_file_handle = open(self.episode_file, 'a', encoding='utf-8')
+            self.episode_file_handle = open(self.episode_file, "a", encoding="utf-8")
             logger.debug(f"Opened episode file: {self.episode_file}")
         except Exception as e:
             logger.error(f"Failed to open episode file: {e}")
@@ -185,7 +190,7 @@ class TraceStore:
             self.episode_file_handle = None
             logger.info(f"Ended episode: {self.episode_id}")
 
-    def start_capture(self, agent_id: str, tick: int) -> Optional[ReasoningTrace]:
+    def start_capture(self, agent_id: str, tick: int) -> ReasoningTrace | None:
         """Start capturing a new reasoning trace.
 
         Args:
@@ -202,7 +207,7 @@ class TraceStore:
             agent_id=agent_id,
             tick=tick,
             episode_id=self.episode_id,
-            start_time=datetime.utcnow().isoformat() + "Z"
+            start_time=datetime.utcnow().isoformat() + "Z",
         )
 
         key = (agent_id, tick)
@@ -303,7 +308,7 @@ class TraceStore:
             except Exception as e:
                 logger.error(f"Error in wildcard trace watcher callback: {e}")
 
-    def get_capture(self, agent_id: str, tick: int) -> Optional[ReasoningTrace]:
+    def get_capture(self, agent_id: str, tick: int) -> ReasoningTrace | None:
         """Retrieve a specific reasoning trace.
 
         Args:
@@ -316,10 +321,7 @@ class TraceStore:
         return self.traces.get((agent_id, tick))
 
     def get_captures_for_agent(
-        self,
-        agent_id: str,
-        tick_start: Optional[int] = None,
-        tick_end: Optional[int] = None
+        self, agent_id: str, tick_start: int | None = None, tick_end: int | None = None
     ) -> list[ReasoningTrace]:
         """Get all traces for a specific agent, optionally filtered by tick range.
 
@@ -332,7 +334,8 @@ class TraceStore:
             List of ReasoningTrace objects, sorted by tick
         """
         traces = [
-            trace for (aid, tick), trace in self.traces.items()
+            trace
+            for (aid, tick), trace in self.traces.items()
             if aid == agent_id
             and (tick_start is None or tick >= tick_start)
             and (tick_end is None or tick <= tick_end)
@@ -340,9 +343,7 @@ class TraceStore:
         return sorted(traces, key=lambda t: t.tick)
 
     def get_all_captures(
-        self,
-        tick_start: Optional[int] = None,
-        tick_end: Optional[int] = None
+        self, tick_start: int | None = None, tick_end: int | None = None
     ) -> list[ReasoningTrace]:
         """Get all traces, optionally filtered by tick range.
 
@@ -354,9 +355,9 @@ class TraceStore:
             List of ReasoningTrace objects, sorted by (tick, agent_id)
         """
         traces = [
-            trace for (aid, tick), trace in self.traces.items()
-            if (tick_start is None or tick >= tick_start)
-            and (tick_end is None or tick <= tick_end)
+            trace
+            for (aid, tick), trace in self.traces.items()
+            if (tick_start is None or tick >= tick_start) and (tick_end is None or tick <= tick_end)
         ]
         return sorted(traces, key=lambda t: (t.tick, t.agent_id))
 
@@ -379,7 +380,7 @@ class TraceStore:
 
         traces = []
         try:
-            with open(episode_file, 'r', encoding='utf-8') as f:
+            with open(episode_file, encoding="utf-8") as f:
                 for line in f:
                     if line.strip():
                         data = json.loads(line)
@@ -389,7 +390,7 @@ class TraceStore:
                             tick=data["tick"],
                             episode_id=data["episode_id"],
                             start_time=data["start_time"],
-                            steps=[]
+                            steps=[],
                         )
                         # Reconstruct steps
                         for step_data in data.get("steps", []):
@@ -399,7 +400,7 @@ class TraceStore:
                                 tick=step_data["tick"],
                                 name=step_data["name"],
                                 data=step_data["data"],
-                                duration_ms=step_data.get("duration_ms")
+                                duration_ms=step_data.get("duration_ms"),
                             )
                             trace.steps.append(step)
                         traces.append(trace)
@@ -413,7 +414,7 @@ class TraceStore:
         self.traces.clear()
         logger.info("Cleared all reasoning traces from memory")
 
-    def to_json(self, agent_id: Optional[str] = None, tick: Optional[int] = None) -> str:
+    def to_json(self, agent_id: str | None = None, tick: int | None = None) -> str:
         """Export traces as JSON string.
 
         Args:
@@ -442,7 +443,7 @@ class TraceStore:
 
 
 # Global singleton instance
-_global_trace_store: Optional[TraceStore] = None
+_global_trace_store: TraceStore | None = None
 
 
 def get_global_trace_store() -> TraceStore:

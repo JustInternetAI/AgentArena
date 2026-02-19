@@ -1,7 +1,11 @@
 Tick: {tick} | Position: {position} | Health: {health} | Energy: {energy}
+Perception: {perception_radius} units | Explored: {exploration_percentage}%
 
 Resources: {resources_summary}
 Hazards: {hazards_summary}
 Inventory: {inventory_summary}
+
+Exploration targets: {explore_targets}
+{exploration_hint}
 
 Respond with ONLY a JSON object:

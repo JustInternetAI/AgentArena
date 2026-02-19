@@ -12,7 +12,7 @@ const COLLECTION_RADIUS = 2.0
 const HAZARD_RADIUS = 1.5
 
 # Override base class perception settings if needed
-# perception_radius = 50.0  # Inherited from SceneController
+# perception_radius = 10.0  # Inherited from SceneController (reduced from 50.0 for exploration)
 # line_of_sight_enabled = true  # Inherited from SceneController
 
 # Metrics (inherits start_time and scene_completed from SceneController)
