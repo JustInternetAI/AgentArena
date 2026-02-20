@@ -93,7 +93,10 @@ func _on_damage_reported(_result, _response_code, _headers, _body, http: HTTPReq
 
 func _get_current_tick() -> int:
 	"""Get current simulation tick from SimulationManager"""
-	var sim_manager = get_tree().root.get_node_or_null("ForagingScene/SimulationManager")
-	if sim_manager and "current_tick" in sim_manager:
-		return sim_manager.current_tick
+	var node = get_parent()
+	while node:
+		var sim = node.get_node_or_null("SimulationManager")
+		if sim and "current_tick" in sim:
+			return sim.current_tick
+		node = node.get_parent()
 	return 0

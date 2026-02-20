@@ -1,15 +1,19 @@
 [gd_scene load_steps=4 format=3 uid="uid://b6a6y5yl011cr"]
 
 [ext_resource type="Script" uid="uid://dmav7xg8036gn" path="res://scripts/stations/anvil.gd" id="1_ais4u"]
-[ext_resource type="PackedScene" uid="uid://cpkonbjxx71hc" path="res://assets/models/FantasyProp/Exports/glTF/Anvil_Log.gltf" id="2_anvil"]
 
 [sub_resource type="BoxShape3D" id="BoxShape_anvil"]
+size = Vector3(1.2516334, 1.1645752, 0.5469147)
+
+[sub_resource type="BoxMesh" id="BoxMesh_anvil"]
 size = Vector3(1.2516334, 1.1645752, 0.5469147)
 
 [node name="Anvil" type="Area3D"]
 script = ExtResource("1_ais4u")
 
-[node name="AnvilModel" parent="." instance=ExtResource("2_anvil")]
+[node name="AnvilModel" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.55, 0)
+mesh = SubResource("BoxMesh_anvil")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.00469929, 0.5479934, 0.060618564)

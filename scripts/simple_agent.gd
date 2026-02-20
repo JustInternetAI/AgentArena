@@ -139,6 +139,22 @@ func call_tool(tool_name: String, parameters: Dictionary = {}) -> Dictionary:
 			return status_result
 		return {"success": false, "error": "No scene controller"}
 
+	# Handle crafting tools via scene controller
+	if tool_name == "craft_item":
+		var scene_controller = _get_scene_controller()
+		if scene_controller and scene_controller.has_method("craft_item"):
+			var recipe = parameters.get("recipe", "")
+			var craft_result = scene_controller.craft_item(recipe)
+			print("[SimpleAgent] craft_item result: ", craft_result)
+			return craft_result
+		return {"success": false, "error": "Scene does not support crafting"}
+
+	if tool_name == "get_recipes":
+		var scene_controller = _get_scene_controller()
+		if scene_controller and "RECIPES" in scene_controller:
+			return {"success": true, "recipes": scene_controller.RECIPES}
+		return {"success": false, "error": "No recipes available"}
+
 	var result = ToolRegistryService.execute_tool(agent_id, tool_name, parameters)
 	print("[SimpleAgent] ToolRegistryService.execute_tool returned: ", result)
 	print("[SimpleAgent] ==== call_tool END ====")
@@ -262,10 +278,9 @@ func _on_experience_reported(_result, _response_code, _headers, _body, http: HTT
 
 func _get_current_tick() -> int:
 	"""Get current simulation tick from SimulationManager"""
-	# Try to find SimulationManager in the scene tree
-	var sim_manager = get_tree().root.get_node_or_null("ForagingScene/SimulationManager")
-	if sim_manager and "current_tick" in sim_manager:
-		return sim_manager.current_tick
+	var controller = _get_scene_controller()
+	if controller and controller.simulation_manager:
+		return controller.simulation_manager.current_tick
 	return 0
 
 func _get_scene_controller() -> Node:

@@ -1,4 +1,4 @@
-[gd_scene load_steps=19 format=3 uid="uid://dyr7xuv3evk0g"]
+[gd_scene load_steps=21 format=3 uid="uid://dyr7xuv3evk0g"]
 
 [ext_resource type="Script" uid="uid://cuvvv5nbixqy8" path="res://scripts/foraging.gd" id="1_foraging"]
 [ext_resource type="PackedScene" uid="uid://c3r4w5d6e7f8g" path="res://scenes/resources/apple.tscn" id="2_apple"]
@@ -10,6 +10,8 @@
 [ext_resource type="PackedScene" uid="uid://tree_simple" path="res://scenes/environment/tree_simple.tscn" id="8_tree"]
 [ext_resource type="PackedScene" uid="uid://rock_large" path="res://scenes/environment/rock_large.tscn" id="9_rock"]
 [ext_resource type="PackedScene" uid="uid://bush_simple" path="res://scenes/environment/bush.tscn" id="10_bush"]
+[ext_resource type="PackedScene" uid="uid://lmo3kerl5nym" path="res://scenes/stations/workbench.tscn" id="11_workbench"]
+[ext_resource type="PackedScene" uid="uid://b6a6y5yl011cr" path="res://scenes/stations/anvil.tscn" id="12_anvil"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
 sky_top_color = Color(0.35, 0.55, 0.85, 1)
@@ -139,6 +141,14 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1)
 
 [node name="Pit2" parent="Hazards" instance=ExtResource("5_pit")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -3)
+
+[node name="Stations" type="Node3D" parent="."]
+
+[node name="Workbench" parent="Stations" instance=ExtResource("11_workbench")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, 10)
+
+[node name="Anvil" parent="Stations" instance=ExtResource("12_anvil")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 0, -8)
 
 [node name="Agents" type="Node3D" parent="."]
 

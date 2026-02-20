@@ -140,11 +140,24 @@ class Agent:
         else:
             hazards_summary = "None"
 
-        # Format inventory
-        if obs.inventory:
+        # Format inventory (check custom dict for simple inventory from crafting system)
+        raw_inventory = obs.custom.get("inventory", {}) if obs.custom else {}
+        if raw_inventory:
+            inventory_summary = ", ".join(f"{k}: {v}" for k, v in raw_inventory.items())
+        elif obs.inventory:
             inventory_summary = ", ".join(f"{item.name} x{item.quantity}" for item in obs.inventory)
         else:
             inventory_summary = "Empty"
+
+        # Format stations
+        if obs.nearby_stations:
+            stations_lines = [
+                f"{s.name} ({s.type}) dist={s.distance:.1f} pos={list(s.position)}"
+                for s in obs.nearby_stations[:5]
+            ]
+            stations_summary = "; ".join(stations_lines)
+        else:
+            stations_summary = "None"
 
         # Format exploration data with concrete positions
         exploration_pct = 0.0
@@ -181,6 +194,7 @@ class Agent:
             resources_summary=resources_summary,
             hazards_summary=hazards_summary,
             inventory_summary=inventory_summary,
+            stations_summary=stations_summary,
             exploration_percentage=f"{exploration_pct:.1f}",
             explore_targets=explore_targets_summary,
             exploration_hint=exploration_hint,
@@ -225,10 +239,24 @@ class Agent:
             ToolSchema(
                 name="idle", description="Do nothing this tick", parameters={"type": "object", "properties": {}}
             ),
+            ToolSchema(
+                name="craft_item",
+                description="Craft an item at a nearby crafting station. Must be within range of the correct station type.",
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "recipe": {
+                            "type": "string",
+                            "description": "Recipe name (e.g., 'torch', 'shelter', 'meal')",
+                        }
+                    },
+                    "required": ["recipe"],
+                },
+            ),
         ]
 
     # Valid tool names the agent can use
-    VALID_TOOLS = {"move_to", "collect", "idle"}
+    VALID_TOOLS = {"move_to", "collect", "idle", "craft_item"}
 
     # Minimum safe distance from hazards
     HAZARD_SAFE_DISTANCE = 3.0
@@ -339,6 +367,14 @@ class Agent:
                                 trace["parse_method"] = "json"
                                 trace["parsed_json"] = data
                             return Decision(tool="collect", params=params, reasoning=reasoning)
+
+                    elif tool == "craft_item":
+                        recipe = params.get("recipe")
+                        if isinstance(recipe, str) and recipe:
+                            if trace:
+                                trace["parse_method"] = "json"
+                                trace["parsed_json"] = data
+                            return Decision(tool="craft_item", params=params, reasoning=reasoning)
 
                     elif tool == "idle":
                         if trace:

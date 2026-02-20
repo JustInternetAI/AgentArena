@@ -132,6 +132,21 @@ func _register_default_tools():
 		"parameters": {}
 	})
 
+	# Crafting tools
+	register_tool("craft_item", {
+		"name": "craft_item",
+		"description": "Craft an item at a nearby crafting station using collected resources",
+		"parameters": {
+			"recipe": {"type": "string", "description": "Name of the recipe to craft (e.g., 'torch', 'shelter', 'meal')"}
+		}
+	})
+
+	register_tool("get_recipes", {
+		"name": "get_recipes",
+		"description": "Get available crafting recipes and their requirements",
+		"parameters": {}
+	})
+
 	print("Registered ", get_tool_count(), " default tools")
 
 func register_tool(tool_name: String, schema: Dictionary) -> bool:

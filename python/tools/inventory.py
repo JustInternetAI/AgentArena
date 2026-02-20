@@ -94,23 +94,37 @@ def get_inventory() -> list[dict[str, Any]]:
     return []
 
 
-def craft_item(recipe: str, ingredients: list[str]) -> dict[str, Any]:
+def craft_item(recipe: str) -> dict[str, Any]:
     """
-    Craft an item using ingredients.
+    Craft an item at a nearby crafting station.
+
+    The Godot scene controller handles ingredient checking and consumption.
+    Agent must be within range of the correct station type.
 
     Args:
-        recipe: Recipe name/ID
-        ingredients: List of ingredient item IDs
+        recipe: Recipe name (e.g., "torch", "shelter", "meal")
 
     Returns:
         Success status and crafted item info
     """
-    logger.debug(f"Crafting {recipe} with {len(ingredients)} ingredients")
+    logger.debug(f"Crafting {recipe}")
 
     return {
         "success": True,
-        "item": {"id": "crafted_item", "type": recipe},
+        "item": recipe,
     }
+
+
+def get_recipes() -> dict[str, Any]:
+    """
+    Get available crafting recipes.
+
+    Returns:
+        Success status and recipe data
+    """
+    logger.debug("Getting recipes")
+
+    return {"success": True, "recipes": {}}
 
 
 def register_inventory_tools(dispatcher: Any) -> None:
@@ -183,19 +197,25 @@ def register_inventory_tools(dispatcher: Any) -> None:
     dispatcher.register_tool(
         name="craft_item",
         function=craft_item,
-        description="Craft an item using a recipe",
+        description="Craft an item at a nearby crafting station",
         parameters={
             "type": "object",
             "properties": {
-                "recipe": {"type": "string", "description": "Recipe name or ID"},
-                "ingredients": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "List of ingredient item IDs",
+                "recipe": {
+                    "type": "string",
+                    "description": "Recipe name (e.g., 'torch', 'shelter', 'meal')",
                 },
             },
-            "required": ["recipe", "ingredients"],
+            "required": ["recipe"],
         },
+        returns={"type": "object"},
+    )
+
+    dispatcher.register_tool(
+        name="get_recipes",
+        function=get_recipes,
+        description="Get available crafting recipes and their requirements",
+        parameters={"type": "object", "properties": {}},
         returns={"type": "object"},
     )
 

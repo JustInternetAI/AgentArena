@@ -3,6 +3,7 @@ Perception: {perception_radius} units | Explored: {exploration_percentage}%
 
 Resources: {resources_summary}
 Hazards: {hazards_summary}
+Stations: {stations_summary}
 Inventory: {inventory_summary}
 
 Exploration targets: {explore_targets}

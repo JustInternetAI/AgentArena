@@ -9,7 +9,7 @@ func _ready():
 	station_name = "Anvil"
 
 	# Set dark gray/metallic color for anvil
-	var mesh_instance = $MeshInstance3D
+	var mesh_instance = $AnvilModel
 	if mesh_instance:
 		var material = StandardMaterial3D.new()
 		material.albedo_color = Color(0.25, 0.25, 0.25)  # Dark gray

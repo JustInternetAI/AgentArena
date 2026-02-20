@@ -35,6 +35,7 @@ from .schemas import (
     Objective,
     Observation,
     ResourceInfo,
+    StationInfo,
     ToolSchema,
 )
 
@@ -53,6 +54,7 @@ __all__ = [
     "EntityInfo",
     "ResourceInfo",
     "HazardInfo",
+    "StationInfo",
     "ItemInfo",
     "ExplorationInfo",
     "ExploreTarget",

@@ -44,7 +44,12 @@ class Agent:
         if collect_decision:
             return collect_decision
 
-        # Priority 3: Explore
+        # Priority 3: Craft if at a station with materials
+        craft_decision = self.try_crafting(obs)
+        if craft_decision:
+            return craft_decision
+
+        # Priority 4: Explore
         return self.explore(obs)
 
     def check_danger(self, obs: Observation) -> Decision | None:
@@ -120,6 +125,55 @@ class Agent:
             params={"target_position": list(closest.position)},
             reasoning=f"Moving toward {closest.type} at distance {closest.distance:.1f}",
         )
+
+    def try_crafting(self, obs: Observation) -> Decision | None:
+        """
+        Try to craft if near a station with sufficient materials.
+
+        Args:
+            obs: Current observation
+
+        Returns:
+            Decision to craft, or None if not possible
+        """
+        if not obs.nearby_stations:
+            return None
+
+        # Get inventory from custom data (scene controller sends it as a dict)
+        inventory = obs.custom.get("inventory", {}) if obs.custom else {}
+        if not inventory:
+            return None
+
+        for station in obs.nearby_stations:
+            if station.distance > 3.0:
+                continue
+
+            if station.type == "workbench":
+                # Check for torch recipe (1 wood + 1 stone)
+                if inventory.get("wood", 0) >= 1 and inventory.get("stone", 0) >= 1:
+                    return Decision(
+                        tool="craft_item",
+                        params={"recipe": "torch"},
+                        reasoning="At workbench with wood and stone, crafting torch",
+                    )
+                # Check for meal recipe (2 berry)
+                if inventory.get("berry", 0) >= 2:
+                    return Decision(
+                        tool="craft_item",
+                        params={"recipe": "meal"},
+                        reasoning="At workbench with berries, crafting meal",
+                    )
+
+            if station.type == "anvil":
+                # Check for shelter recipe (3 wood + 2 stone)
+                if inventory.get("wood", 0) >= 3 and inventory.get("stone", 0) >= 2:
+                    return Decision(
+                        tool="craft_item",
+                        params={"recipe": "shelter"},
+                        reasoning="At anvil with materials, crafting shelter",
+                    )
+
+        return None
 
     def seek_safety(self, obs: Observation) -> Decision:
         """

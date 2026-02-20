@@ -10,6 +10,14 @@ const FIRE_DAMAGE = 10.0
 const PIT_DAMAGE = 25.0
 const COLLECTION_RADIUS = 2.0
 const HAZARD_RADIUS = 1.5
+const CRAFTING_RADIUS = 2.5
+
+# Crafting recipes
+const RECIPES = {
+	"torch": {"inputs": {"wood": 1, "stone": 1}, "station": "workbench"},
+	"shelter": {"inputs": {"wood": 3, "stone": 2}, "station": "anvil"},
+	"meal": {"inputs": {"berry": 2}, "station": "workbench"}
+}
 
 # Override base class perception settings if needed
 # perception_radius = 10.0  # Inherited from SceneController (reduced from 50.0 for exploration)
@@ -25,6 +33,12 @@ var last_position = Vector3.ZERO
 var active_resources = []
 var active_hazards = []
 
+# Crafting tracking
+var active_stations = []
+var agent_inventory = {}  # resource_type -> count
+var items_crafted = {}  # item_name -> count
+var total_items_crafted = 0
+
 func _on_scene_ready():
 	"""Called after SceneController setup is complete"""
 	print("Foraging Benchmark Scene Ready!")
@@ -34,6 +48,7 @@ func _on_scene_ready():
 
 	print("Resources available: ", active_resources.size())
 	print("Hazards: ", active_hazards.size())
+	print("Crafting stations: ", active_stations.size())
 
 	# Store initial agent position for distance tracking
 	if agents.size() > 0:
@@ -43,9 +58,10 @@ func _on_scene_ready():
 	_connect_agent_damage_signals()
 
 func _initialize_scene():
-	"""Initialize resource and hazard tracking"""
+	"""Initialize resource, hazard, and station tracking"""
 	active_resources.clear()
 	active_hazards.clear()
+	active_stations.clear()
 
 	# Collect all resources
 	var resources_node = $Resources
@@ -70,6 +86,18 @@ func _initialize_scene():
 				"damage": FIRE_DAMAGE if "Fire" in child.name else PIT_DAMAGE,
 				"node": child
 			})
+
+	# Collect all crafting stations
+	var stations_node = get_node_or_null("Stations")
+	if stations_node:
+		for child in stations_node.get_children():
+			if child is CraftingStation:
+				active_stations.append({
+					"name": child.name,
+					"position": child.global_position,
+					"type": child.station_type,
+					"node": child
+				})
 
 func _get_resource_type(resource_name: String) -> String:
 	"""Extract resource type from name"""
@@ -183,6 +211,21 @@ func _build_observations_for_agent(agent_data: Dictionary) -> Dictionary:
 			"distance": dist
 		})
 
+	# Find nearby stations (with line-of-sight check)
+	var nearby_stations = []
+	for station in active_stations:
+		var dist = agent_pos.distance_to(station.position)
+		if dist > perception_radius:
+			continue
+		if not has_line_of_sight(agent_node, agent_pos, station.position, station.node):
+			continue
+		nearby_stations.append({
+			"name": station.name,
+			"type": station.type,
+			"position": station.position,
+			"distance": dist
+		})
+
 	# Build observation dictionary
 	return {
 		"position": agent_pos,
@@ -193,12 +236,65 @@ func _build_observations_for_agent(agent_data: Dictionary) -> Dictionary:
 		"damage_taken": damage_taken,
 		"nearby_resources": nearby_resources,
 		"nearby_hazards": nearby_hazards,
+		"nearby_stations": nearby_stations,
+		"inventory": agent_inventory.duplicate(),
+		"recipes": RECIPES,
 		"tick": simulation_manager.current_tick
 	}
 
 func _on_agent_tool_completed(agent_data: Dictionary, tool_name: String, response: Dictionary):
 	"""Handle tool execution completion from agent"""
 	print("Foraging: Agent '%s' completed tool '%s': %s" % [agent_data.id, tool_name, response])
+
+func _convert_observation_to_backend_format(agent_data: Dictionary, observation: Dictionary) -> Dictionary:
+	"""Override to include crafting data in backend observations"""
+	var backend_obs = super._convert_observation_to_backend_format(agent_data, observation)
+
+	# Add stations
+	if observation.has("nearby_stations"):
+		var stations_list = []
+		for station in observation.nearby_stations:
+			var st_dict = {
+				"name": station.name,
+				"type": station.type,
+				"distance": station.distance
+			}
+			if station.position is Vector3:
+				st_dict["position"] = [station.position.x, station.position.y, station.position.z]
+			else:
+				st_dict["position"] = station.position
+			stations_list.append(st_dict)
+		backend_obs["nearby_stations"] = stations_list
+
+	# Add inventory and recipes under "custom" (not top-level "inventory"
+	# which Observation.from_dict expects as list[ItemInfo], not a dict)
+	if not backend_obs.has("custom"):
+		backend_obs["custom"] = {}
+	backend_obs["custom"]["inventory"] = observation.get("inventory", {})
+
+	# Add recipes (static data, always sent so agent has complete info)
+	var recipes_for_backend = {}
+	for recipe_name in RECIPES:
+		var recipe = RECIPES[recipe_name]
+		recipes_for_backend[recipe_name] = {
+			"inputs": recipe.inputs,
+			"station": recipe.station
+		}
+	backend_obs["custom"]["recipes"] = recipes_for_backend
+
+	return backend_obs
+
+func _execute_backend_decision(decision: Dictionary):
+	"""Override to handle craft_item tool locally"""
+	if decision.tool == "craft_item":
+		var recipe_name = decision.get("params", {}).get("recipe", "")
+		var result = craft_item(recipe_name)
+		print("  Craft result: %s" % str(result))
+		decisions_executed += 1
+		return
+
+	# All other tools: use default behavior
+	super._execute_backend_decision(decision)
 
 func _connect_agent_damage_signals():
 	"""Connect to agent damage_taken signals for metrics tracking"""
@@ -249,6 +345,10 @@ func _collect_resource(resource: Dictionary):
 	resource.collected = true
 	resources_collected += 1
 
+	# Add to agent inventory
+	var item_type = resource.type
+	agent_inventory[item_type] = agent_inventory.get(item_type, 0) + 1
+
 	# Hide the resource node
 	if resource.node != null:
 		resource.node.visible = false
@@ -262,7 +362,60 @@ func _collect_resource(resource: Dictionary):
 			"tick": simulation_manager.current_tick
 		})
 
-	print("✓ Collected %s (%d/%d)" % [resource.name, resources_collected, MAX_RESOURCES])
+	print("✓ Collected %s (%d/%d) | Inventory: %s" % [resource.name, resources_collected, MAX_RESOURCES, str(agent_inventory)])
+
+func craft_item(recipe_name: String) -> Dictionary:
+	"""Attempt to craft an item at a nearby crafting station"""
+	# Validate recipe exists
+	if not RECIPES.has(recipe_name):
+		return {"success": false, "error": "Unknown recipe: %s" % recipe_name}
+
+	var recipe = RECIPES[recipe_name]
+
+	# Check agent is near the correct station type
+	if agents.size() == 0:
+		return {"success": false, "error": "No agent"}
+
+	var agent_pos = agents[0].position
+	var at_station = false
+	for station in active_stations:
+		if station.type == recipe.station:
+			var dist = agent_pos.distance_to(station.position)
+			if dist <= CRAFTING_RADIUS:
+				at_station = true
+				break
+
+	if not at_station:
+		return {"success": false, "error": "Not near a %s station (need to be within %.1f units)" % [recipe.station, CRAFTING_RADIUS]}
+
+	# Check ingredients
+	for input_item in recipe.inputs.keys():
+		var required = recipe.inputs[input_item]
+		var have = agent_inventory.get(input_item, 0)
+		if have < required:
+			return {"success": false, "error": "Missing %s: need %d, have %d" % [input_item, required, have]}
+
+	# Consume ingredients
+	for input_item in recipe.inputs.keys():
+		agent_inventory[input_item] -= recipe.inputs[input_item]
+		if agent_inventory[input_item] <= 0:
+			agent_inventory.erase(input_item)
+
+	# Produce output
+	agent_inventory[recipe_name] = agent_inventory.get(recipe_name, 0) + 1
+	items_crafted[recipe_name] = items_crafted.get(recipe_name, 0) + 1
+	total_items_crafted += 1
+
+	# Record event
+	if event_bus != null:
+		event_bus.emit_event("item_crafted", {
+			"item_name": recipe_name,
+			"recipe": recipe_name,
+			"tick": simulation_manager.current_tick
+		})
+
+	print("✓ Crafted %s! Inventory: %s" % [recipe_name, str(agent_inventory)])
+	return {"success": true, "item": recipe_name, "inventory": agent_inventory.duplicate()}
 
 func _check_hazard_damage():
 	"""Check if agent is near any hazards and apply damage"""
@@ -347,6 +500,14 @@ func _update_metrics_ui():
 		var last_decision = backend_decisions[-1]
 		last_decision_text = "%s (tick %d)" % [last_decision.tool, last_decision.tick]
 
+	# Format inventory for display
+	var inventory_text = "Empty"
+	if agent_inventory.size() > 0:
+		var items = []
+		for item_type in agent_inventory:
+			items.append("%s: %d" % [item_type, agent_inventory[item_type]])
+		inventory_text = ", ".join(items)
+
 	metrics_label.text = "Foraging Benchmark [%s]
 Tick: %d
 Resources Collected: %d/%d
@@ -354,6 +515,8 @@ Damage Taken: %.1f
 Distance Traveled: %.2f m
 Time Elapsed: %.2f s
 Efficiency Score: %.1f
+Inventory: %s
+Items Crafted: %d
 Last Backend Decision: %s
 Decisions: %d (Executed: %d, Skipped: %d)
 
@@ -368,6 +531,8 @@ Press S to step" % [
 		distance_traveled,
 		elapsed_time,
 		_calculate_efficiency_score(),
+		inventory_text,
+		total_items_crafted,
 		last_decision_text,
 		backend_decisions.size(),
 		decisions_executed,
@@ -388,6 +553,11 @@ func _reset_scene():
 
 	# Reset backend decision tracking (call base class method)
 	reset_backend_decisions()
+
+	# Reset crafting state
+	agent_inventory.clear()
+	items_crafted.clear()
+	total_items_crafted = 0
 
 	# Reset agent position
 	if agents.size() > 0:

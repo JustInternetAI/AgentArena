@@ -13,6 +13,7 @@ from agent_runtime.schemas import (
     Observation,
     ResourceInfo,
     SimpleContext,
+    StationInfo,
     ToolSchema,
 )
 
@@ -88,6 +89,33 @@ class TestHazardInfo:
             distance=0.0,
         )
         assert hazard.damage == 0.0
+
+
+class TestStationInfo:
+    """Tests for StationInfo dataclass."""
+
+    def test_create_station_info(self):
+        """Test basic StationInfo creation."""
+        station = StationInfo(
+            name="Workbench",
+            type="workbench",
+            position=(12.0, 0.0, 10.0),
+            distance=5.5,
+        )
+        assert station.name == "Workbench"
+        assert station.type == "workbench"
+        assert station.position == (12.0, 0.0, 10.0)
+        assert station.distance == 5.5
+
+    def test_station_info_anvil(self):
+        """Test StationInfo for anvil type."""
+        station = StationInfo(
+            name="Anvil",
+            type="anvil",
+            position=(-10.0, 0.0, -8.0),
+            distance=12.8,
+        )
+        assert station.type == "anvil"
 
 
 class TestItemInfo:
@@ -322,6 +350,74 @@ class TestObservation:
         assert obs.health == 75.0
         assert obs.energy == 50.0
         assert obs.custom["level"] == 5
+
+    def test_observation_from_dict_with_stations(self):
+        """Test creating observation with nearby_stations."""
+        data = {
+            "agent_id": "agent_craft",
+            "tick": 42,
+            "position": [5.0, 1.0, 3.0],
+            "nearby_resources": [],
+            "nearby_hazards": [],
+            "nearby_stations": [
+                {
+                    "name": "Workbench",
+                    "type": "workbench",
+                    "position": [12.0, 0.0, 10.0],
+                    "distance": 8.5,
+                },
+                {
+                    "name": "Anvil",
+                    "type": "anvil",
+                    "position": [-10.0, 0.0, -8.0],
+                    "distance": 16.2,
+                },
+            ],
+            "inventory": [],
+            "health": 100.0,
+        }
+        obs = Observation.from_dict(data)
+        assert len(obs.nearby_stations) == 2
+        assert obs.nearby_stations[0].name == "Workbench"
+        assert obs.nearby_stations[0].type == "workbench"
+        assert obs.nearby_stations[0].position == (12.0, 0.0, 10.0)
+        assert obs.nearby_stations[0].distance == 8.5
+        assert obs.nearby_stations[1].type == "anvil"
+
+    def test_observation_from_dict_without_stations(self):
+        """Test observation from_dict gracefully handles missing stations."""
+        data = {
+            "agent_id": "agent_no_stations",
+            "tick": 1,
+            "position": [0.0, 0.0, 0.0],
+        }
+        obs = Observation.from_dict(data)
+        assert obs.nearby_stations == []
+
+    def test_observation_roundtrip_with_stations(self):
+        """Test observation serialization roundtrip with stations."""
+        original = Observation(
+            agent_id="agent_rt",
+            tick=10,
+            position=(1.0, 0.0, 2.0),
+            nearby_stations=[
+                StationInfo(
+                    name="Workbench",
+                    type="workbench",
+                    position=(12.0, 0.0, 10.0),
+                    distance=11.0,
+                )
+            ],
+        )
+        data = original.to_dict()
+        assert len(data["nearby_stations"]) == 1
+        assert data["nearby_stations"][0]["name"] == "Workbench"
+        assert data["nearby_stations"][0]["position"] == [12.0, 0.0, 10.0]
+
+        reconstructed = Observation.from_dict(data)
+        assert len(reconstructed.nearby_stations) == 1
+        assert reconstructed.nearby_stations[0].name == "Workbench"
+        assert reconstructed.nearby_stations[0].type == "workbench"
 
     def test_observation_roundtrip(self):
         """Test observation serialization roundtrip."""

@@ -42,6 +42,16 @@ class HazardInfo:
 
 
 @dataclass
+class StationInfo:
+    """Information about a nearby crafting station."""
+
+    name: str
+    type: str  # "workbench", "anvil", "furnace"
+    position: tuple[float, float, float]
+    distance: float
+
+
+@dataclass
 class ItemInfo:
     """Information about an inventory item."""
 
@@ -151,6 +161,7 @@ class Observation:
     visible_entities: list[EntityInfo] = field(default_factory=list)
     nearby_resources: list[ResourceInfo] = field(default_factory=list)
     nearby_hazards: list[HazardInfo] = field(default_factory=list)
+    nearby_stations: list[StationInfo] = field(default_factory=list)
     inventory: list[ItemInfo] = field(default_factory=list)
     health: float = 100.0
     energy: float = 100.0
@@ -247,16 +258,36 @@ class Observation:
                 )
             )
 
-        # Parse inventory
-        inventory = []
-        for item_data in data.get("inventory", []):
-            inventory.append(
-                ItemInfo(
-                    id=item_data["id"],
-                    name=item_data["name"],
-                    quantity=item_data.get("quantity", 1),
+        # Parse nearby stations
+        nearby_stations = []
+        for station_data in data.get("nearby_stations", []):
+            station_pos = (
+                tuple(station_data["position"])
+                if isinstance(station_data["position"], list)
+                else station_data["position"]
+            )
+            nearby_stations.append(
+                StationInfo(
+                    name=station_data["name"],
+                    type=station_data["type"],
+                    position=station_pos,
+                    distance=station_data["distance"],
                 )
             )
+
+        # Parse inventory (list[ItemInfo] format; dict format goes to custom)
+        inventory = []
+        raw_inventory = data.get("inventory", [])
+        if isinstance(raw_inventory, list):
+            for item_data in raw_inventory:
+                if isinstance(item_data, dict) and "id" in item_data:
+                    inventory.append(
+                        ItemInfo(
+                            id=item_data["id"],
+                            name=item_data["name"],
+                            quantity=item_data.get("quantity", 1),
+                        )
+                    )
 
         # Parse exploration data
         exploration = None
@@ -277,6 +308,7 @@ class Observation:
             visible_entities=visible_entities,
             nearby_resources=nearby_resources,
             nearby_hazards=nearby_hazards,
+            nearby_stations=nearby_stations,
             inventory=inventory,
             health=data.get("health", 100.0),
             energy=data.get("energy", 100.0),
@@ -329,6 +361,15 @@ class Observation:
                     "damage": h.damage,
                 }
                 for h in self.nearby_hazards
+            ],
+            "nearby_stations": [
+                {
+                    "name": s.name,
+                    "type": s.type,
+                    "position": list(s.position),
+                    "distance": s.distance,
+                }
+                for s in self.nearby_stations
             ],
             "inventory": [
                 {
