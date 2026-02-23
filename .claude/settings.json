@@ -1,7 +1,69 @@
 {
   "permissions": {
     "allow": [
-      "Bash(.venvScriptspython.exe -m pytest tests/test_local_llm_behavior.py -v)"
+      "Bash(pwd)",
+      "Bash(ls *)",
+      "Bash(dir *)",
+      "Bash(cd *)",
+
+      "Bash(cat *)",
+      "Bash(type *)",
+      "Bash(more *)",
+      "Bash(less *)",
+
+      "Bash(find *)",
+      "Bash(rg *)",
+      "Bash(grep *)",
+      "Bash(tree *)",
+
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git branch *)",
+      "Bash(git checkout *)",
+      "Bash(git switch *)",
+      "Bash(git restore *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git stash *)",
+      "Bash(git fetch *)",
+      "Bash(git pull *)",
+
+      "Bash(python *)",
+      "Bash(py *)",
+      "Bash(pytest *)",
+      "Bash(python -m pytest *)",
+      "Bash(pip *)",
+      "Bash(pip3 *)",
+      "Bash(uv *)",
+      "Bash(poetry *)",
+      "Bash(pdm *)",
+
+      "Bash(.venv\\Scripts\\python.exe *)",
+      "Bash(.venv\\Scripts\\pytest.exe *)",
+      "Bash(venv\\Scripts\\python.exe *)",
+
+      "Bash(node *)",
+      "Bash(npm *)",
+      "Bash(npx *)",
+      "Bash(pnpm *)",
+      "Bash(yarn *)",
+
+      "Bash(code *)"
+    ],
+    "deny": [
+      "Bash(rm *)",
+      "Bash(rmdir *)",
+      "Bash(del *)",
+      "Bash(erase *)",
+      "Bash(format *)",
+      "Bash(fdisk *)",
+      "Bash(diskpart *)",
+      "Bash(shutdown *)",
+      "Bash(reboot *)",
+      "Bash(curl * | *)",
+      "Bash(wget * | *)",
+      "Bash(* > /dev/*)"
     ]
   }
 }
