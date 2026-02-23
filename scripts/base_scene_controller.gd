@@ -55,6 +55,9 @@ var http_request: HTTPRequest = null  # HTTP node for backend communication
 var decisions_executed := 0  # Count of executed decisions
 var decisions_skipped := 0  # Count of skipped decisions (idle)
 
+# Tool result tracking (Issue #71) - stores last tool result per agent
+var pending_tool_results: Dictionary = {}  # agent_id -> Dictionary
+
 func _ready():
 	"""Initialize scene controller and discover agents"""
 	print("SceneController initializing...")
@@ -257,15 +260,22 @@ func _build_observations_for_agent(agent_data: Dictionary) -> Dictionary:
 	}
 
 func _on_agent_tool_completed(agent_data: Dictionary, tool_name: String, response: Dictionary):
-	"""Override: Handle tool completion from an agent
+	"""Handle tool completion from an agent - store result for next observation (Issue #71)
 
 	Args:
 		agent_data: Dictionary with {agent: Node, id: String, team: String, position: Vector3}
 		tool_name: Name of the tool that was executed
 		response: Response dictionary from tool execution
 	"""
-	# Default implementation - just log
 	print("SceneController: Agent '%s' completed tool '%s': %s" % [agent_data.id, tool_name, response])
+	# Store tool result for inclusion in next observation payload
+	pending_tool_results[agent_data.id] = {
+		"tool": tool_name,
+		"success": response.get("success", false),
+		"result": response,
+		"error": response.get("error", ""),
+		"duration_ticks": response.get("duration_ticks", 0)
+	}
 
 ## Helper methods
 
@@ -681,6 +691,11 @@ func _convert_observation_to_backend_format(agent_data: Dictionary, observation:
 		var exploration = get_exploration_summary(agent_pos)
 		backend_obs["exploration"] = exploration
 
+	# Attach pending tool result if available (Issue #71)
+	if pending_tool_results.has(agent_data.id):
+		backend_obs["tool_result"] = pending_tool_results[agent_data.id]
+		pending_tool_results.erase(agent_data.id)
+
 	return backend_obs
 
 func _on_decision_received(response: Array):
@@ -746,12 +761,31 @@ func _execute_backend_decision(decision: Dictionary):
 	if tool_name == "idle":
 		print("  → Agent idling (no action)")
 		decisions_skipped += 1
+		# Store idle result immediately (Issue #71)
+		pending_tool_results[agent_data.id] = {
+			"tool": "idle",
+			"success": true,
+			"result": {},
+			"error": "",
+			"duration_ticks": 0
+		}
 		return
 
 	# Execute tool via SimpleAgent
 	print("  → Executing tool: %s" % tool_name)
-	agent_data.agent.call_tool(tool_name, params)
+	var result = agent_data.agent.call_tool(tool_name, params)
 	decisions_executed += 1
+
+	# For synchronous tools (not move_to/explore_direction which complete async),
+	# store the result immediately (Issue #71)
+	if tool_name != "move_to" and tool_name != "explore_direction":
+		pending_tool_results[agent_data.id] = {
+			"tool": tool_name,
+			"success": result.get("success", false),
+			"result": result,
+			"error": result.get("error", ""),
+			"duration_ticks": 0
+		}
 
 func reset_backend_decisions():
 	"""Reset backend decision tracking - call this in scene reset handlers"""
@@ -759,3 +793,4 @@ func reset_backend_decisions():
 	waiting_for_decision = false
 	decisions_executed = 0
 	decisions_skipped = 0
+	pending_tool_results.clear()

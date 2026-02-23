@@ -52,6 +52,49 @@ class StationInfo:
 
 
 @dataclass
+class ToolResult:
+    """Result of a tool execution from the previous tick.
+
+    Sent from Godot in the observation payload so the agent knows
+    whether its last action succeeded or failed.
+
+    Attributes:
+        tool: Name of the tool that was executed (e.g., "move_to", "collect")
+        success: Whether the tool execution succeeded
+        result: Full result dictionary from the tool
+        error: Error message if the tool failed (empty string if success)
+        duration_ticks: How many simulation ticks the tool took to complete
+    """
+
+    tool: str
+    success: bool
+    result: dict = field(default_factory=dict)
+    error: str = ""
+    duration_ticks: int = 0
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "ToolResult":
+        """Create from dictionary."""
+        return cls(
+            tool=data["tool"],
+            success=data.get("success", False),
+            result=data.get("result", {}),
+            error=data.get("error", ""),
+            duration_ticks=data.get("duration_ticks", 0),
+        )
+
+    def to_dict(self) -> dict:
+        """Convert to dictionary."""
+        return {
+            "tool": self.tool,
+            "success": self.success,
+            "result": self.result,
+            "error": self.error,
+            "duration_ticks": self.duration_ticks,
+        }
+
+
+@dataclass
 class ItemInfo:
     """Information about an inventory item."""
 
@@ -151,6 +194,7 @@ class Observation:
         objective: Scenario-defined goal (NEW)
         current_progress: Current values for objective metrics (NEW)
         custom: Custom fields for scenario-specific data
+        last_tool_result: Result of the last tool execution (None if no result yet)
     """
 
     agent_id: str
@@ -172,6 +216,8 @@ class Observation:
     objective: "Objective | None" = None
     current_progress: dict[str, float] = field(default_factory=dict)
     custom: dict = field(default_factory=dict)
+    # Tool result feedback (Issue #71)
+    last_tool_result: ToolResult | None = None
 
     @classmethod
     def from_dict(cls, data: dict) -> "Observation":
@@ -299,6 +345,11 @@ class Observation:
         if "objective" in data and data["objective"]:
             objective = Objective.from_dict(data["objective"])
 
+        # Parse tool result from last action (Issue #71)
+        last_tool_result = None
+        if "tool_result" in data and data["tool_result"]:
+            last_tool_result = ToolResult.from_dict(data["tool_result"])
+
         return cls(
             agent_id=data["agent_id"],
             tick=data["tick"],
@@ -318,6 +369,7 @@ class Observation:
             objective=objective,
             current_progress=data.get("current_progress", {}),
             custom=data.get("custom", {}),
+            last_tool_result=last_tool_result,
         )
 
     def to_dict(self) -> dict:
@@ -387,5 +439,6 @@ class Observation:
             "objective": self.objective.to_dict() if self.objective else None,
             "current_progress": self.current_progress,
             "custom": self.custom,
+            "tool_result": self.last_tool_result.to_dict() if self.last_tool_result else None,
         }
         return result

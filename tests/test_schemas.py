@@ -14,6 +14,7 @@ from agent_runtime.schemas import (
     ResourceInfo,
     SimpleContext,
     StationInfo,
+    ToolResult,
     ToolSchema,
 )
 
@@ -116,6 +117,86 @@ class TestStationInfo:
             distance=12.8,
         )
         assert station.type == "anvil"
+
+
+class TestToolResult:
+    """Tests for ToolResult dataclass."""
+
+    def test_create_success(self):
+        """Test creating a successful tool result."""
+        tr = ToolResult(
+            tool="move_to",
+            success=True,
+            result={"final_position": [5.0, 1.0, 3.0]},
+            error="",
+            duration_ticks=15,
+        )
+        assert tr.tool == "move_to"
+        assert tr.success is True
+        assert tr.result == {"final_position": [5.0, 1.0, 3.0]}
+        assert tr.error == ""
+        assert tr.duration_ticks == 15
+
+    def test_create_failure(self):
+        """Test creating a failed tool result."""
+        tr = ToolResult(
+            tool="move_to",
+            success=False,
+            error="stuck",
+            duration_ticks=100,
+        )
+        assert tr.success is False
+        assert tr.error == "stuck"
+
+    def test_from_dict(self):
+        """Test creating ToolResult from dictionary."""
+        data = {
+            "tool": "collect",
+            "success": True,
+            "result": {"resource_name": "Berry1", "resource_type": "berry"},
+            "error": "",
+            "duration_ticks": 0,
+        }
+        tr = ToolResult.from_dict(data)
+        assert tr.tool == "collect"
+        assert tr.success is True
+        assert tr.result["resource_name"] == "Berry1"
+
+    def test_to_dict(self):
+        """Test converting ToolResult to dictionary."""
+        tr = ToolResult(
+            tool="craft_item",
+            success=False,
+            result={},
+            error="Missing wood: need 1, have 0",
+            duration_ticks=0,
+        )
+        data = tr.to_dict()
+        assert data["tool"] == "craft_item"
+        assert data["success"] is False
+        assert data["error"] == "Missing wood: need 1, have 0"
+
+    def test_roundtrip(self):
+        """Test ToolResult serialization roundtrip."""
+        original = ToolResult(
+            tool="move_to",
+            success=True,
+            result={"final_position": [10.0, 0.0, 5.0]},
+            duration_ticks=42,
+        )
+        data = original.to_dict()
+        reconstructed = ToolResult.from_dict(data)
+        assert reconstructed.tool == original.tool
+        assert reconstructed.success == original.success
+        assert reconstructed.result == original.result
+        assert reconstructed.duration_ticks == original.duration_ticks
+
+    def test_defaults(self):
+        """Test ToolResult default values."""
+        tr = ToolResult(tool="idle", success=True)
+        assert tr.result == {}
+        assert tr.error == ""
+        assert tr.duration_ticks == 0
 
 
 class TestItemInfo:
@@ -445,6 +526,77 @@ class TestObservation:
         assert len(reconstructed.nearby_resources) == 1
         assert reconstructed.nearby_resources[0].name == "gold"
         assert reconstructed.health == original.health
+
+    def test_observation_from_dict_with_tool_result(self):
+        """Test creating observation with tool_result field."""
+        data = {
+            "agent_id": "agent_tr",
+            "tick": 50,
+            "position": [5.0, 1.0, 3.0],
+            "tool_result": {
+                "tool": "move_to",
+                "success": True,
+                "result": {"final_position": [5.0, 1.0, 3.0]},
+                "error": "",
+                "duration_ticks": 12,
+            },
+        }
+        obs = Observation.from_dict(data)
+        assert obs.last_tool_result is not None
+        assert obs.last_tool_result.tool == "move_to"
+        assert obs.last_tool_result.success is True
+        assert obs.last_tool_result.duration_ticks == 12
+
+    def test_observation_from_dict_without_tool_result(self):
+        """Test backward compatibility: observation without tool_result field."""
+        data = {
+            "agent_id": "agent_compat",
+            "tick": 1,
+            "position": [0.0, 0.0, 0.0],
+        }
+        obs = Observation.from_dict(data)
+        assert obs.last_tool_result is None
+
+    def test_observation_roundtrip_with_tool_result(self):
+        """Test observation serialization roundtrip with tool_result."""
+        original = Observation(
+            agent_id="agent_rt2",
+            tick=25,
+            position=(1.0, 0.0, 2.0),
+            last_tool_result=ToolResult(
+                tool="collect",
+                success=True,
+                result={"resource_name": "Berry1"},
+                duration_ticks=0,
+            ),
+        )
+        data = original.to_dict()
+        assert data["tool_result"] is not None
+        assert data["tool_result"]["tool"] == "collect"
+
+        reconstructed = Observation.from_dict(data)
+        assert reconstructed.last_tool_result is not None
+        assert reconstructed.last_tool_result.tool == "collect"
+        assert reconstructed.last_tool_result.success is True
+
+    def test_observation_tool_result_failure(self):
+        """Test observation with a failed tool result."""
+        data = {
+            "agent_id": "agent_stuck",
+            "tick": 100,
+            "position": [7.2, 0.0, 3.1],
+            "tool_result": {
+                "tool": "move_to",
+                "success": False,
+                "result": {"final_position": [7.2, 0.0, 3.1]},
+                "error": "stuck",
+                "duration_ticks": 10,
+            },
+        }
+        obs = Observation.from_dict(data)
+        assert obs.last_tool_result is not None
+        assert obs.last_tool_result.success is False
+        assert obs.last_tool_result.error == "stuck"
 
 
 class TestAgentDecision:

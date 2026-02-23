@@ -25,6 +25,15 @@ var _target_position: Vector3 = Vector3.ZERO
 var _is_moving: bool = false
 var _movement_speed: float = 1.0
 
+# Stuck detection for movement completion (Issue #71)
+var _movement_start_tick: int = 0
+var _position_samples: Array[Vector3] = []
+var _stuck_check_timer: int = 0
+const STUCK_SAMPLE_INTERVAL: int = 20   # sample every ~0.33s at 60fps
+const STUCK_SAMPLE_COUNT: int = 5       # need 5 samples before deciding
+const STUCK_THRESHOLD: float = 0.3      # total movement threshold
+var _current_move_tool: String = ""     # "move_to" or "explore_direction"
+
 # Collision deduplication - prevent reporting same collision multiple times per tick
 var _reported_collisions_this_tick: Dictionary = {}  # object_name -> true
 var _last_collision_report_tick: int = -1
@@ -95,6 +104,10 @@ func call_tool(tool_name: String, parameters: Dictionary = {}) -> Dictionary:
 
 		_movement_speed = parameters.get("speed", 1.0)
 		_is_moving = true
+		_movement_start_tick = _get_current_tick()
+		_position_samples.clear()
+		_stuck_check_timer = 0
+		_current_move_tool = "move_to"
 		print("[SimpleAgent] ✓ Movement configured:")
 		print("[SimpleAgent]   - _target_position: ", _target_position)
 		print("[SimpleAgent]   - _movement_speed: ", _movement_speed)
@@ -127,6 +140,10 @@ func call_tool(tool_name: String, parameters: Dictionary = {}) -> Dictionary:
 				elif target is Array and target.size() >= 3:
 					_target_position = Vector3(target[0], target[1], target[2])
 				_is_moving = true
+				_movement_start_tick = _get_current_tick()
+				_position_samples.clear()
+				_stuck_check_timer = 0
+				_current_move_tool = "explore_direction"
 				print("[SimpleAgent] ✓ Exploring %s, moving to: %s" % [direction, _target_position])
 			return explore_result
 		return {"success": false, "error": "No scene controller"}
@@ -194,6 +211,14 @@ func _physics_process(_delta):
 		print("[SimpleAgent._physics_process] ✓ Reached target! Final position: ", global_position)
 		_is_moving = false
 		velocity = Vector3.ZERO
+		# Emit tool_completed with success (Issue #71)
+		var duration = _get_current_tick() - _movement_start_tick
+		tool_completed.emit(_current_move_tool, {
+			"success": true,
+			"final_position": [global_position.x, global_position.y, global_position.z],
+			"target_position": [_target_position.x, _target_position.y, _target_position.z],
+			"duration_ticks": duration
+		})
 		return
 
 	# Calculate movement direction and velocity
@@ -208,6 +233,36 @@ func _physics_process(_delta):
 		for i in range(get_slide_collision_count()):
 			var collision = get_slide_collision(i)
 			_on_collision(collision)
+
+	# Stuck detection: sample position periodically and check total movement (Issue #71)
+	_stuck_check_timer += 1
+	if _stuck_check_timer >= STUCK_SAMPLE_INTERVAL:
+		_stuck_check_timer = 0
+		_position_samples.append(global_position)
+
+		if _position_samples.size() >= STUCK_SAMPLE_COUNT:
+			# Sum total movement across samples
+			var total_movement: float = 0.0
+			for idx in range(_position_samples.size() - 1):
+				total_movement += _position_samples[idx].distance_to(_position_samples[idx + 1])
+
+			if total_movement < STUCK_THRESHOLD:
+				print("[SimpleAgent._physics_process] Agent stuck! Total movement: %.3f < %.3f" % [total_movement, STUCK_THRESHOLD])
+				_is_moving = false
+				velocity = Vector3.ZERO
+				var duration = _get_current_tick() - _movement_start_tick
+				tool_completed.emit(_current_move_tool, {
+					"success": false,
+					"error": "stuck",
+					"final_position": [global_position.x, global_position.y, global_position.z],
+					"target_position": [_target_position.x, _target_position.y, _target_position.z],
+					"distance_remaining": distance,
+					"duration_ticks": duration
+				})
+				return
+
+			# Keep only the last sample for next window
+			_position_samples = [_position_samples[-1]]
 
 	# Debug print every 60 frames (~1 second)
 	if Engine.get_process_frames() % 60 == 0:

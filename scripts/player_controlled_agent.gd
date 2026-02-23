@@ -24,7 +24,7 @@ var visual: Node3D = null
 var debug_label: Label3D = null
 
 # Movement state
-var velocity := Vector3.ZERO
+var _move_velocity := Vector3.ZERO
 var is_running := false
 
 # Tool bindings (can be customized per scene)
@@ -101,20 +101,20 @@ func _handle_movement(delta):
 	if input_dir.length() > 0:
 		input_dir = input_dir.normalized()
 		var speed = run_speed if is_running else move_speed
-		velocity = input_dir * speed
+		_move_velocity = input_dir * speed
 
 		# Move agent
-		global_position += velocity * delta
+		global_position += _move_velocity * delta
 
 		# Rotate to face movement direction
 		var target_rotation = atan2(input_dir.x, input_dir.z)
 		rotation.y = lerp_angle(rotation.y, target_rotation, rotation_speed * delta)
 	else:
-		velocity = Vector3.ZERO
+		_move_velocity = Vector3.ZERO
 
 	# Update visual animation
 	if visual and visual.has_method("set_movement_velocity"):
-		visual.set_movement_velocity(velocity)
+		visual.set_movement_velocity(_move_velocity)
 
 func _input(event):
 	if event is InputEventKey and event.pressed:
@@ -137,7 +137,7 @@ func _update_debug_overlay():
 
 	var lines := ["[Player Agent: %s]" % agent_id]
 	lines.append("Pos: (%.1f, %.1f, %.1f)" % [global_position.x, global_position.y, global_position.z])
-	lines.append("Speed: %.1f %s" % [velocity.length(), "(running)" if is_running else ""])
+	lines.append("Speed: %.1f %s" % [_move_velocity.length(), "(running)" if is_running else ""])
 
 	# Show observations if available
 	if current_observations.has("resources_collected"):

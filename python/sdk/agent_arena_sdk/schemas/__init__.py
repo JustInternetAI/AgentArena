@@ -16,6 +16,7 @@ from .observation import (
     Observation,
     ResourceInfo,
     StationInfo,
+    ToolResult,
 )
 from .tools import ToolSchema
 
@@ -34,6 +35,7 @@ __all__ = [
     "ItemInfo",
     "ExplorationInfo",
     "ExploreTarget",
+    "ToolResult",
     # Tools
     "ToolSchema",
 ]

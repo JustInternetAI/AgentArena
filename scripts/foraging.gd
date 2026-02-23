@@ -291,6 +291,15 @@ func _execute_backend_decision(decision: Dictionary):
 		var result = craft_item(recipe_name)
 		print("  Craft result: %s" % str(result))
 		decisions_executed += 1
+		# Store craft result for next observation (Issue #71)
+		if agents.size() > 0:
+			pending_tool_results[agents[0].id] = {
+				"tool": "craft_item",
+				"success": result.get("success", false),
+				"result": result,
+				"error": result.get("error", ""),
+				"duration_ticks": 0
+			}
 		return
 
 	# All other tools: use default behavior
@@ -361,6 +370,21 @@ func _collect_resource(resource: Dictionary):
 			"position": resource.position,
 			"tick": simulation_manager.current_tick
 		})
+
+	# Store collect result for next observation (Issue #71)
+	if agents.size() > 0:
+		pending_tool_results[agents[0].id] = {
+			"tool": "collect",
+			"success": true,
+			"result": {
+				"resource_name": resource.name,
+				"resource_type": resource.type,
+				"resources_collected": resources_collected,
+				"resources_remaining": MAX_RESOURCES - resources_collected
+			},
+			"error": "",
+			"duration_ticks": 0
+		}
 
 	print("✓ Collected %s (%d/%d) | Inventory: %s" % [resource.name, resources_collected, MAX_RESOURCES, str(agent_inventory)])
 
