@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "python"))
 
 from backends.base import BackendConfig
 from backends.llama_cpp_backend import LlamaCppBackend
-from agent_runtime.schemas import ToolSchema
+from agent_arena_sdk import ToolSchema
 
 logger = logging.getLogger(__name__)
 

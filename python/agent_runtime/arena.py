@@ -1,5 +1,9 @@
 """
 AgentArena - Main orchestrator for running agents in simulation.
+
+DEPRECATED: Use agent_arena_sdk.AgentArena for new projects.
+The V1 AgentArena relied on the now-deleted ipc.server module.
+Registration/unregistration still works for internal tests.
 """
 
 import logging
@@ -8,8 +12,6 @@ from typing import TYPE_CHECKING
 from .runtime import AgentRuntime
 
 if TYPE_CHECKING:
-    from ipc.server import IPCServer
-
     from .behavior import AgentBehavior
 
 logger = logging.getLogger(__name__)
@@ -52,7 +54,7 @@ class AgentArena:
         """
         self.runtime = AgentRuntime(max_workers=max_workers)
         self.behaviors: dict[str, AgentBehavior] = {}
-        self.ipc_server: IPCServer | None = None
+        self.ipc_server = None
         self._running = False
 
         logger.info(f"Initialized AgentArena with {max_workers} workers")
@@ -85,23 +87,16 @@ class AgentArena:
         """
         Internal method to establish IPC connection.
 
-        Args:
-            host: IPC server host address
-            port: IPC server port
+        DEPRECATED: The V1 IPC server has been removed.
+        Use ``agent_arena_sdk.AgentArena`` instead.
         """
-        from ipc.server import create_server
-
-        logger.info(f"Connecting to Godot simulation at {host}:{port}")
-
-        # Create IPC server with this arena's runtime and behaviors
-        self.ipc_server = create_server(
-            runtime=self.runtime, behaviors=self.behaviors, host=host, port=port
+        raise RuntimeError(
+            "V1 AgentArena._connect() is no longer available. "
+            "Use agent_arena_sdk.AgentArena instead:\n"
+            "  from agent_arena_sdk import AgentArena\n"
+            "  arena = AgentArena(host='127.0.0.1', port=5000)\n"
+            "  arena.run(agent.decide)"
         )
-
-        # Create FastAPI app
-        self.ipc_server.create_app()
-
-        logger.info("Connected to Godot simulation")
 
     def register(self, agent_id: str, behavior: "AgentBehavior") -> None:
         """

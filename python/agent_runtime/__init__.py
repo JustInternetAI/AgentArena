@@ -1,10 +1,11 @@
 """
-Agent Arena - Agent Runtime Module
+Agent Arena - Agent Runtime Module (DEPRECATED)
 
 This module provides the core agent runtime infrastructure for LLM-driven agents.
 
-NOTE: After LDX refactor (Issue #60), behavior base classes and memory systems
-have been moved to starter templates. Use agent-arena-sdk for new projects.
+DEPRECATED: Use agent_arena_sdk for new projects. Shared types (Observation,
+EntityInfo, etc.) are re-exported from the SDK. V1-only classes (AgentDecision,
+WorldObject, SimpleContext) are still available here.
 """
 
 from .agent import Agent
@@ -27,17 +28,13 @@ from .reasoning_trace import (
 from .runtime import AgentRuntime
 from .schemas import (
     AgentDecision,
-    Constraint,
     EntityInfo,
-    Goal,
     HazardInfo,
     ItemInfo,
-    Metric,
     MetricDefinition,
     Objective,
     Observation,
     ResourceInfo,
-    ScenarioDefinition,
     SimpleContext,
     ToolSchema,
 )
@@ -63,7 +60,7 @@ __all__ = [
     "InspectorStage",
     "get_global_inspector",
     "set_global_inspector",
-    # Observation/Decision schemas
+    # Observation/Decision schemas (re-exported from SDK)
     "Observation",
     "AgentDecision",
     "SimpleContext",
@@ -72,11 +69,6 @@ __all__ = [
     "ResourceInfo",
     "HazardInfo",
     "ItemInfo",
-    # Scenario schemas
-    "ScenarioDefinition",
-    "Goal",
-    "Constraint",
-    "Metric",
     # Objective system (Issue #60)
     "Objective",
     "MetricDefinition",
