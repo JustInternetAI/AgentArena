@@ -9,7 +9,6 @@ WorldObject, SimpleContext) are still available here.
 """
 
 from .agent import Agent
-from .arena import AgentArena
 from .reasoning_trace import (
     # Backwards compatibility
     DecisionCapture,
@@ -43,7 +42,6 @@ from .tool_dispatcher import ToolDispatcher
 __all__ = [
     # Core
     "Agent",
-    "AgentArena",
     "AgentRuntime",
     "ToolDispatcher",
     # Tracing (new API)

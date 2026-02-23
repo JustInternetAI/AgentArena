@@ -1,25 +1,21 @@
 """
 LLM Client - Interface to Local Language Models
 
-This module provides a simple interface to use local LLMs with the model manager.
+This module provides a simple interface to use local LLMs via llama-cpp-python.
 You can see exactly how it works and modify it!
 
 Supports:
 - llama.cpp backend (GGUF models)
-- vLLM backend (for high-performance inference)
 - Automatic tool calling
+
+Requirements:
+    pip install llama-cpp-python
 """
 
 import json
 import logging
-from pathlib import Path
-import sys
+from typing import Any, cast
 
-# Add parent directories to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "python"))
-
-from backends.base import BackendConfig
-from backends.llama_cpp_backend import LlamaCppBackend
 from agent_arena_sdk import ToolSchema
 
 logger = logging.getLogger(__name__)
@@ -27,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 class LLMClient:
     """
-    Simple LLM client using local models.
+    Simple LLM client using local models via llama-cpp-python.
 
     This client:
     - Uses models managed by the model manager
@@ -52,35 +48,53 @@ class LLMClient:
         temperature: float = 0.7,
         max_tokens: int = 512,
         n_gpu_layers: int = -1,  # -1 = all layers on GPU
+        top_p: float = 0.9,
+        top_k: int = 40,
     ):
         """
         Initialize LLM client.
 
         Args:
-            model_path: Path to model file (relative to project root)
+            model_path: Path to GGUF model file
             temperature: Sampling temperature (0-1, higher = more creative)
             max_tokens: Maximum tokens to generate
             n_gpu_layers: Number of layers on GPU (-1 = all, 0 = CPU only)
+            top_p: Top-p sampling parameter
+            top_k: Top-k sampling parameter
         """
+        self.model_path = model_path
         self.temperature = temperature
         self.max_tokens = max_tokens
+        self.top_p = top_p
+        self.top_k = top_k
+        self.llm = None
 
-        # Create backend config
-        config = BackendConfig(
-            model_path=model_path,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            n_gpu_layers=n_gpu_layers,
-        )
+        try:
+            from llama_cpp import Llama
 
-        # Initialize backend
-        logger.info(f"Loading model from {model_path}")
-        self.backend = LlamaCppBackend(config)
+            logger.info(f"Loading model from {model_path}")
 
-        if not self.backend.is_available():
-            raise RuntimeError(f"Failed to load model from {model_path}")
+            if n_gpu_layers == -1:
+                logger.info("Offloading all layers to GPU")
+            elif n_gpu_layers > 0:
+                logger.info(f"Offloading {n_gpu_layers} layers to GPU")
+            else:
+                logger.info("Using CPU only (no GPU offload)")
 
-        logger.info("Model loaded successfully")
+            self.llm = Llama(
+                model_path=model_path,
+                n_ctx=4096,
+                n_threads=8,
+                n_gpu_layers=n_gpu_layers,
+                verbose=False,
+            )
+
+            logger.info("Model loaded successfully")
+
+        except ImportError:
+            raise RuntimeError(
+                "llama-cpp-python not installed. Install with: pip install llama-cpp-python"
+            )
 
     def generate(
         self,
@@ -105,23 +119,38 @@ class LLMClient:
                 - tokens_used: Number of tokens generated
                 - finish_reason: Why generation stopped
         """
+        if not self.llm:
+            raise RuntimeError("Model not loaded")
+
         try:
-            result = self.backend.generate(
-                prompt=prompt,
+            messages: list[dict[str, str]] = []
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+            messages.append({"role": "user", "content": prompt})
+
+            response = self.llm.create_chat_completion(
+                messages=messages,
                 temperature=temperature or self.temperature,
-                system_prompt=system_prompt,
+                max_tokens=self.max_tokens,
+                top_p=self.top_p,
+                top_k=self.top_k,
             )
+
+            resp = cast(dict[str, Any], response)
+            text = resp["choices"][0]["message"]["content"] or ""
+            tokens_used = resp["usage"]["total_tokens"]
+            finish_reason = str(resp["choices"][0].get("finish_reason", "stop"))
 
             # Parse tool calls if present
             tool_call = None
-            if tools and result.text:
-                tool_call = self._parse_tool_call(result.text)
+            if tools and text:
+                tool_call = self._parse_tool_call(text)
 
             return {
-                "text": result.text,
+                "text": text,
                 "tool_call": tool_call,
-                "tokens_used": result.tokens_used,
-                "finish_reason": result.finish_reason,
+                "tokens_used": tokens_used,
+                "finish_reason": finish_reason,
             }
 
         except Exception as e:
@@ -166,9 +195,11 @@ class LLMClient:
 
     def is_available(self) -> bool:
         """Check if the LLM backend is ready."""
-        return self.backend.is_available()
+        return self.llm is not None
 
     def unload(self) -> None:
         """Unload the model and free resources."""
-        self.backend.unload()
-        logger.info("Model unloaded")
+        if self.llm:
+            del self.llm
+            self.llm = None
+            logger.info("Model unloaded")
