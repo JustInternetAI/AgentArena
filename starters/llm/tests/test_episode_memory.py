@@ -5,7 +5,6 @@ Tests episode lifecycle detection, key event storage, memory retrieval,
 deduplication, memory cap enforcement, persistence, and prompt integration.
 """
 
-import math
 import os
 import sys
 import tempfile
@@ -16,20 +15,17 @@ import pytest
 
 # Add starters/llm/ to path so we can import episode_memory
 sys.path.insert(0, str(Path(__file__).parent.parent))
-# Add python/ to path for long_term_memory_module
+# Add python/ to path for long_term_memory_module and SDK
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "python"))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "python" / "sdk"))
 
-from agent_arena_sdk.schemas.observation import (
-    Observation,
-    ResourceInfo,
-    HazardInfo,
-    ItemInfo,
-)
+from agent_arena_sdk import Observation, ResourceInfo, HazardInfo, ItemInfo
+from agent_arena_sdk.testing import mock_observation
 from episode_memory import EpisodeMemoryManager
 
 
 # ------------------------------------------------------------------ #
-#  Test Helpers
+#  Test Helpers — thin wrappers with episode-memory-specific defaults
 # ------------------------------------------------------------------ #
 
 
@@ -44,7 +40,7 @@ def make_obs(
     agent_id: str = "test_agent",
 ) -> Observation:
     """Create a mock Observation for testing."""
-    return Observation(
+    return mock_observation(
         agent_id=agent_id,
         tick=tick,
         position=position,

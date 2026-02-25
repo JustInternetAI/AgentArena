@@ -31,21 +31,30 @@ class Agent:
     - Provides natural language reasoning
     """
 
-    def __init__(self, model_path: str = "models/llama-2-7b/gguf/q4/model.gguf"):
+    def __init__(
+        self,
+        model_path: str = "models/llama-2-7b/gguf/q4/model.gguf",
+        llm_client: LLMClient | None = None,
+    ):
         """
         Initialize LLM agent.
 
         Args:
             model_path: Path to GGUF model file
+            llm_client: Optional pre-configured LLMClient (for testing/DI).
+                         If provided, *model_path* is ignored.
         """
         # Initialize memory
         self.memory = SlidingWindowMemory(capacity=20)
 
-        # Initialize LLM client
-        logger.info("Initializing LLM client...")
-        self.llm = LLMClient(
-            model_path=model_path, temperature=0.3, max_tokens=256, n_gpu_layers=-1  # Use GPU
-        )
+        # Initialize LLM client (support dependency injection for testing)
+        if llm_client is not None:
+            self.llm = llm_client
+        else:
+            logger.info("Initializing LLM client...")
+            self.llm = LLMClient(
+                model_path=model_path, temperature=0.3, max_tokens=256, n_gpu_layers=-1  # Use GPU
+            )
 
         # Load prompts
         prompts_dir = Path(__file__).parent / "prompts"

@@ -10,7 +10,6 @@ produces sensible decisions. Covers:
 - Multi-tick behavior (intermediate only)
 """
 
-import math
 import sys
 from pathlib import Path
 
@@ -34,11 +33,19 @@ from agent_arena_sdk import (
     Observation,
     ResourceInfo,
 )
+from agent_arena_sdk.testing import (
+    assert_valid_decision,
+    distance_between,
+)
 
 
 # ------------------------------------------------------------------ #
 #  Test Helpers
 # ------------------------------------------------------------------ #
+# NOTE: make_foraging_obs, make_resource, and make_hazard are thin
+# wrappers with foraging-specific defaults.  A future follow-up can
+# migrate them to ``agent_arena_sdk.testing.mock_observation`` with
+# appropriate kwargs.
 
 FORAGING_OBJECTIVE = Objective(
     description="Collect resources while avoiding hazards and staying healthy.",
@@ -108,18 +115,6 @@ def make_hazard(
     damage: float = 10.0,
 ) -> HazardInfo:
     return HazardInfo(name=name, type=htype, position=position, distance=distance, damage=damage)
-
-
-def distance_between(pos1, pos2) -> float:
-    """Calculate distance between two positions."""
-    return math.sqrt(sum((a - b) ** 2 for a, b in zip(pos1, pos2)))
-
-
-def assert_valid_decision(decision: Decision):
-    """Assert a decision has required fields and a valid tool."""
-    assert isinstance(decision, Decision)
-    assert decision.tool in {"move_to", "collect", "idle"}
-    assert isinstance(decision.params, dict)
 
 
 # ------------------------------------------------------------------ #

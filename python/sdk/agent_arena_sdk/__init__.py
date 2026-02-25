@@ -23,6 +23,7 @@ Quick Start:
 For complete examples, see the starter templates in the AgentArena repository.
 """
 
+from . import testing
 from .arena import AgentArena
 from .memory import SpatialMemory
 from .schemas import (
@@ -46,6 +47,8 @@ from .schemas import (
 __version__ = "0.1.0"
 
 __all__ = [
+    # Testing
+    "testing",
     # Main API
     "AgentArena",
     # Core schemas

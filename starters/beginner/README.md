@@ -51,6 +51,18 @@ The agent will:
 - Collect resources when objectives require it
 - Explore the world when idle
 
+## Testing
+
+Run tests without Godot:
+
+```bash
+pip install pytest
+pytest test_agent.py -v
+```
+
+Tests use mock observations from the SDK — no game connection needed.
+See `test_agent.py` for examples of testing hazard avoidance, resource collection, and exploration.
+
 ## Files in This Starter
 
 ```

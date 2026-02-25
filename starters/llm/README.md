@@ -25,6 +25,18 @@ llm/
 └── requirements.txt  # Dependencies
 ```
 
+## Testing
+
+Run tests without Godot, GPU, or model files:
+
+```bash
+pip install pytest
+pytest test_agent.py -v
+```
+
+Tests mock the LLM client so you can test prompt construction, JSON parsing, and
+fallback behaviour without loading a model. See `test_agent.py` for examples.
+
 ## Requirements
 
 ### 1. Model
