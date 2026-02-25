@@ -24,9 +24,11 @@ For complete examples, see the starter templates in the AgentArena repository.
 """
 
 from .arena import AgentArena
+from .memory import SpatialMemory
 from .schemas import (
     Decision,
     EntityInfo,
+    ExperienceEvent,
     ExplorationInfo,
     ExploreTarget,
     HazardInfo,
@@ -35,8 +37,10 @@ from .schemas import (
     Objective,
     Observation,
     ResourceInfo,
+    SpatialQueryResult,
     StationInfo,
     ToolSchema,
+    WorldObject,
 )
 
 __version__ = "0.1.0"
@@ -58,6 +62,11 @@ __all__ = [
     "ItemInfo",
     "ExplorationInfo",
     "ExploreTarget",
+    # Spatial memory
+    "SpatialMemory",
+    "WorldObject",
+    "ExperienceEvent",
+    "SpatialQueryResult",
     # Tools
     "ToolSchema",
 ]

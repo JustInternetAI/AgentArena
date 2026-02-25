@@ -6,6 +6,7 @@ Defines the contracts between framework components, user code, and Godot.
 
 import json
 import logging
+import warnings
 from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
@@ -15,8 +16,9 @@ logger = logging.getLogger(__name__)
 class WorldObject:
     """A remembered object in the world map.
 
-    Used by SpatialMemory to track resources, hazards, and entities
-    that the agent has seen, even when they're out of line-of-sight.
+    .. deprecated::
+        Use ``agent_arena_sdk.schemas.WorldObject`` instead.
+        This import path will be removed in v0.2.0.
     """
 
     name: str
@@ -27,6 +29,15 @@ class WorldObject:
     status: str = "active"  # "active", "collected", "destroyed", "unknown"
     damage: float = 0.0  # For hazards
     metadata: dict = field(default_factory=dict)
+
+    def __post_init__(self):
+        warnings.warn(
+            "agent_runtime.schemas.WorldObject is deprecated. "
+            "Use 'from agent_arena_sdk.schemas import WorldObject' instead. "
+            "This import path will be removed in v0.2.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
 
     def distance_to(self, pos: tuple[float, float, float]) -> float:
         """Calculate distance to another position."""
@@ -105,8 +116,9 @@ class WorldObject:
 class ExperienceEvent:
     """A significant event the agent experienced.
 
-    Used by SpatialMemory to track collisions, damage, and other
-    experiences so the LLM can learn from past mistakes.
+    .. deprecated::
+        Use ``agent_arena_sdk.schemas.ExperienceEvent`` instead.
+        This import path will be removed in v0.2.0.
     """
 
     tick: int
@@ -116,6 +128,15 @@ class ExperienceEvent:
     object_name: str | None = None
     damage_taken: float = 0.0
     metadata: dict = field(default_factory=dict)
+
+    def __post_init__(self):
+        warnings.warn(
+            "agent_runtime.schemas.ExperienceEvent is deprecated. "
+            "Use 'from agent_arena_sdk.schemas import ExperienceEvent' instead. "
+            "This import path will be removed in v0.2.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
 
     def to_dict(self) -> dict:
         """Convert to dictionary."""

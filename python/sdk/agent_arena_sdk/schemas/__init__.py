@@ -18,6 +18,7 @@ from .observation import (
     StationInfo,
     ToolResult,
 )
+from .spatial import ExperienceEvent, SpatialQueryResult, WorldObject
 from .tools import ToolSchema
 
 __all__ = [
@@ -36,6 +37,10 @@ __all__ = [
     "ExplorationInfo",
     "ExploreTarget",
     "ToolResult",
+    # Spatial memory schemas
+    "WorldObject",
+    "ExperienceEvent",
+    "SpatialQueryResult",
     # Tools
     "ToolSchema",
 ]

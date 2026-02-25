@@ -6,8 +6,8 @@ by their position in the world, allowing agents to build a "mental map" of their
 environment and remember where things are even when out of line-of-sight.
 
 Example:
-    >>> from agent_runtime.memory import SpatialMemory
-    >>> from agent_runtime.schemas import WorldObject
+    >>> from agent_arena_sdk.memory import SpatialMemory
+    >>> from agent_arena_sdk.schemas import WorldObject
     >>>
     >>> memory = SpatialMemory()
     >>>
@@ -25,35 +25,47 @@ Example:
 """
 
 import logging
-import warnings
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-from .base import AgentMemory
-
-if TYPE_CHECKING:
-    from ..schemas import ExperienceEvent, Observation, WorldObject
+from ..schemas.observation import Observation
+from ..schemas.spatial import ExperienceEvent, SpatialQueryResult, WorldObject
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class SpatialQueryResult:
-    """Result from a spatial memory query."""
-
-    obj: "WorldObject"
-    distance: float  # Distance from query position
-    score: float  # Semantic similarity score (if semantic query)
-    staleness: int  # Ticks since last seen
-
-
-class SpatialMemory(AgentMemory):
+class SpatialMemory:
     """
     Memory system for tracking world objects spatially.
 
-    .. deprecated::
-        Use ``agent_arena_sdk.memory.SpatialMemory`` instead.
-        This import path will be removed in v0.2.0.
+    Combines:
+    - In-memory spatial index (for fast proximity queries)
+    - Optional vector store (for semantic queries)
+    - Object status tracking (collected, destroyed, etc.)
+
+    This allows agents to:
+    - Remember where resources and hazards are located
+    - Query "what's near me" even for out-of-sight objects
+    - Track which resources have been collected
+    - Build a mental map of the environment
+
+    Example:
+        >>> memory = SpatialMemory()
+        >>>
+        >>> # Each tick, update with current observation
+        >>> memory.update_from_observation(observation)
+        >>>
+        >>> # Find remembered resources near a position
+        >>> nearby = memory.query_near_position(
+        ...     position=(10, 0, 5),
+        ...     radius=30,
+        ...     object_type="resource"
+        ... )
+        >>>
+        >>> # Get all known hazards
+        >>> hazards = memory.query_by_type("hazard")
+        >>>
+        >>> # Semantic search for food
+        >>> food = memory.query_semantic("berries or apples to eat")
     """
 
     def __init__(
@@ -72,15 +84,8 @@ class SpatialMemory(AgentMemory):
             similarity_threshold: Minimum score for semantic matches
             stale_threshold: Ticks after which unseen objects are considered stale
         """
-        warnings.warn(
-            "agent_runtime.memory.SpatialMemory is deprecated. "
-            "Use 'from agent_arena_sdk.memory import SpatialMemory' instead. "
-            "This import path will be removed in v0.2.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
         # Primary storage: name -> WorldObject
-        self._objects: dict[str, "WorldObject"] = {}
+        self._objects: dict[str, WorldObject] = {}
 
         # Spatial index: grid-based for fast proximity queries
         self._grid_size = 10.0  # Grid cell size
@@ -97,7 +102,7 @@ class SpatialMemory(AgentMemory):
         self._current_tick = 0
 
         # Experience tracking
-        self._experiences: list["ExperienceEvent"] = []
+        self._experiences: list[ExperienceEvent] = []
         self._max_experiences: int = 50
 
         if enable_semantic:
@@ -125,7 +130,7 @@ class SpatialMemory(AgentMemory):
             logger.warning("long_term_memory_module not available, semantic search disabled")
             self._enable_semantic = False
 
-    def _object_to_text(self, obj: "WorldObject") -> str:
+    def _object_to_text(self, obj: WorldObject) -> str:
         """Convert WorldObject to searchable text."""
         parts = [
             f"{obj.object_type} named {obj.name}",
@@ -138,7 +143,7 @@ class SpatialMemory(AgentMemory):
             parts.append(f"status {obj.status}")
         return ", ".join(parts)
 
-    def _object_to_metadata(self, obj: "WorldObject") -> dict[str, Any]:
+    def _object_to_metadata(self, obj: WorldObject) -> dict[str, Any]:
         """Extract metadata from WorldObject."""
         return {
             "name": obj.name,
@@ -150,10 +155,8 @@ class SpatialMemory(AgentMemory):
             "damage": obj.damage,
         }
 
-    def _object_from_dict(self, data: dict[str, Any]) -> "WorldObject":
+    def _object_from_dict(self, data: dict[str, Any]) -> WorldObject:
         """Reconstruct WorldObject from memory data."""
-        from ..schemas import WorldObject
-
         metadata = data.get("metadata", {})
         return WorldObject(
             name=metadata.get("name", "unknown"),
@@ -174,14 +177,14 @@ class SpatialMemory(AgentMemory):
             int(pos[2] // self._grid_size),
         )
 
-    def _add_to_grid(self, obj: "WorldObject"):
+    def _add_to_grid(self, obj: WorldObject):
         """Add object to spatial grid."""
         cell = self._pos_to_grid(obj.position)
         if cell not in self._spatial_grid:
             self._spatial_grid[cell] = set()
         self._spatial_grid[cell].add(obj.name)
 
-    def _remove_from_grid(self, obj: "WorldObject"):
+    def _remove_from_grid(self, obj: WorldObject):
         """Remove object from spatial grid."""
         cell = self._pos_to_grid(obj.position)
         if cell in self._spatial_grid:
@@ -203,9 +206,9 @@ class SpatialMemory(AgentMemory):
                     cells.append((center[0] + dx, center[1] + dy, center[2] + dz))
         return cells
 
-    def store(self, observation: "Observation") -> None:
+    def store(self, observation: Observation) -> None:
         """
-        Store/update objects from an observation (AgentMemory interface).
+        Store/update objects from an observation.
 
         This is the main entry point - call each tick to update the world map.
 
@@ -214,7 +217,7 @@ class SpatialMemory(AgentMemory):
         """
         self.update_from_observation(observation)
 
-    def update_from_observation(self, observation: "Observation") -> None:
+    def update_from_observation(self, observation: Observation) -> None:
         """
         Update spatial memory with objects from current observation.
 
@@ -225,8 +228,6 @@ class SpatialMemory(AgentMemory):
         Args:
             observation: Current observation from Godot
         """
-        from ..schemas import WorldObject
-
         self._current_tick = observation.tick
 
         # Process resources
@@ -249,7 +250,7 @@ class SpatialMemory(AgentMemory):
             f"{len(self._objects)} total objects"
         )
 
-    def _store_or_update(self, obj: "WorldObject") -> None:
+    def _store_or_update(self, obj: WorldObject) -> None:
         """Store a new object or update existing one."""
         existing = self._objects.get(obj.name)
 
@@ -265,7 +266,7 @@ class SpatialMemory(AgentMemory):
             self._add_to_grid(obj)
 
             # Update semantic memory
-            if self._semantic_memory:
+            if self._semantic_memory is not None:
                 # Remove old entry and add new
                 self._semantic_memory.store(obj)
         else:
@@ -273,7 +274,7 @@ class SpatialMemory(AgentMemory):
             self._objects[obj.name] = obj
             self._add_to_grid(obj)
 
-            if self._semantic_memory:
+            if self._semantic_memory is not None:
                 self._semantic_memory.store(obj)
 
     def mark_collected(self, name: str) -> bool:
@@ -376,7 +377,7 @@ class SpatialMemory(AgentMemory):
         object_type: str,
         subtype: str | None = None,
         include_collected: bool = False,
-    ) -> list["WorldObject"]:
+    ) -> list[WorldObject]:
         """
         Query all objects of a given type.
 
@@ -416,7 +417,7 @@ class SpatialMemory(AgentMemory):
         Returns:
             List of SpatialQueryResult sorted by relevance
         """
-        if not self._semantic_memory:
+        if self._semantic_memory is None:
             logger.warning("Semantic search not available")
             return []
 
@@ -449,11 +450,11 @@ class SpatialMemory(AgentMemory):
 
         return results[:limit]
 
-    def get_object(self, name: str) -> "WorldObject | None":
+    def get_object(self, name: str) -> WorldObject | None:
         """Get a specific object by name."""
         return self._objects.get(name)
 
-    def get_all_objects(self, include_collected: bool = False) -> list["WorldObject"]:
+    def get_all_objects(self, include_collected: bool = False) -> list[WorldObject]:
         """Get all known objects."""
         if include_collected:
             return list(self._objects.values())
@@ -461,17 +462,17 @@ class SpatialMemory(AgentMemory):
             obj for obj in self._objects.values() if obj.status not in ("collected", "destroyed")
         ]
 
-    def get_resources(self, include_collected: bool = False) -> list["WorldObject"]:
+    def get_resources(self, include_collected: bool = False) -> list[WorldObject]:
         """Get all known resources."""
         return self.query_by_type("resource", include_collected=include_collected)
 
-    def get_hazards(self) -> list["WorldObject"]:
+    def get_hazards(self) -> list[WorldObject]:
         """Get all known hazards."""
         return self.query_by_type("hazard", include_collected=True)
 
-    def retrieve(self, query: str | None = None, limit: int | None = None) -> list["Observation"]:
+    def retrieve(self, query: str | None = None, limit: int | None = None) -> list[Observation]:
         """
-        Retrieve from memory (AgentMemory interface).
+        Retrieve from memory.
 
         For SpatialMemory, this returns synthetic observations built from
         remembered objects. Use query_near_position or query_semantic for
@@ -522,7 +523,7 @@ class SpatialMemory(AgentMemory):
 
     # Experience tracking methods
 
-    def record_experience(self, event: "ExperienceEvent") -> None:
+    def record_experience(self, event: ExperienceEvent) -> None:
         """Record a significant experience.
 
         Stores the experience and, for collisions, also marks the
@@ -531,8 +532,6 @@ class SpatialMemory(AgentMemory):
         Args:
             event: The experience event to record
         """
-        from ..schemas import WorldObject
-
         self._experiences.append(event)
         if len(self._experiences) > self._max_experiences:
             self._experiences.pop(0)
@@ -554,7 +553,7 @@ class SpatialMemory(AgentMemory):
             f"({len(self._experiences)} total)"
         )
 
-    def get_recent_experiences(self, limit: int = 10) -> list["ExperienceEvent"]:
+    def get_recent_experiences(self, limit: int = 10) -> list[ExperienceEvent]:
         """Get recent experiences for LLM context.
 
         Args:
@@ -575,7 +574,7 @@ class SpatialMemory(AgentMemory):
         self._objects.clear()
         self._spatial_grid.clear()
         self._experiences.clear()
-        if self._semantic_memory:
+        if self._semantic_memory is not None:
             self._semantic_memory.clear()
         logger.info("Cleared spatial memory")
 
