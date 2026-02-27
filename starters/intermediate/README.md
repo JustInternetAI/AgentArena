@@ -1,24 +1,29 @@
 # Intermediate Agent Starter
 
-Agent with memory and planning for more sophisticated strategies.
+Agent with memory, multi-step planning, and crafting for more sophisticated strategies.
 
-## What's New vs Beginner
+## What's Different vs Beginner
 
 | Feature | Beginner | Intermediate |
 |---------|----------|--------------|
-| Memory | None | Last 50 observations |
-| Planning | React only | Goal decomposition |
-| Exploration | Random | Avoids revisiting |
-| Decision making | Immediate | Considers history |
+| Memory | None — each tick is fresh | Last 50 observations |
+| Planning | React to what's visible | Multi-step plans across ticks |
+| Resource finding | Only visible resources | Visible + remembered locations |
+| Hazard avoidance | Only visible hazards | Visible + remembered hazard zones |
+| Crafting | Only when already at station | Plans: gather materials → go to station → craft |
+| Exploration | First frontier target | Avoids revisiting, seeks productive areas |
+| Tool results | Ignored | Detects failures and replans |
+| Pattern detection | None | Finds resource clusters |
 
 ## Files
 
 ```
 intermediate/
-├── agent.py         # Agent with memory & planning
-├── memory.py        # Sliding window memory (YOUR CODE!)
-├── planner.py       # Goal decomposition (YOUR CODE!)
-├── run.py           # Entry point
+├── agent.py         # Decision logic with memory + planning
+├── memory.py        # Sliding window memory with pattern detection (YOUR CODE!)
+├── planner.py       # Goal decomposition + multi-step plans (YOUR CODE!)
+├── run.py           # Entry point — connects to Agent Arena
+├── test_agent.py    # Unit tests (run with pytest)
 └── requirements.txt # Just the SDK
 ```
 
@@ -31,66 +36,171 @@ python run.py
 
 Then connect from Agent Arena game.
 
-## How Memory Works
+## How It Works
 
-```python
-from memory import SlidingWindowMemory
-
-memory = SlidingWindowMemory(capacity=50)
-
-# Store each observation
-memory.store(obs)
-
-# Retrieve recent history
-last_10 = memory.get_recent(10)
-
-# Find things you've seen
-resources = memory.find_resources_seen()
-hazards = memory.find_hazards_seen()
+```
+Observation ──► Memory ──► Planner ──► Agent ──► Decision
+                  │            │          │
+                  │   decompose into      │
+                  │   sub-goals      execute plan
+                  │            │     step-by-step
+                  │            ▼          │
+                  │     ActionStep[]      │
+                  │     [move_to,         │
+                  │      collect,         │
+                  │      craft_item]      │
+                  │            │          │
+                  ▼            ▼          ▼
+          find_uncollected  plan_collect  Decision(tool, params)
+          find_hazard_zones plan_craft
+          find_productive   plan_explore
 ```
 
-## How Planning Works
+### Decision Priority
+
+Each tick, the agent decides in this order:
+
+1. **Handle tool result** — Did the last action succeed? Advance the plan or replan.
+2. **Escape danger** — Nearby hazard? Cancel plan and flee.
+3. **Continue plan** — Mid-plan? Execute the next step.
+4. **Pursue objectives** — No plan? Decompose objective into sub-goals, create a plan.
+5. **Opportunistic craft** — At a station with materials? Craft something.
+6. **Explore** — Nothing to do? Head toward productive areas or frontiers.
+
+### Multi-Step Plans
+
+Instead of choosing one action per tick, the planner creates a **sequence of steps** and executes them across ticks:
 
 ```python
-from planner import Planner
+# Example: Crafting a torch
+planner.plan_craft("torch", "workbench_001", station_pos,
+                   missing_materials=[("wood_001", wood_pos)])
+# Creates: [move_to wood, collect wood, move_to workbench, craft torch]
+```
 
-planner = Planner()
+If any step fails (tool result reports error), the plan is cancelled and the agent replans.
 
-# Break objective into sub-goals
-sub_goals = planner.decompose(obs.objective, obs.current_progress)
+### Memory-Driven Decisions
 
-# Pick highest priority
-current_goal = planner.select_goal(sub_goals)
+The agent doesn't just react to what's visible — it remembers:
 
-# Work on it
-decision = execute_sub_goal(current_goal, obs)
+```python
+# "I saw a berry at (10, 0, 5) on tick 3. Nothing visible now, so go back."
+uncollected = memory.find_uncollected_resources(current_tick)
+
+# "Fire was at (5, 0, 5) recently. Stay away."
+hazard_zones = memory.find_hazard_zones(current_tick)
+
+# "Resources tend to cluster near (12, 0, 8). Explore there."
+productive = memory.find_productive_areas()
 ```
 
 ## Modification Ideas
 
-**Memory enhancements:**
-- Semantic search
-- Importance weighting
-- Compression/summarization
+### 1. Change Hazard Avoidance Radius (Simple)
 
-**Planning improvements:**
-- Multi-step plans
-- Dependency tracking
-- Dynamic re-planning
+In `agent.py`, the agent flees when a hazard is within 3 units and avoids
+remembered hazards within 4 units. Try adjusting:
 
-**State tracking:**
-- World model
-- Resource timers
-- Hazard predictions
+```python
+# In _check_danger():
+if hazard.distance < 5.0:     # Was 3.0 — more cautious
+    ...
+if distance < 6.0:            # Was 4.0 — wider remembered-hazard buffer
+    ...
+```
+
+### 2. Add a New Recipe (Intermediate)
+
+Add a recipe to `agent.py` and the agent will automatically plan for it:
+
+```python
+RECIPES = {
+    "torch": ("workbench", {"wood": 1, "stone": 1}),
+    "meal": ("workbench", {"berry": 2}),
+    "shelter": ("anvil", {"wood": 3, "stone": 2}),
+    "potion": ("workbench", {"berry": 1, "mushroom": 1}),  # NEW
+}
+```
+
+### 3. Implement Resource Value Weighting (Advanced)
+
+Instead of always picking the closest resource, weight by type value:
+
+```python
+# In _plan_resource_collection():
+RESOURCE_VALUES = {"gold": 10, "stone": 3, "wood": 2, "berry": 1}
+
+if obs.nearby_resources:
+    # Score = value / distance (higher is better)
+    best = max(
+        obs.nearby_resources,
+        key=lambda r: RESOURCE_VALUES.get(r.type, 1) / max(r.distance, 0.1),
+    )
+```
+
+### 4. Add Exploration Memory Decay (Advanced)
+
+Make the agent forget old productive areas and re-explore:
+
+```python
+# In memory.py, modify find_productive_areas():
+# Only count resources seen in the last 30 ticks
+resource_positions = []
+for obs in self._observations:
+    if current_tick - obs.tick < 30:  # Recency window
+        for resource in obs.nearby_resources:
+            resource_positions.append(resource.position)
+```
+
+## Debugging Tips
+
+### Inspect Memory State
+
+Add a print in `decide()` to see what the agent remembers:
+
+```python
+def decide(self, obs):
+    self.memory.store(obs)
+    print(self.memory.summarize())  # Shows resources, hazards, productive areas
+    ...
+```
+
+### Trace Planning Decisions
+
+See what the planner is doing:
+
+```python
+sub_goals = self.planner.decompose(obs.objective, obs.current_progress)
+print(self.planner.explain_plan(sub_goals))
+```
+
+### Run Eval Scenarios
+
+Test specific situations without running the full game:
+
+```bash
+# Run all scenarios
+python ../../python/evals/eval_agent.py --adapter intermediate
+
+# Test just hazard escape
+python ../../python/evals/eval_agent.py --adapter intermediate --scenario hazard_escape
+
+# Interactive mode — type your own observations
+python ../../python/evals/eval_agent.py --adapter intermediate --interactive
+```
+
+### Run Unit Tests
+
+```bash
+python -m pytest test_agent.py -v
+```
 
 ## When to Graduate
 
-Move to `llm/` starter when you want:
-- Natural language reasoning
-- Complex decision making
+Move to the `claude/` or `langgraph/` starter when you want:
+
+- Natural language reasoning about complex situations
+- LLM-driven tool selection instead of if/else logic
+- Framework observability (LangSmith, Anthropic Console)
 - Few-shot learning from examples
-
-## Resources
-
-- [Memory Systems](../../docs/memory_systems.md)
-- [Planning Strategies](../../docs/planning.md)

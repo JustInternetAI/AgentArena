@@ -184,6 +184,14 @@ def format_observation_summary(obs) -> str:
 
 def run_scenario(agent, name: str, scenario: dict, index: int, total: int) -> dict:
     """Run a single scenario and display the result."""
+    # Reset stateful agents between scenarios so memory doesn't bleed across
+    if hasattr(agent, "memory") and hasattr(agent.memory, "clear"):
+        agent.memory.clear()
+    if hasattr(agent, "planner") and hasattr(agent.planner, "cancel"):
+        agent.planner.cancel()
+    if hasattr(agent, "visited_positions"):
+        agent.visited_positions.clear()
+
     obs = scenario["observation"]
     print(f"\n[{index}/{total}] {name}")
     print(f"  {scenario['description']}")

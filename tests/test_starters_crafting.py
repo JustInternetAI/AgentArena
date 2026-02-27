@@ -25,6 +25,16 @@ sys.path.insert(0, str(ROOT / "starters" / "intermediate"))
 sys.path.insert(0, str(ROOT / "starters" / "llm"))
 sys.path.insert(0, str(ROOT / "python"))
 
+# Module names duplicated across starters that need isolation
+_STARTER_MODULES = ("memory", "planner", "agent")
+
+
+def _clear_starter_modules():
+    """Remove cached starter modules so each starter imports its own copy."""
+    for mod_name in list(sys.modules):
+        if mod_name in _STARTER_MODULES or mod_name.startswith("starters."):
+            del sys.modules[mod_name]
+
 from agent_arena_sdk import (
     Decision,
     ExplorationInfo,
@@ -231,6 +241,12 @@ class TestIntermediateCrafting:
 
     @pytest.fixture
     def agent(self):
+        _clear_starter_modules()
+        intermediate_dir = str(ROOT / "starters" / "intermediate")
+        if intermediate_dir in sys.path:
+            sys.path.remove(intermediate_dir)
+        sys.path.insert(0, intermediate_dir)
+
         from starters.intermediate.agent import Agent
 
         return Agent()
@@ -497,6 +513,12 @@ class TestPlannerCrafting:
 
     @pytest.fixture
     def planner(self):
+        _clear_starter_modules()
+        intermediate_dir = str(ROOT / "starters" / "intermediate")
+        if intermediate_dir in sys.path:
+            sys.path.remove(intermediate_dir)
+        sys.path.insert(0, intermediate_dir)
+
         from starters.intermediate.planner import Planner
 
         return Planner()
@@ -552,7 +574,7 @@ class TestPlannerCrafting:
         sub_goals = planner.decompose(CRAFTING_OBJECTIVE, progress)
         explanation = planner.explain_plan(sub_goals)
 
-        assert "Current Plan:" in explanation
+        assert "Sub-goals:" in explanation
 
 
 # ------------------------------------------------------------------ #
@@ -565,6 +587,12 @@ class TestMemoryCrafting:
 
     @pytest.fixture
     def memory(self):
+        _clear_starter_modules()
+        intermediate_dir = str(ROOT / "starters" / "intermediate")
+        if intermediate_dir in sys.path:
+            sys.path.remove(intermediate_dir)
+        sys.path.insert(0, intermediate_dir)
+
         from starters.intermediate.memory import SlidingWindowMemory
 
         return SlidingWindowMemory(capacity=20)

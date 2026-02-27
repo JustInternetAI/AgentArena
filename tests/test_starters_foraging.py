@@ -10,17 +10,31 @@ produces sensible decisions. Covers:
 - Multi-tick behavior (intermediate only)
 """
 
+import importlib
 import sys
 from pathlib import Path
 
 import pytest
 
-# Add paths so starters can be imported
+# Add paths so starters can be imported.
+# NOTE: Multiple starters share module names (e.g., "memory", "planner").
+# Each starter fixture clears cached modules before import so the correct
+# version is loaded.  See _clear_starter_modules() below.
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT / "starters" / "beginner"))
 sys.path.insert(0, str(ROOT / "starters" / "intermediate"))
 sys.path.insert(0, str(ROOT / "starters" / "llm"))
 sys.path.insert(0, str(ROOT / "python"))
+
+# Module names that are duplicated across starters and need isolation
+_STARTER_MODULES = ("memory", "planner", "agent")
+
+
+def _clear_starter_modules():
+    """Remove cached starter modules so each starter imports its own copy."""
+    for mod_name in list(sys.modules):
+        if mod_name in _STARTER_MODULES or mod_name.startswith("starters."):
+            del sys.modules[mod_name]
 
 from agent_arena_sdk import (
     Decision,
@@ -244,6 +258,13 @@ class TestIntermediateForaging:
 
     @pytest.fixture
     def agent(self):
+        _clear_starter_modules()
+        # Ensure intermediate's directory wins for shared module names
+        intermediate_dir = str(ROOT / "starters" / "intermediate")
+        if intermediate_dir in sys.path:
+            sys.path.remove(intermediate_dir)
+        sys.path.insert(0, intermediate_dir)
+
         from starters.intermediate.agent import Agent
 
         return Agent()
@@ -618,6 +639,12 @@ class TestSlidingWindowMemoryForaging:
 
     @pytest.fixture
     def memory(self):
+        _clear_starter_modules()
+        intermediate_dir = str(ROOT / "starters" / "intermediate")
+        if intermediate_dir in sys.path:
+            sys.path.remove(intermediate_dir)
+        sys.path.insert(0, intermediate_dir)
+
         from starters.intermediate.memory import SlidingWindowMemory
 
         return SlidingWindowMemory(capacity=10)
@@ -710,6 +737,12 @@ class TestPlannerForaging:
 
     @pytest.fixture
     def planner(self):
+        _clear_starter_modules()
+        intermediate_dir = str(ROOT / "starters" / "intermediate")
+        if intermediate_dir in sys.path:
+            sys.path.remove(intermediate_dir)
+        sys.path.insert(0, intermediate_dir)
+
         from starters.intermediate.planner import Planner
 
         return Planner()
@@ -766,5 +799,5 @@ class TestPlannerForaging:
         sub_goals = planner.decompose(FORAGING_OBJECTIVE, progress)
         explanation = planner.explain_plan(sub_goals)
 
-        assert "Current Plan:" in explanation
+        assert "Sub-goals:" in explanation
         assert "1." in explanation
