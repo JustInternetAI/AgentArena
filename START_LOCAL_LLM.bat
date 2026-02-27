@@ -1,8 +1,7 @@
 @echo off
-REM Agent Arena - IPC Server (Local LLM)
-REM This is the original startup script. For clarity, you can also use:
-REM   START_LOCAL_LLM.bat  - Same as this (local llama.cpp model)
-REM   START_CLAUDE.bat     - Uses Anthropic Claude API instead
+REM Agent Arena - Local LLM Agent
+REM Starts the Python IPC server with the local LLM agent (llama.cpp)
+REM Then open Godot, load scenes/foraging.tscn, press F5, then SPACE
 
 echo ========================================
 echo Agent Arena - Local LLM Agent
@@ -40,8 +39,9 @@ if errorlevel 1 (
 )
 
 echo.
-echo Starting Foraging Demo (IPC Server + Beginner Agent)...
+echo Starting Local LLM Agent (llama.cpp)...
 echo Server will be available at: http://127.0.0.1:5000
+echo Debug inspector at: http://127.0.0.1:5000/debug
 echo.
 echo Next steps:
 echo   1. Open Godot and load scenes/foraging.tscn

@@ -23,6 +23,7 @@ Quick Start:
 For complete examples, see the starter templates in the AgentArena repository.
 """
 
+from .adapters import FrameworkAdapter
 from .arena import AgentArena
 from .schemas import (
     Decision,
@@ -44,6 +45,8 @@ __version__ = "0.1.0"
 __all__ = [
     # Main API
     "AgentArena",
+    # Framework adapters
+    "FrameworkAdapter",
     # Core schemas
     "Observation",
     "Decision",
