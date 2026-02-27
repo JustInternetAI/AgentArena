@@ -4,13 +4,36 @@ AgentArena - Main connection manager for the SDK.
 This provides a simple API for learners to connect their agents to the game.
 """
 
+from __future__ import annotations
+
 import logging
-from typing import Callable
+from typing import Any, Callable
 
 from .schemas import Decision, Observation
 from .server import MinimalIPCServer
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_callback(
+    agent: Callable[[Observation], Decision] | Any,
+) -> Callable[[Observation], Decision]:
+    """Resolve *agent* to a plain callback for the IPC server.
+
+    Accepts:
+    - A ``FrameworkAdapter`` (or any object with a ``decide`` method)
+    - A bare callable ``(Observation) -> Decision``
+
+    Raises ``TypeError`` if *agent* is neither.
+    """
+    if hasattr(agent, "decide") and callable(agent.decide):
+        return agent.decide  # type: ignore[return-value]
+    if callable(agent):
+        return agent  # type: ignore[return-value]
+    raise TypeError(
+        "agent must be a callable(Observation -> Decision) or an object "
+        "with a decide(Observation) -> Decision method"
+    )
 
 
 class AgentArena:
@@ -22,7 +45,8 @@ class AgentArena:
     - Calling your decide function each tick
     - Managing the connection to Godot
 
-    Example:
+    Example — bare callback::
+
         from agent_arena_sdk import AgentArena, Observation, Decision
 
         def my_decide(obs: Observation) -> Decision:
@@ -36,6 +60,14 @@ class AgentArena:
 
         arena = AgentArena(host="127.0.0.1", port=5000)
         arena.run(my_decide)  # Blocks until stopped
+
+    Example — framework adapter::
+
+        from agent_arena_sdk import AgentArena
+        from my_adapter import MyAdapter
+
+        arena = AgentArena()
+        arena.run(MyAdapter(model="claude-sonnet-4-20250514"))
     """
 
     def __init__(
@@ -63,7 +95,7 @@ class AgentArena:
             f"{' (debug enabled)' if enable_debug else ''}"
         )
 
-    def run(self, decide_callback: Callable[[Observation], Decision]) -> None:
+    def run(self, agent: Callable[[Observation], Decision] | Any) -> None:
         """
         Run the agent server (blocking).
 
@@ -71,7 +103,9 @@ class AgentArena:
         Blocks until the server is stopped (Ctrl+C).
 
         Args:
-            decide_callback: Function that takes Observation and returns Decision
+            agent: A callable ``(Observation) -> Decision``, or an object
+                with a ``decide(Observation) -> Decision`` method (e.g. a
+                :class:`~agent_arena_sdk.adapters.FrameworkAdapter`).
 
         Example:
             def decide(obs: Observation) -> Decision:
@@ -80,6 +114,8 @@ class AgentArena:
             arena = AgentArena()
             arena.run(decide)  # Blocks here
         """
+        decide_callback = _resolve_callback(agent)
+
         logger.info("Starting agent server...")
         logger.info("Waiting for connection from Godot...")
 
@@ -97,14 +133,15 @@ class AgentArena:
         finally:
             logger.info("Agent server shut down")
 
-    async def run_async(self, decide_callback: Callable[[Observation], Decision]) -> None:
+    async def run_async(self, agent: Callable[[Observation], Decision] | Any) -> None:
         """
         Run the agent server (async).
 
         This is an async version of run() that can be awaited.
 
         Args:
-            decide_callback: Function that takes Observation and returns Decision
+            agent: A callable ``(Observation) -> Decision``, or an object
+                with a ``decide(Observation) -> Decision`` method.
 
         Example:
             async def main():
@@ -116,6 +153,8 @@ class AgentArena:
 
             asyncio.run(main())
         """
+        decide_callback = _resolve_callback(agent)
+
         logger.info("Starting agent server (async)...")
         logger.info("Waiting for connection from Godot...")
 

@@ -716,11 +716,13 @@ class TestAgentDecision:
         with pytest.raises(ValueError, match="Invalid JSON"):
             AgentDecision.from_llm_response(response)
 
-    def test_from_llm_response_malformed_json(self):
-        """Test handling of malformed JSON."""
+    def test_from_llm_response_truncated_json_recovery(self):
+        """Test recovery of truncated JSON (e.g., from LLM token limit)."""
         response = '{"tool": "move", "params": {'
-        with pytest.raises(ValueError, match="Invalid JSON"):
-            AgentDecision.from_llm_response(response)
+        # Truncated JSON is recovered by _recover_truncated_json
+        decision = AgentDecision.from_llm_response(response)
+        assert decision.tool == "move"
+        assert decision.params == {}
 
     def test_from_llm_response_alternate_reasoning_fields(self):
         """Test parsing with alternate reasoning field names."""

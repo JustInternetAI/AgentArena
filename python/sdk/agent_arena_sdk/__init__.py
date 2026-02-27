@@ -24,6 +24,7 @@ For complete examples, see the starter templates in the AgentArena repository.
 """
 
 from . import testing
+from .adapters import FrameworkAdapter
 from .arena import AgentArena
 from .memory import SpatialMemory
 from .schemas import (
@@ -51,6 +52,8 @@ __all__ = [
     "testing",
     # Main API
     "AgentArena",
+    # Framework adapters
+    "FrameworkAdapter",
     # Core schemas
     "Observation",
     "Decision",

@@ -14,7 +14,8 @@ Unlike frameworks that hide complexity behind base classes, starters give you wo
 |---------|-------------|----------|
 | [beginner/](beginner/) | Simple if/else logic, no memory | Learning the basics |
 | [intermediate/](intermediate/) | Memory, planning, state tracking | Building real skills |
-| [llm/](llm/) | LLM-powered reasoning | Advanced techniques |
+| [llm/](llm/) | Local LLM reasoning (llama.cpp) | Advanced techniques |
+| [claude/](claude/) | Anthropic Claude with native tool_use | Learning framework integration |
 
 ## Quick Start
 

@@ -1,88 +1,93 @@
 """Tests for the reasoning trace system."""
 
-import importlib.util
 import json
-import sys
 import tempfile
-import time
 from pathlib import Path
 
 import pytest
 
-# Add python directory to path for imports
-python_dir = Path(__file__).parent.parent / "python"
-sys.path.insert(0, str(python_dir))
-
-
-def load_module_directly(name: str, file_path: Path):
-    """Load a module directly from file, adding it to sys.modules."""
-    spec = importlib.util.spec_from_file_location(name, file_path)
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-# Import the reasoning_trace module directly to avoid heavy dependencies in __init__.py
-reasoning_trace_module = load_module_directly(
-    "agent_runtime.reasoning_trace", python_dir / "agent_runtime" / "reasoning_trace.py"
+from agent_runtime.reasoning_trace import (
+    ReasoningTrace,
+    TraceStep,
+    TraceStepName,
+    TraceStore,
+    get_global_trace_store,
+    set_global_trace_store,
 )
 
-ReasoningTrace = reasoning_trace_module.ReasoningTrace
-TraceStep = reasoning_trace_module.TraceStep
-TraceStore = reasoning_trace_module.TraceStore
+
+class TestTraceStepName:
+    """Tests for TraceStepName enum."""
+
+    def test_standard_step_names(self):
+        """Test that standard step names exist."""
+        assert TraceStepName.OBSERVATION == "observation"
+        assert TraceStepName.DECISION == "decision"
+        assert TraceStepName.PROMPT_BUILDING == "prompt"
+        assert TraceStepName.LLM_REQUEST == "llm_request"
+        assert TraceStepName.LLM_RESPONSE == "response"
+        assert TraceStepName.RETRIEVED == "retrieved"
 
 
 class TestTraceStep:
     """Tests for TraceStep dataclass."""
 
     def test_create_trace_step(self):
-        """Test creating a trace step."""
-        step = TraceStep(name="test", data={"key": "value"})
-        assert step.name == "test"
-        assert step.data == {"key": "value"}
-        assert step.timestamp > 0
-        assert step.elapsed_ms == 0.0
+        """Test creating a trace step with all required fields."""
+        step = TraceStep(
+            timestamp="2026-01-01T00:00:00Z",
+            agent_id="agent1",
+            tick=42,
+            name="observation",
+            data={"position": [1, 2, 3]},
+        )
+        assert step.name == "observation"
+        assert step.agent_id == "agent1"
+        assert step.tick == 42
+        assert step.data == {"position": [1, 2, 3]}
+        assert step.duration_ms is None
 
-    def test_trace_step_to_dict(self):
+    def test_create_with_duration(self):
+        """Test creating a trace step with duration."""
+        step = TraceStep(
+            timestamp="2026-01-01T00:00:00Z",
+            agent_id="agent1",
+            tick=42,
+            name="llm_request",
+            data={"prompt": "test"},
+            duration_ms=150.5,
+        )
+        assert step.duration_ms == 150.5
+
+    def test_to_dict(self):
         """Test converting trace step to dict."""
-        step = TraceStep(name="test", data={"key": "value"}, timestamp=1000.0, elapsed_ms=5.0)
+        step = TraceStep(
+            timestamp="2026-01-01T00:00:00Z",
+            agent_id="agent1",
+            tick=42,
+            name="test",
+            data={"key": "value"},
+        )
         result = step.to_dict()
         assert result["name"] == "test"
         assert result["data"] == {"key": "value"}
-        assert result["timestamp"] == 1000.0
-        assert result["elapsed_ms"] == 5.0
+        assert result["timestamp"] == "2026-01-01T00:00:00Z"
+        assert result["agent_id"] == "agent1"
+        assert result["tick"] == 42
+        assert "duration_ms" not in result  # None values omitted
 
-    def test_trace_step_from_dict(self):
-        """Test creating trace step from dict."""
-        data = {"name": "test", "data": {"key": "value"}, "timestamp": 1000.0, "elapsed_ms": 5.0}
-        step = TraceStep.from_dict(data)
-        assert step.name == "test"
-        assert step.data == {"key": "value"}
-        assert step.timestamp == 1000.0
-        assert step.elapsed_ms == 5.0
-
-    def test_trace_step_serialize_complex_data(self):
-        """Test serializing complex data types."""
-
-        class MockObject:
-            def __init__(self):
-                self.field = "value"
-
-        step = TraceStep(name="test", data=MockObject())
+    def test_to_dict_with_duration(self):
+        """Test to_dict includes duration_ms when set."""
+        step = TraceStep(
+            timestamp="2026-01-01T00:00:00Z",
+            agent_id="agent1",
+            tick=42,
+            name="test",
+            data={},
+            duration_ms=5.0,
+        )
         result = step.to_dict()
-        assert result["data"] == {"field": "value"}
-
-    def test_trace_step_serialize_to_dict_method(self):
-        """Test serializing objects with to_dict method."""
-
-        class MockDataClass:
-            def to_dict(self):
-                return {"custom": "data"}
-
-        step = TraceStep(name="test", data=MockDataClass())
-        result = step.to_dict()
-        assert result["data"] == {"custom": "data"}
+        assert result["duration_ms"] == 5.0
 
 
 class TestReasoningTrace:
@@ -90,73 +95,93 @@ class TestReasoningTrace:
 
     def test_create_trace(self):
         """Test creating a reasoning trace."""
-        trace = ReasoningTrace(agent_id="agent1", tick=42, episode_id="ep1")
+        trace = ReasoningTrace(
+            agent_id="agent1",
+            tick=42,
+            episode_id="ep1",
+            start_time="2026-01-01T00:00:00Z",
+        )
         assert trace.agent_id == "agent1"
         assert trace.tick == 42
         assert trace.episode_id == "ep1"
+        assert trace.start_time == "2026-01-01T00:00:00Z"
         assert trace.steps == []
-        assert trace.trace_id is not None
-        assert trace.start_time > 0
 
     def test_add_step(self):
         """Test adding steps to a trace."""
-        trace = ReasoningTrace(agent_id="agent1", tick=42, episode_id="ep1")
-        step = trace.add_step("observation", {"position": [1, 2, 3]})
+        trace = ReasoningTrace(
+            agent_id="agent1",
+            tick=42,
+            episode_id="ep1",
+            start_time="2026-01-01T00:00:00Z",
+        )
+        trace.add_step("observation", {"position": [1, 2, 3]})
 
         assert len(trace.steps) == 1
         assert trace.steps[0].name == "observation"
         assert trace.steps[0].data == {"position": [1, 2, 3]}
-        assert step.elapsed_ms >= 0
+        assert trace.steps[0].agent_id == "agent1"
+        assert trace.steps[0].tick == 42
+
+    def test_add_step_with_duration(self):
+        """Test adding step with explicit duration."""
+        trace = ReasoningTrace(
+            agent_id="agent1",
+            tick=42,
+            episode_id="ep1",
+            start_time="2026-01-01T00:00:00Z",
+        )
+        trace.add_step("llm_request", {"prompt": "test"}, duration_ms=200.0)
+
+        assert trace.steps[0].duration_ms == 200.0
 
     def test_add_multiple_steps(self):
-        """Test adding multiple steps tracks elapsed time."""
-        trace = ReasoningTrace(agent_id="agent1", tick=42, episode_id="ep1")
-
-        trace.add_step("step1", "data1")
-        time.sleep(0.01)  # Small delay
-        trace.add_step("step2", "data2")
+        """Test adding multiple steps."""
+        trace = ReasoningTrace(
+            agent_id="agent1",
+            tick=42,
+            episode_id="ep1",
+            start_time="2026-01-01T00:00:00Z",
+        )
+        trace.add_step("observation", {"pos": [0, 0, 0]})
+        trace.add_step("decision", {"tool": "move_to"})
 
         assert len(trace.steps) == 2
-        assert trace.steps[1].elapsed_ms > trace.steps[0].elapsed_ms
+        assert trace.steps[0].name == "observation"
+        assert trace.steps[1].name == "decision"
 
     def test_to_dict(self):
         """Test converting trace to dict."""
-        trace = ReasoningTrace(agent_id="agent1", tick=42, episode_id="ep1")
+        trace = ReasoningTrace(
+            agent_id="agent1",
+            tick=42,
+            episode_id="ep1",
+            start_time="2026-01-01T00:00:00Z",
+        )
         trace.add_step("test", {"key": "value"})
 
         result = trace.to_dict()
         assert result["agent_id"] == "agent1"
         assert result["tick"] == 42
         assert result["episode_id"] == "ep1"
+        assert result["start_time"] == "2026-01-01T00:00:00Z"
         assert len(result["steps"]) == 1
 
-    def test_to_json_and_from_json(self):
-        """Test JSON serialization round-trip."""
-        trace = ReasoningTrace(agent_id="agent1", tick=42, episode_id="ep1")
+    def test_to_jsonl(self):
+        """Test JSONL serialization."""
+        trace = ReasoningTrace(
+            agent_id="agent1",
+            tick=42,
+            episode_id="ep1",
+            start_time="2026-01-01T00:00:00Z",
+        )
         trace.add_step("observation", {"position": [1, 2, 3]})
-        trace.add_step("decision", {"tool": "move_to"})
 
-        json_str = trace.to_json()
-        restored = ReasoningTrace.from_json(json_str)
-
-        assert restored.agent_id == trace.agent_id
-        assert restored.tick == trace.tick
-        assert restored.episode_id == trace.episode_id
-        assert len(restored.steps) == 2
-        assert restored.steps[0].name == "observation"
-        assert restored.steps[1].name == "decision"
-
-    def test_format_tree(self):
-        """Test tree formatting."""
-        trace = ReasoningTrace(agent_id="agent1", tick=42, episode_id="ep1")
-        trace.add_step("observation", {"position": [1, 2, 3]})
-        trace.add_step("decision", {"tool": "move_to", "params": {"target": [4, 5, 6]}})
-
-        tree = trace.format_tree()
-        assert "Decision Trace - Agent: agent1, Tick: 42" in tree
-        assert "observation" in tree
-        assert "decision" in tree
-        assert "move_to" in tree
+        jsonl = trace.to_jsonl()
+        data = json.loads(jsonl)
+        assert data["agent_id"] == "agent1"
+        assert data["tick"] == 42
+        assert len(data["steps"]) == 1
 
 
 class TestTraceStore:
@@ -169,196 +194,290 @@ class TestTraceStore:
             yield Path(tmpdir)
 
     @pytest.fixture
-    def store(self, temp_dir):
-        """Create a trace store in temp directory."""
-        # Reset singleton
-        TraceStore.reset_instance()
-        return TraceStore(temp_dir)
+    def store(self):
+        """Create a basic in-memory trace store."""
+        return TraceStore(enabled=True, log_to_file=False)
 
-    def test_create_store(self, temp_dir):
-        """Test creating a trace store."""
-        store = TraceStore(temp_dir)
-        assert store.traces_dir == temp_dir
-        assert temp_dir.exists()
+    @pytest.fixture
+    def file_store(self, temp_dir):
+        """Create a trace store with file logging."""
+        return TraceStore(enabled=True, log_to_file=True, log_dir=temp_dir)
 
-    def test_set_episode(self, store):
-        """Test setting an episode."""
-        episode_id = store.set_episode("agent1", "ep_test")
-        assert episode_id == "ep_test"
-        assert store.get_episode("agent1") == "ep_test"
+    def test_create_store_defaults(self):
+        """Test creating a trace store with defaults."""
+        store = TraceStore()
+        assert store.enabled is True
+        assert store.max_entries == 1000
+        assert store.log_to_file is False
 
-    def test_set_episode_auto_generate(self, store):
-        """Test auto-generating episode ID."""
-        episode_id = store.set_episode("agent1")
-        assert episode_id.startswith("ep_")
-        assert store.get_episode("agent1") == episode_id
+    def test_create_store_disabled(self):
+        """Test creating a disabled trace store."""
+        store = TraceStore(enabled=False)
+        assert store.enabled is False
 
-    def test_start_trace(self, store):
-        """Test starting a trace."""
-        store.set_episode("agent1", "ep1")
-        trace = store.start_trace("agent1", tick=42)
-
-        assert trace.agent_id == "agent1"
-        assert trace.tick == 42
-        assert trace.episode_id == "ep1"
-
-    def test_add_step(self, store):
-        """Test adding a step."""
-        store.set_episode("agent1", "ep1")
-        step = store.add_step("agent1", tick=42, name="test", data={"key": "value"})
-
-        assert step is not None
-        assert step.name == "test"
-
-    def test_end_trace_writes_file(self, store, temp_dir):
-        """Test ending a trace writes to file."""
-        store.set_episode("agent1", "ep1")
-        store.add_step("agent1", tick=42, name="test", data={"key": "value"})
-        trace = store.end_trace("agent1")
+    def test_start_and_get_capture(self, store):
+        """Test starting and retrieving a capture."""
+        trace = store.start_capture("agent1", tick=42)
 
         assert trace is not None
-        trace_file = temp_dir / "agent1" / "ep1.jsonl"
-        assert trace_file.exists()
+        assert trace.agent_id == "agent1"
+        assert trace.tick == 42
 
-        with open(trace_file) as f:
+        retrieved = store.get_capture("agent1", 42)
+        assert retrieved is trace
+
+    def test_start_capture_disabled(self):
+        """Test start_capture returns None when disabled."""
+        store = TraceStore(enabled=False)
+        trace = store.start_capture("agent1", tick=42)
+        assert trace is None
+
+    def test_finish_capture(self, store):
+        """Test finishing a capture."""
+        trace = store.start_capture("agent1", tick=42)
+        trace.add_step("observation", {"pos": [0, 0, 0]})
+        # Should not raise
+        store.finish_capture("agent1", 42)
+
+    def test_finish_capture_with_file(self, file_store, temp_dir):
+        """Test finishing a capture writes to JSONL file."""
+        trace = file_store.start_capture("agent1", tick=42)
+        trace.add_step("test", {"key": "value"})
+        file_store.finish_capture("agent1", 42)
+
+        # Check that the episode file was written
+        episode_file = temp_dir / f"{file_store.episode_id}.jsonl"
+        assert episode_file.exists()
+
+        # Close file handle before reading (Windows file locking)
+        file_store.end_episode()
+
+        with open(episode_file) as f:
             lines = f.readlines()
             assert len(lines) == 1
             data = json.loads(lines[0])
             assert data["agent_id"] == "agent1"
             assert data["tick"] == 42
 
-    def test_get_last_decision(self, store, temp_dir):
-        """Test getting the last decision."""
-        store.set_episode("agent1", "ep1")
+    def test_get_captures_for_agent(self, store):
+        """Test getting all captures for an agent."""
+        store.start_capture("agent1", tick=1)
+        store.start_capture("agent1", tick=2)
+        store.start_capture("agent2", tick=1)
 
-        # Add multiple traces
-        store.add_step("agent1", tick=1, name="step1", data="data1")
-        store.end_trace("agent1")
-
-        store.add_step("agent1", tick=2, name="step2", data="data2")
-        store.end_trace("agent1")
-
-        last = store.get_last_decision("agent1")
-        assert last is not None
-        assert last.tick == 2
-
-    def test_get_episode_traces(self, store):
-        """Test getting all traces for an episode."""
-        store.set_episode("agent1", "ep1")
-
-        store.add_step("agent1", tick=1, name="s1", data="d1")
-        store.end_trace("agent1")
-
-        store.add_step("agent1", tick=2, name="s2", data="d2")
-        store.end_trace("agent1")
-
-        traces = store.get_episode_traces("agent1", "ep1")
+        traces = store.get_captures_for_agent("agent1")
         assert len(traces) == 2
         assert traces[0].tick == 1
         assert traces[1].tick == 2
 
-    def test_list_agents(self, store):
-        """Test listing agents."""
-        store.set_episode("agent1", "ep1")
-        store.add_step("agent1", tick=1, name="s1", data="d1")
-        store.end_trace("agent1")
+    def test_get_all_captures(self, store):
+        """Test getting all captures."""
+        store.start_capture("agent1", tick=1)
+        store.start_capture("agent2", tick=1)
+        store.start_capture("agent1", tick=2)
 
-        store.set_episode("agent2", "ep1")
-        store.add_step("agent2", tick=1, name="s1", data="d1")
-        store.end_trace("agent2")
+        traces = store.get_all_captures()
+        assert len(traces) == 3
 
-        agents = store.list_agents()
-        assert set(agents) == {"agent1", "agent2"}
+    def test_get_all_captures_with_tick_range(self, store):
+        """Test filtering captures by tick range."""
+        store.start_capture("agent1", tick=1)
+        store.start_capture("agent1", tick=5)
+        store.start_capture("agent1", tick=10)
 
-    def test_list_episodes(self, store):
-        """Test listing episodes."""
-        store.set_episode("agent1", "ep1")
-        store.add_step("agent1", tick=1, name="s1", data="d1")
-        store.end_trace("agent1")
+        traces = store.get_all_captures(tick_start=3, tick_end=7)
+        assert len(traces) == 1
+        assert traces[0].tick == 5
 
-        store.set_episode("agent1", "ep2")
-        store.add_step("agent1", tick=1, name="s1", data="d1")
-        store.end_trace("agent1")
+    def test_max_entries_limit(self):
+        """Test that max_entries limit is enforced."""
+        store = TraceStore(max_entries=3)
+        store.start_capture("agent1", tick=1)
+        store.start_capture("agent1", tick=2)
+        store.start_capture("agent1", tick=3)
+        store.start_capture("agent1", tick=4)
 
-        episodes = store.list_episodes("agent1")
-        assert "ep1" in episodes
-        assert "ep2" in episodes
+        assert len(store.traces) == 3
+        # Oldest (tick=1) should have been evicted
+        assert store.get_capture("agent1", 1) is None
+        assert store.get_capture("agent1", 4) is not None
 
-    def test_no_traces_returns_none(self, store):
-        """Test getting traces when none exist."""
-        assert store.get_last_decision("nonexistent") is None
-        assert store.get_episode_traces("agent1", "nonexistent") == []
+    def test_start_and_end_episode(self, file_store, temp_dir):
+        """Test episode lifecycle."""
+        file_store.start_episode("ep_custom")
+        assert file_store.episode_id == "ep_custom"
 
-    def test_singleton_pattern(self, temp_dir):
-        """Test singleton pattern."""
-        TraceStore.reset_instance()
-        store1 = TraceStore.get_instance(temp_dir)
-        store2 = TraceStore.get_instance()
-        assert store1 is store2
+        trace = file_store.start_capture("agent1", tick=1)
+        trace.add_step("test", {})
+        file_store.finish_capture("agent1", 1)
 
-        TraceStore.reset_instance()
+        file_store.end_episode()
+
+        # Verify file was written
+        episode_file = temp_dir / "ep_custom.jsonl"
+        assert episode_file.exists()
+
+    def test_get_episode_traces(self, file_store, temp_dir):
+        """Test reading traces back from episode file."""
+        file_store.start_episode("ep_read_test")
+
+        trace = file_store.start_capture("agent1", tick=1)
+        trace.add_step("obs", {"pos": [0, 0, 0]})
+        file_store.finish_capture("agent1", 1)
+
+        trace2 = file_store.start_capture("agent1", tick=2)
+        trace2.add_step("dec", {"tool": "idle"})
+        file_store.finish_capture("agent1", 2)
+
+        file_store.end_episode()
+
+        # Read back from file
+        traces = file_store.get_episode_traces("ep_read_test")
+        assert len(traces) == 2
+        assert traces[0].tick == 1
+        assert traces[1].tick == 2
+
+    def test_watch_callback(self, store):
+        """Test watcher callbacks on finish_capture."""
+        received = []
+
+        def on_trace(trace):
+            received.append(trace)
+
+        store.watch("agent1", on_trace)
+
+        trace = store.start_capture("agent1", tick=1)
+        trace.add_step("test", {})
+        store.finish_capture("agent1", 1)
+
+        assert len(received) == 1
+        assert received[0].agent_id == "agent1"
+
+    def test_watch_wildcard(self, store):
+        """Test wildcard watcher receives all agents."""
+        received = []
+        store.watch("*", lambda t: received.append(t))
+
+        store.start_capture("agent1", tick=1)
+        store.finish_capture("agent1", 1)
+
+        store.start_capture("agent2", tick=1)
+        store.finish_capture("agent2", 1)
+
+        assert len(received) == 2
+
+    def test_unwatch(self, store):
+        """Test removing a watcher."""
+        received = []
+
+        def callback(trace):
+            received.append(trace)
+
+        store.watch("agent1", callback)
+        store.unwatch("agent1", callback)
+
+        store.start_capture("agent1", tick=1)
+        store.finish_capture("agent1", 1)
+
+        assert len(received) == 0
+
+    def test_clear(self, store):
+        """Test clearing all in-memory traces."""
+        store.start_capture("agent1", tick=1)
+        store.start_capture("agent1", tick=2)
+        assert len(store.traces) == 2
+
+        store.clear()
+        assert len(store.traces) == 0
+
+    def test_to_json(self, store):
+        """Test JSON export."""
+        trace = store.start_capture("agent1", tick=1)
+        trace.add_step("obs", {"pos": [0, 0, 0]})
+
+        json_str = store.to_json()
+        data = json.loads(json_str)
+        assert len(data) == 1
+        assert data[0]["agent_id"] == "agent1"
+
+    def test_to_json_filter_by_agent(self, store):
+        """Test JSON export filtered by agent."""
+        store.start_capture("agent1", tick=1)
+        store.start_capture("agent2", tick=1)
+
+        json_str = store.to_json(agent_id="agent1")
+        data = json.loads(json_str)
+        assert len(data) == 1
+        assert data[0]["agent_id"] == "agent1"
+
+    def test_get_capture_nonexistent(self, store):
+        """Test getting a nonexistent capture returns None."""
+        assert store.get_capture("agent1", 999) is None
+
+
+class TestGlobalTraceStore:
+    """Tests for global singleton functions."""
+
+    def test_get_global_creates_default(self):
+        """Test get_global_trace_store creates a default store."""
+        # Reset global
+        set_global_trace_store(None)
+
+        # Import and reset the global
+        import agent_runtime.reasoning_trace as rt
+
+        rt._global_trace_store = None
+
+        store = get_global_trace_store()
+        assert store is not None
+        assert isinstance(store, TraceStore)
+
+    def test_set_and_get_global(self):
+        """Test setting and getting a custom global store."""
+        custom_store = TraceStore(enabled=False, max_entries=50)
+        set_global_trace_store(custom_store)
+
+        retrieved = get_global_trace_store()
+        assert retrieved is custom_store
+        assert retrieved.enabled is False
+        assert retrieved.max_entries == 50
 
 
 class TestAgentBehaviorTracing:
     """Tests for tracing integration with AgentBehavior."""
 
-    @pytest.fixture
-    def temp_dir(self):
-        """Create a temporary directory for traces."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            yield Path(tmpdir)
-
-    def test_enable_tracing(self, temp_dir):
-        """Test enabling tracing on an agent behavior."""
-        # Import directly to avoid heavy dependencies
-        schemas_module = load_module_directly(
-            "agent_runtime.schemas", python_dir / "agent_runtime" / "schemas.py"
-        )
-        behavior_module = load_module_directly(
-            "agent_runtime.behavior", python_dir / "agent_runtime" / "behavior.py"
-        )
-
-        AgentBehavior = behavior_module.AgentBehavior  # noqa: N806
-        AgentDecision = schemas_module.AgentDecision  # noqa: N806
-        Observation = schemas_module.Observation  # noqa: N806
+    def test_log_step_with_tracing(self):
+        """Test log_step adds to current trace when tracing is active."""
+        from agent_runtime.behavior import AgentBehavior
+        from agent_runtime.schemas import AgentDecision, Observation
 
         class TestAgent(AgentBehavior):
             def decide(self, observation, tools):
                 self.log_step("test_step", {"data": "value"})
                 return AgentDecision.idle()
 
-        # Reset singleton to use our temp dir
-        TraceStore.reset_instance()
-
+        store = TraceStore(enabled=True, log_to_file=False)
         agent = TestAgent()
-        agent.enable_tracing(temp_dir)
-        agent._agent_id = "test_agent"
-        agent._current_tick = 1
+        agent._trace_store = store
 
-        # Create a mock observation
-        obs = Observation(
-            agent_id="test_agent",
-            tick=1,
-            position=(0, 0, 0),
-        )
+        # Simulate what IPC server does
+        agent._set_trace_context("test_agent", 1)
 
-        # Make a decision
+        obs = Observation(agent_id="test_agent", tick=1, position=(0, 0, 0))
         agent.decide(obs, [])
         agent._end_trace()
 
-        # Check trace was written
-        trace_file = list(temp_dir.glob("test_agent/*.jsonl"))
-        assert len(trace_file) == 1
+        # Verify the trace was captured
+        trace = store.get_capture("test_agent", 1)
+        assert trace is not None
+        assert len(trace.steps) == 1
+        assert trace.steps[0].name == "test_step"
+        assert trace.steps[0].data == {"data": "value"}
 
-        # Cleanup
-        TraceStore.reset_instance()
-
-    def test_log_step_without_tracing(self, temp_dir):
-        """Test log_step is no-op when tracing is disabled."""
-        # Use already loaded modules
-        AgentBehavior = sys.modules["agent_runtime.behavior"].AgentBehavior  # noqa: N806
-        AgentDecision = sys.modules["agent_runtime.schemas"].AgentDecision  # noqa: N806
-        Observation = sys.modules["agent_runtime.schemas"].Observation  # noqa: N806
+    def test_log_step_without_tracing(self):
+        """Test log_step is a no-op when tracing is disabled."""
+        from agent_runtime.behavior import AgentBehavior
+        from agent_runtime.schemas import AgentDecision, Observation
 
         class TestAgent(AgentBehavior):
             def decide(self, observation, tools):
@@ -366,17 +485,8 @@ class TestAgentBehaviorTracing:
                 return AgentDecision.idle()
 
         agent = TestAgent()
-        # Don't enable tracing
+        # Don't set _trace_store
 
-        obs = Observation(
-            agent_id="test_agent",
-            tick=1,
-            position=(0, 0, 0),
-        )
-
+        obs = Observation(agent_id="test_agent", tick=1, position=(0, 0, 0))
         # Should not raise
         agent.decide(obs, [])
-
-        # No trace files should exist in temp_dir
-        trace_files = list(temp_dir.glob("**/*.jsonl"))
-        assert len(trace_files) == 0
