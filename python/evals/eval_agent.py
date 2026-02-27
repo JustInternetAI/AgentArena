@@ -1,37 +1,39 @@
 """
-LLM Agent Eval Harness
+Adapter-Agnostic Agent Eval Harness
 
-Evaluate your agent's decisions against predefined scenarios or
+Evaluate any agent's decisions against predefined scenarios or
 custom observations — no Godot, no game connection needed.
 
-Supports local models (llama-cpp), Claude API, and OpenAI API.
+Works with any object that has a decide(obs) -> Decision method:
+framework adapters (ClaudeAdapter, etc.), standalone agents
+(beginner, intermediate, LLM starter), or your own custom agent.
 
 Usage:
-    # All scenarios with Claude
-    python eval_agent.py --provider claude
+    # All scenarios with the Claude adapter
+    python eval_agent.py --adapter claude
 
-    # Single scenario
-    python eval_agent.py --provider claude --scenario hazard_escape
+    # Single scenario with the beginner agent
+    python eval_agent.py --adapter beginner --scenario hazard_escape
 
     # Interactive mode — input your own observations
-    python eval_agent.py --interactive --provider claude
+    python eval_agent.py --adapter claude --interactive
 
-    # With local model
-    python eval_agent.py --model path/to/model.gguf
+    # LLM starter with a local model
+    python eval_agent.py --adapter llm --model path/to/model.gguf
 
-    # With OpenAI
-    python eval_agent.py --provider openai --model gpt-4o
+    # Intermediate starter
+    python eval_agent.py --adapter intermediate
 """
 
 import argparse
+import importlib
 import json
-import os
 import sys
 from pathlib import Path
 
-# Ensure SDK is importable
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "python" / "sdk"))
-sys.path.insert(0, str(Path(__file__).parent))
+# Ensure SDK and starters are importable
+_repo_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(_repo_root / "python" / "sdk"))
 
 from agent_arena_sdk.testing import (
     mock_hazard,
@@ -39,65 +41,61 @@ from agent_arena_sdk.testing import (
     mock_resource,
     mock_station,
 )
-from agent import Agent
-
 
 # ---------------------------------------------------------------------------
-#  API Client wrappers (drop-in replacements for LLMClient.generate())
+#  Adapter registry
 # ---------------------------------------------------------------------------
 
-
-class ClaudeClient:
-    """Drop-in for LLMClient using Anthropic API."""
-
-    def __init__(self, model: str = "claude-sonnet-4-20250514", api_key: str | None = None):
-        from anthropic import Anthropic
-
-        self.client = Anthropic(api_key=api_key or os.environ.get("ANTHROPIC_API_KEY"))
-        self.model = model
-
-    def generate(self, prompt, tools=None, temperature=None, system_prompt=None):
-        response = self.client.messages.create(
-            model=self.model,
-            max_tokens=1024,
-            system=system_prompt or "",
-            messages=[{"role": "user", "content": prompt}],
-        )
-        text = response.content[0].text
-        return {
-            "text": text,
-            "tool_call": None,
-            "tokens_used": response.usage.input_tokens + response.usage.output_tokens,
-            "finish_reason": response.stop_reason,
-        }
+# Each entry: (module_path_relative_to_starter_dir, class_name)
+ADAPTERS: dict[str, tuple[str, str]] = {
+    "claude": ("claude.agent", "ClaudeAdapter"),
+    "beginner": ("beginner.agent", "Agent"),
+    "intermediate": ("intermediate.agent", "Agent"),
+    "llm": ("llm.agent", "Agent"),
+}
 
 
-class OpenAIClient:
-    """Drop-in for LLMClient using OpenAI API."""
+def load_agent(adapter_name: str, model: str | None = None):
+    """
+    Load and instantiate an agent by adapter name.
 
-    def __init__(self, model: str = "gpt-4o", api_key: str | None = None):
-        from openai import OpenAI
+    Adds the appropriate starter directory to sys.path, imports the
+    module, and instantiates the agent class.
+    """
+    if adapter_name not in ADAPTERS:
+        print(f"Unknown adapter: {adapter_name}")
+        print(f"Available: {', '.join(ADAPTERS.keys())}")
+        sys.exit(1)
 
-        self.client = OpenAI(api_key=api_key or os.environ.get("OPENAI_API_KEY"))
-        self.model = model
+    module_path, class_name = ADAPTERS[adapter_name]
+    starters_dir = _repo_root / "starters"
 
-    def generate(self, prompt, tools=None, temperature=None, system_prompt=None):
-        messages = []
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            max_tokens=1024,
-        )
-        text = response.choices[0].message.content or ""
-        return {
-            "text": text,
-            "tool_call": None,
-            "tokens_used": response.usage.total_tokens if response.usage else 0,
-            "finish_reason": response.choices[0].finish_reason,
-        }
+    # Add starters root so "claude.agent" resolves to starters/claude/agent.py
+    starters_str = str(starters_dir)
+    if starters_str not in sys.path:
+        sys.path.insert(0, starters_str)
+
+    # For the LLM starter, also add its own directory (it has local imports)
+    starter_subdir = str(starters_dir / adapter_name)
+    if starter_subdir not in sys.path:
+        sys.path.insert(0, starter_subdir)
+
+    try:
+        module = importlib.import_module(module_path)
+    except ImportError as e:
+        print(f"Failed to import {module_path}: {e}")
+        print(f"Make sure the starter's dependencies are installed.")
+        sys.exit(1)
+
+    cls = getattr(module, class_name)
+
+    # Instantiate with model if the adapter accepts it
+    if adapter_name == "llm" and model:
+        return cls(model_path=model)
+    elif adapter_name == "claude" and model:
+        return cls(model=model)
+    else:
+        return cls()
 
 
 # ---------------------------------------------------------------------------
@@ -166,22 +164,6 @@ SCENARIOS = {
 # ---------------------------------------------------------------------------
 
 
-def make_agent(provider: str, model: str | None) -> Agent:
-    """Create an Agent with the specified LLM backend."""
-    if provider == "local":
-        model_path = model or "models/llama-2-7b/gguf/q4/model.gguf"
-        return Agent(model_path=model_path)
-    elif provider == "claude":
-        client = ClaudeClient(model=model or "claude-sonnet-4-20250514")
-        return Agent(llm_client=client)
-    elif provider == "openai":
-        client = OpenAIClient(model=model or "gpt-4o")
-        return Agent(llm_client=client)
-    else:
-        print(f"Unknown provider: {provider}")
-        sys.exit(1)
-
-
 def format_observation_summary(obs) -> str:
     """One-line summary of an observation for display."""
     parts = [f"Position: {list(obs.position)}", f"Health: {obs.health}", f"Energy: {obs.energy}"]
@@ -200,7 +182,7 @@ def format_observation_summary(obs) -> str:
     return " | ".join(parts)
 
 
-def run_scenario(agent: Agent, name: str, scenario: dict, index: int, total: int) -> dict:
+def run_scenario(agent, name: str, scenario: dict, index: int, total: int) -> dict:
     """Run a single scenario and display the result."""
     obs = scenario["observation"]
     print(f"\n[{index}/{total}] {name}")
@@ -217,8 +199,12 @@ def run_scenario(agent: Agent, name: str, scenario: dict, index: int, total: int
         if len(reasoning) > 200:
             reasoning = reasoning[:200] + "..."
         print(f"  Reasoning: \"{reasoning}\"")
-    if agent.last_trace:
-        tokens = agent.last_trace.get("tokens_used", 0)
+
+    # Token info is optional — only some adapters track it
+    trace = getattr(agent, "last_trace", None)
+    tokens = 0
+    if trace:
+        tokens = trace.get("tokens_used", 0)
         if tokens:
             print(f"  Tokens: {tokens}")
 
@@ -227,11 +213,11 @@ def run_scenario(agent: Agent, name: str, scenario: dict, index: int, total: int
         "tool": decision.tool,
         "params": decision.params,
         "reasoning": decision.reasoning,
-        "tokens": agent.last_trace.get("tokens_used", 0) if agent.last_trace else 0,
+        "tokens": tokens,
     }
 
 
-def run_all_scenarios(agent: Agent, scenario_filter: str | None = None):
+def run_all_scenarios(agent, scenario_filter: str | None = None):
     """Run predefined scenarios and print a scorecard."""
     if scenario_filter:
         if scenario_filter not in SCENARIOS:
@@ -281,25 +267,22 @@ def parse_entities(text: str, factory):
         if not entry:
             continue
         if ":" not in entry:
-            # Just a type name with default position
             entities.append(factory(entry))
             continue
         type_name, coords = entry.split(":", 1)
         pos = parse_position(coords)
-        # Calculate distance from origin (will be overridden if agent position differs)
         dist = (pos[0] ** 2 + pos[1] ** 2 + pos[2] ** 2) ** 0.5
         entities.append(factory(type_name.strip(), position=pos, distance=max(dist, 0.1)))
     return entities
 
 
-def interactive_mode(agent: Agent):
+def interactive_mode(agent):
     """Prompt user for observation params, run agent, display result. Loop."""
     print("\n== Interactive Eval Mode ==")
     print("Enter observation parameters (empty = default, 'q' to quit)\n")
 
     while True:
         try:
-            # Gather inputs
             pos_input = input("Position [0, 0, 0]: ")
             if pos_input.strip().lower() == "q":
                 break
@@ -320,7 +303,6 @@ def interactive_mode(agent: Agent):
             sta_input = input("Stations (type:x,y,z;type:x,y,z): ")
             stations = parse_entities(sta_input, mock_station) or None
 
-            # Build observation
             obs = mock_observation(
                 tick=1,
                 position=position,
@@ -331,22 +313,21 @@ def interactive_mode(agent: Agent):
                 nearby_stations=stations,
             )
 
-            # Display observation
             print(f"\n--- Observation ---")
             print(f"  {format_observation_summary(obs)}")
 
-            # Run agent
             decision = agent.decide(obs)
 
-            # Display result
             print(f"\n--- Decision ---")
             print(f"  Tool: {decision.tool}")
             if decision.params:
                 print(f"  Params: {json.dumps(decision.params)}")
             if decision.reasoning:
                 print(f"  Reasoning: \"{decision.reasoning}\"")
-            if agent.last_trace:
-                tokens = agent.last_trace.get("tokens_used", 0)
+
+            trace = getattr(agent, "last_trace", None)
+            if trace:
+                tokens = trace.get("tokens_used", 0)
                 if tokens:
                     print(f"  Tokens: {tokens}")
 
@@ -370,19 +351,19 @@ def interactive_mode(agent: Agent):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Evaluate LLM agent decisions against scenarios"
+        description="Evaluate agent decisions against scenarios (adapter-agnostic)"
     )
     parser.add_argument(
-        "--provider",
-        choices=["local", "claude", "openai"],
-        default="local",
-        help="LLM provider (default: local)",
+        "--adapter",
+        choices=list(ADAPTERS.keys()),
+        default="beginner",
+        help=f"Agent adapter to evaluate (default: beginner). Options: {', '.join(ADAPTERS.keys())}",
     )
     parser.add_argument(
         "--model",
         type=str,
         default=None,
-        help="Model name or path (provider-specific)",
+        help="Model name or path (adapter-specific, e.g. model.gguf for llm, claude-haiku-4-5-20251001 for claude)",
     )
     parser.add_argument(
         "--scenario",
@@ -398,17 +379,15 @@ def main():
 
     args = parser.parse_args()
 
-    # Determine display name
-    if args.provider == "local":
-        display_name = args.model or "local model"
-    elif args.provider == "claude":
-        display_name = args.model or "claude-sonnet-4-20250514"
+    # Display name
+    if args.model:
+        display_name = f"{args.adapter} ({args.model})"
     else:
-        display_name = args.model or "gpt-4o"
+        display_name = args.adapter
 
-    print(f"=== LLM Agent Eval ({display_name}) ===")
+    print(f"=== Agent Eval ({display_name}) ===")
 
-    agent = make_agent(args.provider, args.model)
+    agent = load_agent(args.adapter, args.model)
 
     if args.interactive:
         interactive_mode(agent)

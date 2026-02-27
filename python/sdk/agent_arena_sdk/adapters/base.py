@@ -8,8 +8,26 @@ Provides shared utilities that all framework adapters need:
 """
 
 from abc import ABC, abstractmethod
+from typing import Protocol, runtime_checkable
 
 from ..schemas import Decision, Observation, ToolSchema
+
+
+@runtime_checkable
+class Decidable(Protocol):
+    """
+    Structural type for anything that can make agent decisions.
+
+    Any object with a ``decide(obs: Observation) -> Decision`` method
+    satisfies this protocol — no inheritance required. This includes
+    ``FrameworkAdapter`` subclasses (ClaudeAdapter, etc.) and standalone
+    agent classes (beginner ``Agent``, LLM ``Agent``).
+
+    Used by the eval harness to run scenarios against any agent
+    implementation without caring what's behind the ``decide()`` call.
+    """
+
+    def decide(self, obs: Observation) -> Decision: ...
 
 
 class FrameworkAdapter(ABC):

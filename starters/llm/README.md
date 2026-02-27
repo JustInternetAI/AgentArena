@@ -22,28 +22,34 @@ llm/
 │   ├── system.txt    # System prompt (MODIFY THIS!)
 │   └── decision.txt  # Decision template (MODIFY THIS!)
 ├── run.py            # Entry point
-└── requirements.txt  # Dependencies
+├── requirements.txt  # Dependencies
+└── (eval moved to python/evals/eval_agent.py)
 ```
 
 ## Evaluate Your Agent
 
-Test your agent's decisions against scenarios — no Godot needed:
+Test your agent's decisions against scenarios — no Godot needed.
+The shared eval harness lives in `python/evals/eval_agent.py` and works
+with all starters:
 
 ```bash
-# Run all scenarios with Claude
-python eval_agent.py --provider claude
+cd ../../python/evals
 
-# Interactive mode — input your own observations
-python eval_agent.py --interactive --provider claude
+# Run all scenarios with the LLM starter
+python eval_agent.py --adapter llm
 
-# With local model
-python eval_agent.py --model path/to/model.gguf
+# With a specific local model
+python eval_agent.py --adapter llm --model path/to/model.gguf
 
-# With OpenAI
-python eval_agent.py --provider openai --model gpt-4o
+# Interactive mode
+python eval_agent.py --adapter llm --interactive
+
+# Other adapters work too
+python eval_agent.py --adapter claude
+python eval_agent.py --adapter beginner
 ```
 
-See `eval_agent.py` for predefined scenarios and to add your own.
+See `python/evals/eval_agent.py` for predefined scenarios and to add your own.
 
 ## Requirements
 
