@@ -31,18 +31,6 @@ python run.py
 
 Then connect from Agent Arena game.
 
-## Testing
-
-Run tests without Godot:
-
-```bash
-pip install pytest
-pytest test_agent.py -v
-```
-
-Tests use mock observations from the SDK — no game connection needed.
-See `test_agent.py` for examples of testing memory, hazard avoidance, and multi-tick behaviour.
-
 ## How Memory Works
 
 ```python

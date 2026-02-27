@@ -25,17 +25,25 @@ llm/
 └── requirements.txt  # Dependencies
 ```
 
-## Testing
+## Evaluate Your Agent
 
-Run tests without Godot, GPU, or model files:
+Test your agent's decisions against scenarios — no Godot needed:
 
 ```bash
-pip install pytest
-pytest test_agent.py -v
+# Run all scenarios with Claude
+python eval_agent.py --provider claude
+
+# Interactive mode — input your own observations
+python eval_agent.py --interactive --provider claude
+
+# With local model
+python eval_agent.py --model path/to/model.gguf
+
+# With OpenAI
+python eval_agent.py --provider openai --model gpt-4o
 ```
 
-Tests mock the LLM client so you can test prompt construction, JSON parsing, and
-fallback behaviour without loading a model. See `test_agent.py` for examples.
+See `eval_agent.py` for predefined scenarios and to add your own.
 
 ## Requirements
 

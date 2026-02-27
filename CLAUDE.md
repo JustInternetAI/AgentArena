@@ -55,15 +55,37 @@ c:\Projects\Agent Arena\
 └── docs/                    # Documentation
 ```
 
+## Strategic Direction
+
+**Own the unique, delegate the generic.** See `docs/framework_integration_strategy.md` for full details.
+
+Agent Arena is the **gym** (scenarios, physics, observations, scoring), not the **agent** (LLM calls, prompts, memory, tool calling). Agent infrastructure is commodity code that frameworks like LangGraph, Claude SDK, and OpenAI SDK do better.
+
+**What we own and invest in:**
+- SpatialMemory, EpisodeMemory — domain-specific to navigating a 3D world
+- Observation schema, game-specific tools (`move_to`, `collect`, `craft_item`)
+- MockArena, mock observation factories, eval harness — offline testing without Godot
+- FrameworkAdapter ABC — thin integration layer for any agent framework
+- Scenario/objective system, scoring, episode lifecycle
+
+**What we delegate to frameworks:**
+- LLM API calls, prompt construction, chain-of-thought
+- Generic memory (conversation history, RAG)
+- Tool calling infrastructure, function schemas
+- Observability/tracing (LangSmith, Anthropic Console, etc.)
+
+**When building new features, ask:** "Does any agent framework already provide this?" If yes, don't build it — write a framework starter that teaches users how to use the framework's version instead.
+
 ## Agent Architecture (Summary)
 
-Three-tier learning progression — all agent logic is Python, no C++/Godot knowledge needed:
+Starter templates in `starters/` — all agent logic is Python, no C++/Godot knowledge needed:
 
-- **Beginner** (`SimpleAgentBehavior`): Return a tool name string, framework infers params
-- **Intermediate** (`AgentBehavior`): Full `AgentDecision` control, explicit params, user-managed memory
-- **Advanced** (`LLMAgentBehavior`): LLM integration, planning, multi-agent coordination
+- **Beginner** (`starters/beginner/`): No framework — raw `decide()`, priority-based if/else
+- **Intermediate** (`starters/intermediate/`): No framework — manual memory + planning
+- **Claude** (`starters/claude/`): FrameworkAdapter using Claude native tool_use
+- **LLM** (`starters/llm/`): Local model via llama-cpp with custom prompt pipeline (legacy, pre-framework-strategy)
 
-Example agents in `python/user_agents/examples/`. Full docs in `docs/learners/`.
+Framework starters (Claude, future LangGraph) are the primary path. The LLM starter exists for local/offline use but its built-in prompt construction and JSON parsing duplicate what frameworks handle natively.
 
 ## Key Files
 - Architecture: `docs/architecture.md`
@@ -120,10 +142,12 @@ python run_ipc_server.py --host 127.0.0.1 --port 5000 --workers 4 --debug
 2. Register in `tools/__init__.py`
 3. Add tests in `tests/test_your_tool.py`
 
-### Adding a New Backend
-1. Create `python/backends/your_backend.py`, inherit from `BaseBackend`
-2. Implement required methods
-3. Add config in `configs/backend/your_backend.yaml`
+### Adding a New Framework Starter
+1. Create `starters/your_framework/` with `agent.py` and `run.py`
+2. Implement `FrameworkAdapter` subclass (or standalone `decide()` function)
+3. Write tutorial-quality comments explaining framework concepts
+4. Add `eval_agent.py` or equivalent for offline evaluation
+5. See `starters/claude/` as reference
 
 ### Adding to C++ Module
 1. Update `godot/include/agent_arena.h`
@@ -146,5 +170,5 @@ gh project item-add 3 --owner JustInternetAI --url <issue-url>
 
 ## Known Issues
 - Only foraging scene is fully implemented (crafting_chain and team_capture need content)
-- LLM backends not yet connected to agent decision-making (currently using rule-based SimpleForager)
 - Some tools in ToolRegistryService return stub responses (only move_to is fully implemented)
+- `starters/llm/` prompt pipeline duplicates what frameworks handle natively — kept for local/offline use but not the recommended path

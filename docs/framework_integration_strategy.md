@@ -264,18 +264,16 @@ With framework adapters, we no longer control the LLM call. Frameworks own promp
 
 ## Implementation Roadmap
 
-### Phase 1: Enable Pure AI Development (Issues #70-73)
+### Phase 1: Enable Pure AI Development (Issues #70-73) — MOSTLY COMPLETE
 
-These must be done first — they complete the infrastructure so developers can focus on AI:
-
-| Issue | Title | Effort |
+| Issue | Title | Status |
 |-------|-------|--------|
-| #70 | Onboarding guide with screenshots | 0.5 day |
-| #71 | Tool completion callbacks (Godot → Python) | 1 day |
-| #72 | Mock observations for local testing | 1 day |
-| #73 | Complete intermediate starter | 1-2 days |
+| #70 | Onboarding guide with screenshots | **Done** |
+| #71 | Tool completion callbacks (Godot → Python) | **Done** |
+| #72 | Mock observations for local testing | **Done** — `agent_arena_sdk.testing` module with mock factories, MockArena, and eval harness (`starters/llm/eval_agent.py`) |
+| #73 | Complete intermediate starter | Open |
 
-### Phase 2: Framework Starters (Issue #74)
+### Phase 2: Framework Starters (Issue #74) — IN PROGRESS
 
 Each framework starter is a **tutorial for that framework**, not just a template. It teaches framework concepts (tool definition, state management, memory, prompting) through the lens of building a game-playing agent.
 
@@ -283,35 +281,45 @@ Each framework starter is a **tutorial for that framework**, not just a template
 starters/
   beginner/          # No framework — raw decide(), learning fundamentals
   intermediate/      # No framework — manual memory + planning, learning patterns
-  langchain/         # Learn LangGraph by building a foraging agent
-  claude-sdk/        # Learn Claude tool_use by building a foraging agent
-  openai-sdk/        # Learn OpenAI function calling by building a foraging agent
+  claude/            # Learn Claude tool_use by building a foraging agent (DONE)
+  langchain/         # Learn LangGraph by building a foraging agent (planned)
+  openai-sdk/        # Learn OpenAI function calling by building a foraging agent (planned)
 ```
 
-| Step | Work | Effort |
+| Step | Work | Status |
 |------|------|--------|
-| Define adapter interface | `FrameworkAdapter` ABC, tool schema export | 0.5 day |
-| First framework starter | Claude Agent SDK or LangGraph (tutorial + adapter) | 2-3 days |
-| Second framework starter | Whichever wasn't first | 2-3 days |
+| Define adapter interface | `FrameworkAdapter` ABC, tool schema export | **Done** (#74) |
+| First framework starter | Claude starter with native tool_use | **Done** (#74) |
+| Second framework starter | LangGraph (#84) | Open |
+
+**Completed infrastructure:**
+- `FrameworkAdapter` ABC in `python/sdk/agent_arena_sdk/adapters/base.py`
+- Shared utilities: `format_observation()`, `get_action_tools()`, `fallback_decision()`
+- `ToolSchema.to_anthropic_format()` and `to_openai_format()` for cross-framework tool definitions
+- `python/backends/` directory deleted (#80) — frameworks handle LLM communication
+- SDK schemas consolidated to single source of truth (#78)
 
 ### Phase 3: Refactor to New Architecture (Issue #75 + cleanup)
 
-| Step | Work | Effort |
+| Step | Work | Status |
 |------|------|--------|
-| Refactor inspector | Game-side only, add framework trace linking | 2-3 days |
-| Build observation formatter | Convert Observation → prompt text for context injection | 1 day |
-| Expose SpatialMemory as query tool | `query_spatial_memory()`, `recall_location()` | 1 day |
-| Expose EpisodeMemory as query tool | `get_episode_summary()`, `get_experiences()` | 1 day |
-| Tag action tools as terminal | Adapter base class detects action tools and stops the loop | 0.5 day |
-| Remove redundant code | Delete backends/, SlidingWindowMemory, LLMClient | 1 day |
+| Refactor inspector | Game-side only, add framework trace linking (#75) | Open |
+| Build observation formatter | `format_observation()` in FrameworkAdapter base | **Done** |
+| Expose SpatialMemory as query tool | `query_spatial_memory()`, `recall_location()` (#86) | Open |
+| Expose EpisodeMemory as query tool | `get_episode_summary()`, `get_experiences()` (#86) | Open |
+| Migrate SpatialMemory to SDK | Standalone module in SDK (#85) | Open |
+| Tag action tools as terminal | Adapter base class detects action tools and stops the loop | Open |
+| Remove redundant code | Delete backends/ | **Done** (#80) |
 
 ### Phase 4: Polish and Launch
 
-| Step | Work | Effort |
+| Step | Work | Status |
 |------|------|--------|
-| Additional framework starters | OpenAI SDK, CrewAI (tutorials + adapters) | 2-3 days each |
-| Evaluation harness | Benchmark agents across frameworks | 3-5 days |
-| Community docs | Contribution guide for new framework starters | 1 day |
+| Additional framework starters | LangGraph (#84), OpenAI SDK | Open |
+| Evaluation harness | Benchmark agents across frameworks — refactor eval_agent.py to test adapters directly | Open |
+| Community docs | Contribution guide for new framework starters | Open |
+| Package SDK for pip | pyproject.toml (#79) | Open |
+| Episode lifecycle protocol | Start/end/restart/chaining (#81) | Open |
 
 ---
 
@@ -340,8 +348,8 @@ starters/
 2. Each framework starter teaches that framework's core concepts (tools, state, memory, prompting) through commented, tutorial-quality code
 3. Agent Arena's unique tools (spatial memory, episode memory, game queries) work with any framework
 4. The inspector shows game-side context that no framework provides, with links to framework traces
-5. The `python/backends/` directory is deleted — frameworks handle all LLM communication
-6. At least 2 framework starters with tutorial-quality documentation
+5. ~~The `python/backends/` directory is deleted — frameworks handle all LLM communication~~ **Done** (#80)
+6. At least 2 framework starters with tutorial-quality documentation (1/2 — Claude starter done)
 
 ---
 
