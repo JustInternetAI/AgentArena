@@ -1,0 +1,4 @@
+# LangGraph Agent Requirements
+agent-arena-sdk>=0.1.0
+langgraph>=0.2.0
+langchain-anthropic>=0.3.0

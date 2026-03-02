@@ -49,6 +49,7 @@ from agent_arena_sdk.testing import (
 # Each entry: (module_path_relative_to_starter_dir, class_name)
 ADAPTERS: dict[str, tuple[str, str]] = {
     "claude": ("claude.agent", "ClaudeAdapter"),
+    "langgraph": ("langgraph.agent", "LangGraphAdapter"),
     "beginner": ("beginner.agent", "Agent"),
     "intermediate": ("intermediate.agent", "Agent"),
     "llm": ("llm.agent", "Agent"),
@@ -92,7 +93,7 @@ def load_agent(adapter_name: str, model: str | None = None):
     # Instantiate with model if the adapter accepts it
     if adapter_name == "llm" and model:
         return cls(model_path=model)
-    elif adapter_name == "claude" and model:
+    elif adapter_name in ("claude", "langgraph") and model:
         return cls(model=model)
     else:
         return cls()
