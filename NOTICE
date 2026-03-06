@@ -18,5 +18,17 @@ This software is built on top of:
   Copyright (c) 2017-present Godot Engine contributors
   https://github.com/godotengine/godot-cpp
 
+- LangChain (MIT License)
+  Copyright (c) LangChain, Inc.
+  https://github.com/langchain-ai/langchain
+
+- LangGraph (MIT License)
+  Copyright (c) LangChain, Inc.
+  https://github.com/langchain-ai/langgraph
+
+- langchain-anthropic (MIT License)
+  Copyright (c) LangChain, Inc.
+  https://github.com/langchain-ai/langchain
+
 Third-party Python libraries and their licenses are listed in python/requirements.txt
 and are subject to their respective licenses.
